@@ -28,7 +28,7 @@ Or download the binary for your platform from the [latest release](https://githu
 ## Quickstart
 
 ```sh
-ski add anthropics/skills   # pick skills, review them, write ski-lock.json
+ski add mattpocock/skills   # pick skills, review them, write ski-lock.json
 ski install                 # restore every skill in ski-lock.json on a fresh checkout
 ski update                  # check upstream and review what changed
 ```

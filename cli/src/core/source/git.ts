@@ -34,7 +34,7 @@ export const git = async (
   return { code, out: buf.toString("utf8").trim(), buf, err };
 };
 
-const pendingClones = new Map<string, Promise<string>>();
+const clones = new Map<string, Promise<string>>();
 
 const AUTH_REMEDY = "Private repos need an ssh key or a git credential helper that can read them.";
 const NOT_FOUND_REMEDY =
@@ -56,12 +56,13 @@ export const gitReason = (result: Pick<GitResult, "err">): string => {
 };
 
 export const ensureClone = (repo: string): Promise<string> => {
-  let pending = pendingClones.get(repo);
-  if (!pending) {
-    pending = cloneOrFetch(repo).finally(() => pendingClones.delete(repo));
-    pendingClones.set(repo, pending);
+  let clone = clones.get(repo);
+  if (!clone) {
+    clone = cloneOrFetch(repo);
+    clones.set(repo, clone);
+    clone.catch(() => clones.delete(repo));
   }
-  return pending;
+  return clone;
 };
 
 export const sshAlternate = (repo: string): string | null => {
@@ -90,7 +91,7 @@ const cloneTo = async (repo: string, dest: string): Promise<GitResult> => {
   return sshAttempt.code === 0 ? sshAttempt : httpsAttempt;
 };
 
-const cloneOrFetch = async (repo: string): Promise<string> => {
+export const cloneOrFetch = async (repo: string): Promise<string> => {
   const dir = join(cacheDir(), "repos", repo.replace(/[^a-zA-Z0-9]/gu, "_"));
   if (existsSync(dir)) {
     const fetched = await git(["fetch", "--quiet", "--prune", "--tags", "--force", "origin"], dir);

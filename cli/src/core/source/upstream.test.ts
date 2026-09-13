@@ -6,7 +6,7 @@ import { $ } from "bun";
 import type { InstalledSkill } from "../install/destination.ts";
 import { computeVerdicts, selectUpdates, type OutdatedVerdict } from "./upstream.ts";
 import { integrityOf } from "../skill/integrity.ts";
-import { ensureClone } from "./git.ts";
+import { cloneOrFetch } from "./git.ts";
 import { storeEntryPath } from "../install/store.ts";
 import { skillPath } from "../install/link.ts";
 import { applySkill } from "../install/apply.ts";
@@ -57,6 +57,7 @@ beforeAll(async () => {
   await rm(join(upstream, "skills", "demo", "extra.md"));
   await writeFile(join(upstream, "skills", "demo", "new.md"), "new\n");
   v2 = await commitAll("v2");
+  await cloneOrFetch(upstream);
 });
 
 afterAll(async () => {
@@ -153,17 +154,15 @@ test("a git entry missing its commit or branch is an error, not a crash", async 
 });
 
 test("track auto tracks the latest semver tag, not branch HEAD", async () => {
-  const clone = await ensureClone(upstream);
-
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.1.0 ${v1}`.quiet();
-  await $`git -C ${clone} fetch --quiet --prune --tags --force origin`.quiet();
+  await cloneOrFetch(upstream);
   let [verdict] = await computeVerdicts([skill]);
   expect(verdict!.upstream.commit).toBe(v1);
   expect(verdict!.upstream.tag).toBe("v0.1.0");
   expect(verdict!.kind).toBe("up-to-date");
 
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.2.0 ${v2}`.quiet();
-  await $`git -C ${clone} fetch --quiet --prune --tags --force origin`.quiet();
+  await cloneOrFetch(upstream);
   [verdict] = await computeVerdicts([skill]);
   expect(verdict!.upstream.commit).toBe(v2);
   expect(verdict!.upstream.tag).toBe("v0.2.0");
@@ -180,6 +179,7 @@ test("a pinned skill needs a name", async () => {
 
 test("a rewritten pinned tag never auto-updates", async () => {
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag -f pinned-tag ${v2}`.quiet();
+  await cloneOrFetch(upstream);
   const pinned = { ...skill, track: "pin" as const, pinnedAs: "pinned-tag" };
   const [verdict] = await computeVerdicts([pinned], [skill.name]);
   expect(verdict).toMatchObject({
@@ -194,6 +194,7 @@ test("moved without outdated is a bump", async () => {
   await writeFile(join(upstream, "README.md"), "release-only\n");
   const v3 = await commitAll("release-only");
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.3.0 ${v3}`.quiet();
+  await cloneOrFetch(upstream);
   const [verdict] = await computeVerdicts([{ ...skill, commit: v2 }]);
   expect(verdict!.kind).toBe("moved");
 });
@@ -203,6 +204,7 @@ test("a rewritten pinned ref wins over a removed skill", async () => {
   const v4 = await commitAll("removed");
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.4.0 ${v4}`.quiet();
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag -f pinned-tag ${v4}`.quiet();
+  await cloneOrFetch(upstream);
   const pinned = { ...skill, track: "pin" as const, pinnedAs: "pinned-tag" };
   const [verdict] = await computeVerdicts([pinned]);
   expect(verdict).toMatchObject({ kind: "rewritten", expected: v1, actual: v4 });

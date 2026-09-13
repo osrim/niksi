@@ -125,6 +125,8 @@ Path copies show their project-relative destination. `list` does not use the net
 
 Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`.
 
+For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `ski` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
+
 ## Flags
 
 | flag | commands | effect |

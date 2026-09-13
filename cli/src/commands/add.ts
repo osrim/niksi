@@ -5,7 +5,7 @@ import { addDestination } from "../core/install/destination.ts";
 import { normalizeCopyPath } from "../core/install/path-copy.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
-import { readLock, type Lockfile } from "../core/install/lockfile.ts";
+import { loadLock, type Lockfile } from "../core/install/lockfile.ts";
 import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
 import {
@@ -111,11 +111,11 @@ export const run = async (
   });
   const scopedSource = source.forScope(scope);
 
-  const lock = await readLock(scope);
+  const loaded = await loadLock(scope);
   const picked = await pickSkillsToAdd({
     skills,
     names,
-    lock,
+    lock: loaded.lock,
     scope,
     agents,
     source: scopedSource,
@@ -131,7 +131,7 @@ export const run = async (
     source: scopedSource,
     rev: rev.commit,
     skills,
-    lock,
+    lock: loaded.lock,
     scope,
     options,
   };
@@ -161,7 +161,7 @@ export const run = async (
     scope,
     agents,
     copyPath,
-    lock,
+    lock: loaded.lock,
     copy,
     mode,
   };
@@ -171,7 +171,7 @@ export const run = async (
     apply: (item) =>
       "files" in item ? addSkill(item.skill, item.files, context) : extendSkill(item, context),
     scope,
-    lock,
+    lock: loaded,
     outro: (added) => `Added ${added} skill(s). ${scope}: ${copyPath ?? agents.join(", ")}.`,
   });
 };

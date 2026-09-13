@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { Source } from "../core/source/index.ts";
 import type { SkillFile } from "../core/skill/files.ts";
-import { writeLock, type Lockfile } from "../core/install/lockfile.ts";
+import { writeLock, type LoadedLockfile } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { failNoTTY, isInteractive, unwrap, withSpinner } from "./prompt.ts";
 import { logSkillError } from "./report.ts";
@@ -53,7 +53,7 @@ interface Landing<T> {
   onError?: (item: T, error: unknown) => void;
   spinner?: (item: T) => string | null;
   scope: Scope;
-  lock: Lockfile | null;
+  lock: LoadedLockfile | null;
   outro?: (applied: number) => string;
 }
 
@@ -94,7 +94,7 @@ export const land = async <T>({
     }
   }
   if (failed > 0) process.exitCode = process.exitCode === 3 ? 3 : 1;
-  if (lock) await writeLock(scope, lock);
+  if (lock) await writeLock(lock);
   await hideLinksFromGit(scope);
   if (outro) p.outro(outro(applied));
   return applied;

@@ -1,5 +1,5 @@
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { readLock } from "../core/install/lockfile.ts";
+import { loadLock } from "../core/install/lockfile.ts";
 import {
   installedSkills,
   locationAgents,
@@ -29,13 +29,13 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
   intro("ski remove");
   const scope = resolveScope(options, promptWarn) ?? "project";
 
-  const lock = await readLock(scope);
-  const installed = Object.keys(lock.skills).toSorted();
+  const loaded = await loadLock(scope);
+  const installed = Object.keys(loaded.lock.skills).toSorted();
   if (installed.length === 0) {
     outro(await emptyScopeMessage(scope));
     return;
   }
-  const locations = await locationsOf(installedSkills(lock), scope);
+  const locations = await locationsOf(installedSkills(loaded.lock), scope);
 
   const unknown = names.filter((name) => !installed.includes(name));
   if (unknown.length > 0) {
@@ -45,7 +45,7 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
   let selection = names;
   if (selection.length === 0 && options.all) selection = installed;
   if (selection.length === 0) {
-    selection = await pickToRemove(installed, lock, locations);
+    selection = await pickToRemove(installed, loaded.lock, locations);
   }
   if (selection.length === 0) {
     outro("Nothing selected.");
@@ -72,12 +72,12 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
     apply: async (name) => {
       const location = locations.get(name)!;
       await removeInstalledSkill(name, scope, location);
-      delete lock.skills[name];
+      delete loaded.lock.skills[name];
       const from = locationDisplayPath(name, location);
       return { success: from ? `removed from ${from}` : "removed" };
     },
     scope,
-    lock,
+    lock: loaded,
     outro: (removed) => `Removed ${removed} skill(s). Scope: ${scope}.`,
   });
 };

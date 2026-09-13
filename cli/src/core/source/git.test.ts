@@ -154,6 +154,13 @@ test("tree operations preserve paths, modes, contents, and subtree identity", as
   expect(await subtreeOid(clone, firstSha, "missing")).toBeNull();
 });
 
+test("readBlob rejects a missing path instead of returning empty content", async () => {
+  const clone = await ensureClone(remote);
+  await expect(readBlob(clone, `${firstSha}:missing`)).rejects.toThrow(
+    `cannot read ${firstSha}:missing`,
+  );
+});
+
 test("refs resolve branches, lightweight tags, annotated tags, and commits", async () => {
   const clone = await ensureClone(remote);
   expect(await findRef(clone, "main")).toBe(firstSha);

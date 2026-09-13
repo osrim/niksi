@@ -1,7 +1,6 @@
 import { mkdir, rm, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { $ } from "bun";
 import { cacheDir } from "../paths.ts";
 
 interface GitResult {
@@ -17,18 +16,22 @@ export const git = async (
   env?: Record<string, string>,
 ): Promise<GitResult> => {
   const full = cwd ? ["git", "-C", cwd, ...args] : ["git", ...args];
-  // Prevent Git from waiting for credentials during non-interactive runs.
-  const result = await $`${full}`
-    .env({ ...process.env, GIT_TERMINAL_PROMPT: "0", ...env })
-    .nothrow()
-    .quiet();
-  const buf = result.stdout as Buffer;
-  return {
-    code: result.exitCode,
-    out: buf.toString("utf8").trim(),
-    buf,
-    err: (result.stderr as Buffer).toString("utf8"),
-  };
+  // Bun.spawn, not Bun.$: the shell's captured promise can stay pending after the child exits
+  // (oven-sh/bun#26580).
+  const child = Bun.spawn(full, {
+    // Prevent Git from waiting for credentials during non-interactive runs.
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
+    stdin: "inherit",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, err, code] = await Promise.all([
+    new Response(child.stdout).arrayBuffer(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  const buf = Buffer.from(stdout);
+  return { code, out: buf.toString("utf8").trim(), buf, err };
 };
 
 const pendingClones = new Map<string, Promise<string>>();
@@ -212,5 +215,8 @@ export const diffSubtree = async (
   return result.code === 0 ? result.buf.toString("utf8") : "";
 };
 
-export const readBlob = async (clone: string, revspec: string): Promise<Buffer> =>
-  (await git(["show", revspec], clone)).buf;
+export const readBlob = async (clone: string, revspec: string): Promise<Buffer> => {
+  const result = await git(["show", revspec], clone);
+  if (result.code !== 0) throw new Error(`cannot read ${revspec}${gitReason(result)}`);
+  return result.buf;
+};

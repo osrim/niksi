@@ -89,6 +89,13 @@ test("fetches a batch of many skills from one partial clone", async () => {
   expect((await git(["config", "remote.origin.promisor"], clone)).out).toBe("true");
 
   const rev = await source.resolve();
+  const commit = rev.commit!;
+  const bigOid = (await git(["ls-tree", commit, "skills/skill-00/big.bin"], clone)).out.split(
+    /\s+/u,
+  )[2]!;
+  const missing = (await git(["rev-list", "--objects", "--missing=print", commit], clone)).out;
+  expect(missing).toContain(`?${bigOid}`);
+
   const skills = await source.discover(rev.commit);
   expect(skills.map((skill) => skill.name)).toEqual(names);
 

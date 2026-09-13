@@ -69,6 +69,13 @@ export const applySkill = async (
     }
   } else {
     const managed = destination.kind === "agent-copy" ? destination.managed : [];
+    if (
+      destination.kind === "agent-copy" &&
+      managed.length === 0 &&
+      destination.agents.length === 0
+    ) {
+      throw new Error("An agent copy must name at least one agent.");
+    }
     await refuseAgentTargets(plan.name, destination.scope, destination.agents, managed);
   }
 

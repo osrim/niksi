@@ -161,7 +161,7 @@ export const parseLock = (text: string, file: string): Lockfile => {
     const issue = parsed.error.issues[0]!;
     if (issue.code === "invalid_key") {
       const name = JSON.stringify(issue.path[1]);
-      throw new Error(`${file}: invalid skill name ${name}`, { cause: parsed.error });
+      throw new Error(`${file}: ${name}: invalid skill name`, { cause: parsed.error });
     }
     const where = issue.path[0] === "skills" ? `${String(issue.path[1])}: ` : "";
     throw new Error(`${file}: ${where}${issue.message}`, { cause: parsed.error });

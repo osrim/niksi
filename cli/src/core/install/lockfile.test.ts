@@ -353,12 +353,12 @@ test("projectRoot falls back to cwd when nothing is found", async () => {
 test("parse errors: unsafe skill names and inconsistent copy configuration", () => {
   const lock = (name: string, extra = ""): string =>
     `{"lockfileVersion":1,"skills":{${JSON.stringify(name)}:{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
-  expect(() => parseLock(lock(""), "f")).toThrow('f: invalid skill name ""');
-  expect(() => parseLock(lock("."), "f")).toThrow('f: invalid skill name "."');
-  expect(() => parseLock(lock(".."), "f")).toThrow('f: invalid skill name ".."');
-  expect(() => parseLock(lock("a/b"), "f")).toThrow('f: invalid skill name "a/b"');
-  expect(() => parseLock(lock("a\\b"), "f")).toThrow('f: invalid skill name "a\\\\b"');
-  expect(() => parseLock(lock("../x"), "f")).toThrow('f: invalid skill name "../x"');
+  expect(() => parseLock(lock(""), "f")).toThrow('f: "": invalid skill name');
+  expect(() => parseLock(lock("."), "f")).toThrow('f: ".": invalid skill name');
+  expect(() => parseLock(lock(".."), "f")).toThrow('f: "..": invalid skill name');
+  expect(() => parseLock(lock("a/b"), "f")).toThrow('f: "a/b": invalid skill name');
+  expect(() => parseLock(lock("a\\b"), "f")).toThrow('f: "a\\\\b": invalid skill name');
+  expect(() => parseLock(lock("../x"), "f")).toThrow('f: "../x": invalid skill name');
   expect(() => parseLock(lock("a", ',"copy":true,"agents":[]'), "f")).toThrow(
     "f: a: agents must name at least one agent",
   );

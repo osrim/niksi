@@ -69,3 +69,13 @@ Paint through `ui/style.ts` only. It resolves `NO_COLOR`, `FORCE_COLOR`, `TERM=d
 Tables have no borders. Group rows by source and indent skill rows by two spaces. Measure rendered width with `Bun.stringWidth`.
 
 One spinner covers one wait. Its final line states the result. Spinners do not nest.
+
+## Lockfile errors
+
+A lockfile error is `file: name: message`, where `name` is the skill name of the lockfile entry. An invalid skill name is JSON-quoted so an empty or slash-containing name stays visible. File-level errors have no name.
+
+```text
+ski-lock.json: grilling: missing integrity
+ski-lock.json: "": invalid skill name
+ski-lock.json: unsupported lockfile version 9
+```

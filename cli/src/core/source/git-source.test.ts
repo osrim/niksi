@@ -74,3 +74,15 @@ test("a read without a commit fails instead of standing in for a revision", asyn
   await expect(source.discover(undefined)).rejects.toThrow(NO_COMMIT);
   await expect(source.fetchFiles(undefined, "pstack/skills/tdd")).rejects.toThrow(NO_COMMIT);
 });
+
+test("a source fetched once in a run is reused by later calls and other instances", async () => {
+  const source = new GitSource(repo);
+  const rev = await source.resolve("main");
+  await source.discover(rev.commit, "pstack");
+  await writeFile(join(repo, "pstack", "skills", "tdd", "notes.md"), "later\n");
+  await $`git -C ${repo} add -A`.quiet();
+  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=t@t -c user.name=t commit -q -m later`.quiet();
+
+  expect((await source.resolve("main")).commit).toBe(rev.commit!);
+  expect((await new GitSource(repo).resolve("main")).commit).toBe(rev.commit!);
+});

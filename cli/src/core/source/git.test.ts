@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK } from "../skill/files.ts";
 import {
+  cloneOrFetch,
   defaultBranch,
   diffSubtree,
   ensureClone,
@@ -98,43 +99,50 @@ test("git captures stdout, binary output, and failures", async () => {
   expect(failure.err).toContain("unknown revision");
 });
 
-test("ensureClone shares concurrent work and fetches later changes", async () => {
+test("ensureClone fetches a source once per run and shares the clone with every caller", async () => {
   const first = ensureClone(remote);
   expect(ensureClone(remote)).toBe(first);
   const clone = await first;
   expect(clone).toStartWith(join(process.env.XDG_CACHE_HOME!, "ski", "repos"));
   expect(await headCommit(clone, "main")).toBe(firstSha);
 
-  const secondSha = await addSecondCommit();
+  await addSecondCommit();
   expect(await ensureClone(remote)).toBe(clone);
+  expect(await headCommit(clone, "main")).toBe(firstSha);
+});
+
+test("cloneOrFetch brings later changes into the cached clone", async () => {
+  const clone = await cloneOrFetch(remote);
+  const secondSha = await addSecondCommit();
+  expect(await cloneOrFetch(remote)).toBe(clone);
   expect(await headCommit(clone, "main")).toBe(secondSha);
 });
 
 test("a failed fetch replaces the cached clone from the source repository", async () => {
-  const clone = await ensureClone(remote);
+  const clone = await cloneOrFetch(remote);
   await git(["remote", "set-url", "origin", join(tmp, "missing.git")], clone);
 
-  expect(await ensureClone(remote)).toBe(clone);
+  expect(await cloneOrFetch(remote)).toBe(clone);
   expect(await headCommit(clone, "main")).toBe(firstSha);
   expect((await git(["remote", "get-url", "origin"], clone)).out).toBe(remote);
 });
 
 test("a failed replacement preserves the last cached clone and permits a retry", async () => {
-  const clone = await ensureClone(remote);
+  const clone = await cloneOrFetch(remote);
   await git(["remote", "set-url", "origin", join(tmp, "missing.git")], clone);
   const unavailable = `${remote}.unavailable`;
   await rename(remote, unavailable);
 
-  expect(ensureClone(remote)).rejects.toThrow(`cannot reach ${remote}`);
+  await expect(cloneOrFetch(remote)).rejects.toThrow(`cannot reach ${remote}`);
   expect(await headCommit(clone, "main")).toBe(firstSha);
 
   await rename(unavailable, remote);
-  expect(await ensureClone(remote)).toBe(clone);
+  expect(await cloneOrFetch(remote)).toBe(clone);
 });
 
 test("a rejected initial clone can be retried after the repository appears", async () => {
   const lateRemote = join(tmp, "late.git");
-  expect(ensureClone(lateRemote)).rejects.toThrow(`cannot reach ${lateRemote}`);
+  await expect(ensureClone(lateRemote)).rejects.toThrow(`cannot reach ${lateRemote}`);
   await $`git init -q --bare --object-format=sha1 --initial-branch=main ${lateRemote}`.quiet();
   expect(await ensureClone(lateRemote)).toStartWith(
     join(process.env.XDG_CACHE_HOME!, "ski", "repos"),
@@ -194,7 +202,7 @@ test("defaultBranch reports an ls-remote failure", async () => {
 test("diff operations report fixture changes at the repo and subtree levels", async () => {
   const clone = await ensureClone(remote);
   const secondSha = await addSecondCommit();
-  await ensureClone(remote);
+  await cloneOrFetch(remote);
   const diff = await diffSubtree(clone, firstSha, secondSha, "skills/demo");
   expect(diff).toContain("-first");
   expect(diff).toContain("+second");
@@ -226,12 +234,12 @@ test("an unreachable https clone falls back to the ssh address", async () => {
     process.env.GIT_CONFIG_GLOBAL!,
     `[url "${remote}"]\n\tinsteadOf = git@ski-test.invalid:demo\n`,
   );
-  const clone = await ensureClone("https://ski-test.invalid/demo");
+  const clone = await cloneOrFetch("https://ski-test.invalid/demo");
   expect(await headCommit(clone, "main")).toBe(firstSha);
 }, 30_000);
 
 test("a failure on both addresses reports the https attempt the user named", async () => {
-  await expect(ensureClone("https://ski-test.invalid/demo")).rejects.toThrow(
+  await expect(cloneOrFetch("https://ski-test.invalid/demo")).rejects.toThrow(
     /cannot reach https:\/\/ski-test\.invalid\/demo \(.*ski-test\.invalid/u,
   );
 }, 30_000);

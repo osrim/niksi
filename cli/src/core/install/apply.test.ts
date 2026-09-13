@@ -452,6 +452,23 @@ test("a copy entry keeps naming the managed agents this write did not touch", as
   expect(lock.skills["kept"]!.agents).toEqual(["claude", "universal"]);
 });
 
+test("an agent copy with no agents to write or keep throws before anything changes", async () => {
+  const lock = emptyLock();
+  await expect(
+    applySkill(
+      {
+        name: "nobody",
+        source: "https://github.com/o/r",
+        path: "",
+        revision,
+        files: () => Promise.reject(new Error("must not fetch")),
+      },
+      { kind: "agent-copy", scope: "global", agents: [], lock, managed: [] },
+    ),
+  ).rejects.toThrow("An agent copy must name at least one agent.");
+  expect(lock.skills).toEqual({});
+});
+
 test("a matching store entry is installed without fetching", async () => {
   await materialize("https://github.com/o/r", "cached", files);
   const { restored } = await applySkill(

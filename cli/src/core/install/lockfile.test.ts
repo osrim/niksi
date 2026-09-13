@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdtemp, realpath, rm, readFile, writeFile, mkdir, symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   emptyLock,
   isApproved,
+  loadLock,
   parseLock,
   placementOf,
   readLock,
@@ -57,8 +59,103 @@ const inDir = async <T>(dir: string, fn: () => T | Promise<T>): Promise<T> => {
   }
 };
 
+const writeGlobal = (lock: Lockfile): Promise<void> =>
+  writeLock({ scope: "global", file: lockPath("global"), lock });
+
+interface XdgLockPaths {
+  config: string;
+  legacy: string;
+}
+
+const withXdgRoots = async <T>(
+  name: string,
+  fn: (paths: XdgLockPaths) => T | Promise<T>,
+): Promise<T> => {
+  const restore = captureEnv("SKI_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME");
+  const root = join(tmp, name);
+  delete process.env.SKI_HOME;
+  process.env.XDG_CONFIG_HOME = join(root, "config");
+  process.env.XDG_DATA_HOME = join(root, "data");
+  try {
+    return await fn({
+      config: join(root, "config", "ski", "ski-lock.json"),
+      legacy: join(root, "data", "ski", "ski-lock.json"),
+    });
+  } finally {
+    restore();
+  }
+};
+
 test("missing lockfile reads as empty", async () => {
   expect(await readLock("global")).toEqual(emptyLock());
+});
+
+test("a legacy global lockfile remains the read and write target", async () => {
+  await withXdgRoots("legacy", async ({ config, legacy }) => {
+    await mkdir(dirname(legacy), { recursive: true });
+    await writeFile(legacy, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
+
+    const loaded = await loadLock("global");
+    expect(loaded.file).toBe(legacy);
+    expect(loaded.lock.skills["tdd"]).toEqual(entry);
+    loaded.lock.skills["mine"] = local;
+    await writeLock(loaded);
+
+    expect(await readFile(legacy, "utf8")).toContain('"mine"');
+    expect(existsSync(config)).toBe(false);
+  });
+});
+
+test("a new global lockfile is created at the config path", async () => {
+  await withXdgRoots("new", async ({ config, legacy }) => {
+    const loaded = await loadLock("global");
+    expect(loaded.file).toBe(config);
+    loaded.lock.skills["tdd"] = entry;
+    await writeLock(loaded);
+
+    expect(existsSync(config)).toBe(true);
+    expect(existsSync(legacy)).toBe(false);
+  });
+});
+
+test("an existing config-path global lockfile is loaded", async () => {
+  await withXdgRoots("config", async ({ config }) => {
+    await mkdir(dirname(config), { recursive: true });
+    await writeFile(config, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
+
+    const loaded = await loadLock("global");
+    expect(loaded.file).toBe(config);
+    expect(loaded.lock.skills["tdd"]).toEqual(entry);
+  });
+});
+
+test("the config-path global lockfile wins when both paths exist", async () => {
+  await withXdgRoots("both", async ({ config, legacy }) => {
+    await mkdir(dirname(config), { recursive: true });
+    await mkdir(dirname(legacy), { recursive: true });
+    await writeFile(config, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
+    await writeFile(legacy, serializeLock({ lockfileVersion: 1, skills: { mine: local } }));
+
+    const loaded = await loadLock("global");
+    expect(loaded.file).toBe(config);
+    expect(Object.keys(loaded.lock.skills)).toEqual(["tdd"]);
+  });
+});
+
+test("global parse errors name the lockfile selected by precedence", async () => {
+  await withXdgRoots("legacy-error", async ({ legacy }) => {
+    await mkdir(dirname(legacy), { recursive: true });
+    await writeFile(legacy, "not json");
+    await expect(loadLock("global")).rejects.toThrow(`${legacy}:`);
+  });
+
+  await withXdgRoots("config-error", async ({ config, legacy }) => {
+    await mkdir(dirname(config), { recursive: true });
+    await mkdir(dirname(legacy), { recursive: true });
+    await writeFile(config, "not json");
+    await writeFile(legacy, serializeLock(emptyLock()));
+    await expect(loadLock("global")).rejects.toThrow(`${config}:`);
+  });
 });
 
 test("roundtrip preserves entries; entries are sorted by name; keys in entry order", async () => {
@@ -71,7 +168,7 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
       mine: local,
     },
   };
-  await writeLock("global", lock);
+  await writeGlobal(lock);
   expect(await readLock("global")).toEqual(lock);
 
   const raw = await readFile(lockPath("global"), "utf8");
@@ -128,7 +225,7 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
 
 test("a copy entry keeps copy and agents through a round trip, in the documented key order", async () => {
   const copy = { ...entry, copy: true as const, agents: ["claude", "universal"] as const };
-  await writeLock("global", {
+  await writeGlobal({
     lockfileVersion: 1,
     skills: { tdd: { ...copy, agents: [...copy.agents] } },
   });
@@ -146,7 +243,7 @@ test("a copy entry keeps copy and agents through a round trip, in the documented
     "copy",
     "agents",
   ]);
-  await writeLock("global", { lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
   expect(await readFile(lockPath("global"), "utf8")).not.toContain("copy");
 });
 
@@ -193,7 +290,7 @@ test("isApproved matches only the exact (source, path, integrity) entry; the com
 
 test("isApproved does not see a entry from the other scope", async () => {
   const at = { source: entry.source, path: entry.path, integrity };
-  await writeLock("global", { lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
   expect(isApproved(await readLock("global"), "tdd", at)).toBe(true);
 
   const dir = join(tmp, "scoped");
@@ -332,7 +429,7 @@ test("a lockfile carrying installedAt loads without it and re-serializes without
 
 test("readLock rejects path copies in global scope and symlink escapes in project scope", async () => {
   const pathEntry = { ...entry, copy: true as const, copyPath: "published" };
-  await writeLock("global", { lockfileVersion: 1, skills: { demo: pathEntry } });
+  await writeGlobal({ lockfileVersion: 1, skills: { demo: pathEntry } });
   await expect(readLock("global")).rejects.toThrow("path copies require project scope");
 
   const root = join(tmp, "unsafe-lock-project");

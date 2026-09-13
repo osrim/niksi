@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { $ } from "bun";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
-import { emptyLock, readLock } from "../core/install/lockfile.ts";
+import { loadLock, readLock } from "../core/install/lockfile.ts";
 import { ensureClone, git } from "../core/source/git.ts";
 import { GitSource } from "../core/source/git-source.ts";
 import { fetchSkillFiles, land } from "./flow.ts";
@@ -39,13 +39,13 @@ test("lands later items after a failure, writes the lock, and hides links", asyn
   await writeCanonical("works", files, "project");
   await linkSkill("works", "project", "claude");
 
-  const lock = emptyLock();
+  const loaded = await loadLock("project");
   await land({
     items: ["fails", "works"],
     name: (item) => item,
     apply: (item) => {
       if (item === "fails") return Promise.reject(new Error("nope"));
-      lock.skills[item] = {
+      loaded.lock.skills[item] = {
         source: "local:demo",
         path: "",
         integrity: "sha256-qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=",
@@ -54,11 +54,11 @@ test("lands later items after a failure, writes the lock, and hides links", asyn
       return Promise.resolve({ success: "worked" });
     },
     scope: "project",
-    lock,
+    lock: loaded,
   });
 
   expect(process.exitCode).toBe(1);
-  expect((await readLock("project")).skills).toEqual(lock.skills);
+  expect((await readLock("project")).skills).toEqual(loaded.lock.skills);
   expect(await readFile(join(root, ".git", "info", "exclude"), "utf8")).toContain(
     ".claude/skills/works",
   );

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { syncExcludes } from "./exclude.ts";
 import { copySkill, linkSkill, removeCanonical, writeCanonical } from "./link.ts";
-import { readLock, writeLock, type LockEntry } from "./lockfile.ts";
+import { loadLock, writeLock, type LockEntry } from "./lockfile.ts";
 import { git } from "../source/git.ts";
 import type { SkillFile } from "../skill/files.ts";
 
@@ -35,9 +35,9 @@ const entry = (copy = false): LockEntry => ({
 const link = async (name: string): Promise<void> => {
   await writeCanonical(name, files, "project");
   await linkSkill(name, "project", "claude");
-  const lock = await readLock("project");
-  lock.skills[name] = entry();
-  await writeLock("project", lock);
+  const loaded = await loadLock("project");
+  loaded.lock.skills[name] = entry();
+  await writeLock(loaded);
 };
 
 const readExclude = (root: string): Promise<string> =>
@@ -123,9 +123,9 @@ test("only link entries are listed, never a unmanaged link, a copy entry, or an 
   await copySkill("copied", files, "project", "claude", false);
   await copySkill("copied", files, "project", "universal", false);
   await mkdir(join(root, ".agents", "skills", "unlocked"), { recursive: true });
-  const lock = await readLock("project");
-  lock.skills["copied"] = entry(true);
-  await writeLock("project", lock);
+  const loaded = await loadLock("project");
+  loaded.lock.skills["copied"] = entry(true);
+  await writeLock(loaded);
   expect((await syncExcludes()).patterns).toEqual([".claude/skills/demo"]);
 });
 

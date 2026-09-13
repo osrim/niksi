@@ -7,6 +7,7 @@ import {
   configDir,
   dataDir,
   envPath,
+  legacyLockPath,
   lockPath,
   storeDir,
   userHome,
@@ -45,9 +46,22 @@ test("each XDG variable moves its own root", () => {
   expect(cacheDir()).toBe("/xdg/cache/ski");
 });
 
-test("the store and the global lockfile live under the data root", () => {
+test("the store stays under the data root and the global lockfile uses config", () => {
   expect(storeDir()).toBe("/fixture/home/.local/share/ski/store");
-  expect(lockPath("global")).toBe("/fixture/home/.local/share/ski/ski-lock.json");
+  expect(lockPath("global")).toBe("/fixture/home/.config/ski/ski-lock.json");
+  expect(legacyLockPath()).toBe("/fixture/home/.local/share/ski/ski-lock.json");
+});
+
+test("XDG_CONFIG_HOME moves the global lockfile without moving the store", () => {
+  process.env.XDG_CONFIG_HOME = "/xdg/config";
+  expect(lockPath("global")).toBe("/xdg/config/ski/ski-lock.json");
+  expect(storeDir()).toBe("/fixture/home/.local/share/ski/store");
+});
+
+test("the project lockfile stays at the project root", () => {
+  const project = lockPath("project");
+  process.env.XDG_CONFIG_HOME = "/xdg/config";
+  expect(lockPath("project")).toBe(project);
 });
 
 test("SKI_HOME replaces the data and config roots at once", () => {
@@ -58,6 +72,7 @@ test("SKI_HOME replaces the data and config roots at once", () => {
   expect(configDir()).toBe("/opt/ski");
   expect(storeDir()).toBe("/opt/ski/store");
   expect(lockPath("global")).toBe("/opt/ski/ski-lock.json");
+  expect(legacyLockPath()).toBe("/opt/ski/ski-lock.json");
 });
 
 test("an empty variable falls back", () => {

@@ -3,7 +3,7 @@ import { dirname, posix, win32 } from "node:path";
 import writeFileAtomic from "write-file-atomic";
 import { z } from "zod";
 import { AGENT_IDS, type AgentId } from "./agents.ts";
-import { lockPath, type Scope } from "../paths.ts";
+import { effectiveLockPath, type Scope } from "../paths.ts";
 import { pathCopyTarget } from "./path-copy.ts";
 
 export interface LockEntry {
@@ -23,6 +23,12 @@ export interface LockEntry {
 export interface Lockfile {
   lockfileVersion: 1;
   skills: Record<string, LockEntry>;
+}
+
+export interface LoadedLockfile {
+  scope: Scope;
+  file: string;
+  lock: Lockfile;
 }
 
 export type Placement =
@@ -179,8 +185,7 @@ export const parseLock = (text: string, file: string): Lockfile => {
   return { lockfileVersion: 1, skills };
 };
 
-export const readLock = async (scope: Scope): Promise<Lockfile> => {
-  const file = lockPath(scope);
+const readLockFile = async (scope: Scope, file: string): Promise<Lockfile> => {
   try {
     const lock = parseLock(await readFile(file, "utf8"), file);
     for (const [name, entry] of Object.entries(lock.skills)) {
@@ -199,8 +204,15 @@ export const readLock = async (scope: Scope): Promise<Lockfile> => {
   }
 };
 
-export const writeLock = async (scope: Scope, lock: Lockfile): Promise<void> => {
-  const file = lockPath(scope);
+export const readLock = (scope: Scope): Promise<Lockfile> =>
+  readLockFile(scope, effectiveLockPath(scope));
+
+export const loadLock = async (scope: Scope): Promise<LoadedLockfile> => {
+  const file = effectiveLockPath(scope);
+  return { scope, file, lock: await readLockFile(scope, file) };
+};
+
+export const writeLock = async ({ file, lock }: LoadedLockfile): Promise<void> => {
   await mkdir(dirname(file), { recursive: true });
   await writeFileAtomic(file, serializeLock(lock));
 };

@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import { applySkill, type Destination } from "../core/install/apply.ts";
-import { readLock, type Lockfile } from "../core/install/lockfile.ts";
+import { loadLock, type LoadedLockfile, type Lockfile } from "../core/install/lockfile.ts";
 import {
   installedPath,
   installedSkills,
@@ -48,8 +48,8 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   p.intro("ski update");
   const scope = resolveScope(options, p.log.warn) ?? "project";
 
-  const lock = await readLock(scope);
-  const skills = installedSkills(lock);
+  const loaded = await loadLock(scope);
+  const skills = installedSkills(loaded.lock);
   if (skills.length === 0) {
     p.outro(await emptyScopeMessage(scope));
     return;
@@ -78,10 +78,10 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   const { moved, outdated } = reportVerdicts(verdicts, names, scope);
 
   const destinationOf = (skill: InstalledSkill): Promise<Destination> =>
-    destinationFor(skill, scope, lock);
+    destinationFor(skill, scope, loaded.lock);
 
   if (outdated.length === 0) {
-    return landUpdates(moved, [], destinationOf, scope, lock, "Nothing to update.");
+    return landUpdates(moved, [], destinationOf, loaded, "Nothing to update.");
   }
 
   const movedNames = new Set(moved.map((verdict) => verdict.skill.name));
@@ -96,25 +96,25 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
     selected = selectUpdates(outdated, picked, false).selected;
   }
   if (selected.length === 0) {
-    return landUpdates(moved, [], destinationOf, scope, lock, "Nothing selected.");
+    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
   }
 
   logSourceCaution();
   const approved = await previewAndReview(selected, scope, options);
   if (approved.length === 0) {
-    return landUpdates(moved, [], destinationOf, scope, lock, "Nothing selected.");
+    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
   }
-  await reportUpdateDeps(approved, lock, scope);
+  await reportUpdateDeps(approved, loaded.lock, scope);
 
   const proceed = await confirm(
     `Update ${approved.map((item) => skillName(item.verdict.skill.name)).join(", ")} (${scope})?`,
     { yes: options.yes, command: "update" },
   );
   if (!proceed) {
-    return landUpdates(moved, [], destinationOf, scope, lock, "Nothing selected.");
+    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
   }
 
-  await landUpdates(moved, approved, destinationOf, scope, lock, "Nothing selected.");
+  await landUpdates(moved, approved, destinationOf, loaded, "Nothing selected.");
 };
 
 type DestinationOf = (skill: InstalledSkill) => Promise<Destination>;
@@ -139,8 +139,7 @@ const landUpdates = async (
   moved: MovedVerdict[],
   approved: UpdatedFiles[],
   destinationOf: DestinationOf,
-  scope: Scope,
-  lock: Lockfile,
+  loaded: LoadedLockfile,
   nothing: string,
 ): Promise<void> => {
   const items: UpdateAction[] = [
@@ -163,9 +162,9 @@ const landUpdates = async (
       item.kind === "moved"
         ? `Recording ${skillName(item.verdict.skill.name)} at ${displayLabel(item.verdict.upstream)}`
         : null,
-    scope,
-    lock,
-    outro: (updated) => `Updated ${updated} skill(s). Scope: ${scope}.`,
+    scope: loaded.scope,
+    lock: loaded,
+    outro: (updated) => `Updated ${updated} skill(s). Scope: ${loaded.scope}.`,
   });
 };
 

@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import { skillPath } from "../core/install/link.ts";
-import { readLock, type LockEntry, type Lockfile } from "../core/install/lockfile.ts";
+import { loadLock, type LockEntry, type Lockfile } from "../core/install/lockfile.ts";
 import {
   installedSkills,
   locationAgents,
@@ -10,7 +10,7 @@ import {
   locationsOf,
   type Location,
 } from "../core/install/destination.ts";
-import { lockPath, type Scope } from "../core/paths.ts";
+import type { Scope } from "../core/paths.ts";
 import { displayLabel } from "../core/source/revision.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -41,7 +41,7 @@ export const run = async (options: ListOptions): Promise<void> => {
 
   p.intro("ski list");
   const scope = resolveScope(options, p.log.warn) ?? "project";
-  const lock = await readLock(scope);
+  const { file, lock } = await loadLock(scope);
   if (Object.keys(lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
     return;
@@ -49,7 +49,7 @@ export const run = async (options: ListOptions): Promise<void> => {
 
   const rows = await buildRows(lock, scope);
 
-  p.log.step(`Installed skills (${tildify(lockPath(scope))})`);
+  p.log.step(`Installed skills (${tildify(file)})`);
   printRows(rows);
   reportMissing(rows);
   reportModifiedRows(rows, scope);
@@ -132,13 +132,13 @@ const summaryLine = (rows: ListRow[], scope: Scope): string => {
 
 const runJson = async (options: ListOptions): Promise<void> => {
   const scope = resolveScope(options, logWarn) ?? "project";
-  const lock = await readLock(scope);
+  const { file, lock } = await loadLock(scope);
   const rows = await buildRows(lock, scope);
   console.log(
     JSON.stringify(
       {
         scope,
-        lockfile: lockPath(scope),
+        lockfile: file,
         skills: rows.map((row) =>
           Object.assign({ name: row.name }, row.entry, {
             modified: row.modified,

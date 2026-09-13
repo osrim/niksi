@@ -9,7 +9,7 @@ A skill is installed in one scope.
 | scope | flag | skills live in | lockfile |
 | --- | --- | --- | --- |
 | project | `-p` | `<project root>/.ski/skills` | `<project root>/ski-lock.json` |
-| global | `-g` | `~/.local/share/ski/skills` | `~/.local/share/ski/ski-lock.json` |
+| global | `-g` | `~/.local/share/ski/skills` | `~/.config/ski/ski-lock.json` |
 
 The project root is the nearest parent directory that holds `ski-lock.json`, `.claude`, `.opencode`, `.agents`, or `.git`. The search stops at your home directory. Without a marker, the current directory is the root.
 
@@ -63,12 +63,27 @@ When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `
 | path | default | variable |
 | --- | --- | --- |
 | global skills | `~/.local/share/ski/skills` | `XDG_DATA_HOME` |
-| global lockfile | `~/.local/share/ski/ski-lock.json` | `XDG_DATA_HOME` |
+| global lockfile | `~/.config/ski/ski-lock.json` | `XDG_CONFIG_HOME` |
 | store | `~/.local/share/ski/store` | `XDG_DATA_HOME` |
 | config | `~/.config/ski/config.json` | `XDG_CONFIG_HOME` |
 | update-check cache | `~/.cache/ski/last-update-check` | `XDG_CACHE_HOME` |
 
 `SKI_HOME` replaces the data and config roots at once. `SKI_HOME=/tmp/x` puts the global skills, the global lockfile, the store, and the config under `/tmp/x`. It does not move the cache.
+
+### Moving an existing global lockfile
+
+The global lockfile is `$XDG_CONFIG_HOME/ski/ski-lock.json`, or `~/.config/ski/ski-lock.json` when `XDG_CONFIG_HOME` is unset. If that file does not exist, `ski` keeps using the legacy lockfile at `$XDG_DATA_HOME/ski/ski-lock.json`, which defaults to `~/.local/share/ski/ski-lock.json`. Reads and writes keep using the legacy file until you move it.
+
+When both files exist, `ski` uses the config file. Confirm that the config file does not already exist, then migrate by moving the legacy file:
+
+```sh
+config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+mkdir -p "$config_home/ski"
+mv "$data_home/ski/ski-lock.json" "$config_home/ski/ski-lock.json"
+```
+
+Do not copy the file. Leaving both paths populated makes the legacy file inactive and lets the two files drift. `SKI_HOME` users do not need to migrate because both paths resolve to `$SKI_HOME/ski-lock.json`.
 
 Every path variable, including `HOME` and `CLAUDE_HOME`, must be an absolute path. `~` is not expanded.
 

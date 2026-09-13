@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import * as find from "empathic/find";
@@ -64,5 +65,14 @@ export const projectRoot = (): string => {
   return root === home ? cwd : root;
 };
 
+export const legacyLockPath = (): string => join(dataDir(), LOCKFILE_NAME);
+
 export const lockPath = (scope: Scope): string =>
-  scope === "global" ? join(dataDir(), LOCKFILE_NAME) : join(projectRoot(), LOCKFILE_NAME);
+  scope === "global" ? join(configDir(), LOCKFILE_NAME) : join(projectRoot(), LOCKFILE_NAME);
+
+export const effectiveLockPath = (scope: Scope): string => {
+  const current = lockPath(scope);
+  if (scope === "project" || existsSync(current)) return current;
+  const legacy = legacyLockPath();
+  return existsSync(legacy) ? legacy : current;
+};

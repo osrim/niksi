@@ -9,5 +9,6 @@ reviews:
   estimate_code_review_effort: false
   auto_review:
     drafts: false
+    auto_incremental_review: false
 chat:
   auto_reply: false

@@ -2,6 +2,7 @@ import { isAbsolute, normalize, join, dirname, basename, extname } from "node:pa
 import { LinkifyIt } from "linkify-it";
 import { isSymlink, MODE_EXEC } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
+import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
 
@@ -23,6 +24,7 @@ const RULES = {
   "context-fork": { help: "runs itself in a subagent" },
   "user-invocable": { help: "hidden from you, still callable by the agent" },
   "skill-config": { help: "sets how the agent runs it" },
+  "skill-name": { help: "declared name is not a valid skill name" },
   "unknown-field": { help: "a frontmatter field ski has no rule for" },
   frontmatter: { help: "frontmatter could not be read" },
   "frontmatter-inventory": { help: "frontmatter in a file no agent loads" },
@@ -242,6 +244,21 @@ const skillPrivileges = (frontmatter: Record<string, unknown>, file: string): Fi
     "disallowed-tools",
     "user-invocable",
   ]);
+
+  const declaredName = frontmatter["name"];
+  if (
+    typeof declaredName === "string" &&
+    slugifySkillName(declaredName) &&
+    !isValidSkillName(declaredName)
+  ) {
+    findings.push(
+      finding("skill-name", {
+        severity: "info",
+        file,
+        detail: fieldText("name", declaredName),
+      }),
+    );
+  }
 
   if (frontmatter["hooks"] !== undefined && frontmatter["hooks"] !== null) {
     findings.push(...hookFindings(frontmatter["hooks"], file));

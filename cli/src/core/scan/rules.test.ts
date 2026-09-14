@@ -57,6 +57,40 @@ const skill = (...lines: string[]) => file("SKILL.md", `---\n${lines.join("\n")}
 const findingsFor = (rule: Finding["rule"], ...files: SkillFile[]) =>
   scan(...files).filter((f) => f.rule === rule);
 
+test("an invalid declared skill name is reported at info", () => {
+  const hits = findingsFor("skill-name", skill('name: "the writing whip"'));
+  expect(hits.map((f) => [f.severity, f.file, f.detail, f.help])).toEqual([
+    ["info", "SKILL.md", "name: the writing whip", "declared name is not a valid skill name"],
+  ]);
+});
+
+test("declared skill names follow the Agent Skills name constraint", () => {
+  for (const name of [
+    "Uppercase",
+    "under_score",
+    "-leading",
+    "trailing-",
+    "two--hyphens",
+    "café",
+  ]) {
+    expect(findingsFor("skill-name", skill(`name: ${JSON.stringify(name)}`))).toHaveLength(1);
+  }
+
+  expect(findingsFor("skill-name", skill("name: lowercase-123"))).toEqual([]);
+  expect(findingsFor("skill-name", skill(`name: ${"a".repeat(64)}`))).toEqual([]);
+  expect(findingsFor("skill-name", skill(`name: ${"a".repeat(65)}`))).toHaveLength(1);
+});
+
+test("skill name findings apply only to a readable declared string in SKILL.md", () => {
+  expect(findingsFor("skill-name", skill("description: no declared name"))).toEqual([]);
+  expect(findingsFor("skill-name", skill("name: 123"))).toEqual([]);
+  expect(findingsFor("skill-name", skill('name: ""'))).toEqual([]);
+  expect(findingsFor("skill-name", skill('name: "!!!"'))).toEqual([]);
+  expect(findingsFor("skill-name", file("notes.md", "---\nname: Not Valid\n---\nbody\n"))).toEqual(
+    [],
+  );
+});
+
 test("an unscoped Bash grant is critical, one finding per grant", () => {
   for (const grant of ["Bash", "Bash(*)", "Bash(*:*)", "Bash(**)", "Bash( *)"]) {
     const hits = findingsFor("allowed-tools", skill("name: x", `allowed-tools: ${grant}`));
@@ -313,6 +347,7 @@ test("unreadable frontmatter fails closed as a critical finding", () => {
   expect(hit?.severity).toBe("critical");
   expect(findings.some((f) => f.severity === "critical")).toBe(true);
   expect(findings.some((f) => f.rule === "allowed-tools")).toBe(false);
+  expect(findings.some((f) => f.rule === "skill-name")).toBe(false);
 });
 
 test("load-time execution is critical, one finding per command, with its line", () => {

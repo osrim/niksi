@@ -2,6 +2,7 @@ import { basename, dirname } from "node:path";
 import { Glob } from "bun";
 import { lsTreeEntries, readBlob } from "./git.ts";
 import { parseFrontmatter } from "../skill/frontmatter.ts";
+import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 
 export interface DiscoveredSkill {
   name: string;
@@ -18,21 +19,11 @@ const MAX_DEPTH = 5;
 
 const CONVENTIONAL_LAYOUT = new Glob("skills/*/SKILL.md");
 
-const STANDARD_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
-const MAX_NAME = 64;
 const MAX_DESCRIPTION = 1024;
-
-const slugify = (name: string): string =>
-  name
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
 
 const standardWarnings = (name: string, fromFallback: boolean, description?: string): string[] => {
   const warnings: string[] = [];
-  if (!STANDARD_NAME.test(name) || name.length > MAX_NAME) {
+  if (!isValidSkillName(name)) {
     warnings.push(
       `${name}: invalid skill name. Use lowercase letters, digits, and single hyphens.` +
         (fromFallback ? " Add `name:` to SKILL.md." : ""),
@@ -95,7 +86,7 @@ export const discoverIn = async (
       }
       const fallback = dir === "" ? rootName : basename(dir);
       const declared = frontmatter["name"];
-      const slug = typeof declared === "string" ? slugify(declared) : "";
+      const slug = typeof declared === "string" ? slugifySkillName(declared) : "";
       const name = slug || fallback;
       const declaredDescription = frontmatter["description"];
       const description =

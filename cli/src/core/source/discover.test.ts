@@ -82,7 +82,7 @@ test("a name derived from the dir warns when it breaks the Agent Skills rule", a
   expect(skills[0]!.warnings?.[0]).toContain("Add `name:` to SKILL.md");
 });
 
-test("a declared name with spaces or capitals becomes a slug, without warning", async () => {
+test("a declared name with spaces or capitals becomes a slug", async () => {
   const [dir, sha] = await repoWith("dae6f9571534f3fbd1266a384be00e11", {
     "SKILL.md": "---\nname: The Café  Whip!\ndescription: d\n---\n",
   });

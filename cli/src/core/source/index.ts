@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { projectRoot, type Scope } from "../paths.ts";
 import type { DiscoveredSkill } from "./discover.ts";
@@ -69,8 +70,16 @@ export const resolveCoordinate = async (
   return { rev, skills: await source.discover(rev.commit, dir), dir, ref };
 };
 
+const realOrGiven = (path: string): string => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
+
 export const insideProject = (dir: string): boolean => {
-  const rel = relative(projectRoot(), dir);
+  const rel = relative(realOrGiven(projectRoot()), realOrGiven(dir));
   return !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
 };
 

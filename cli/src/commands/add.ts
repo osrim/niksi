@@ -233,9 +233,9 @@ const confirmOutsideProject = (
     return Promise.resolve(true);
   }
   logWarn(
-    `${tildify(parsed.repo)} is outside this project. ski-lock.json will record its absolute path, which other machines cannot resolve.\nUse \`ski add --copy ${coordinate}\` to put the files in the project instead, or \`-g\` to install it for this machine only.`,
+    `${tildify(parsed.repo)} is outside this project. ski-lock.json will record a path that other machines cannot resolve.\nUse \`ski add --copy ${coordinate}\` to put the files in the project instead, or \`-g\` to install it for this machine only.`,
   );
-  return confirm("Record the absolute path anyway?", {
+  return confirm("Record it anyway?", {
     yes: options.yes,
     command: "add",
     initialValue: false,

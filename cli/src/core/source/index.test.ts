@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   coordinateFor,
+  insideProject,
   localSourceId,
   LOCAL_PREFIX,
   sourceFor,
@@ -121,6 +122,23 @@ test("local changes diff the installed store entry against the directory", async
   expect(changes.patch).toContain("+edited");
 });
 
+test("insideProject holds for the root and its children, not for siblings, parents, or symlinks out", async () => {
+  await mkdir(join(tmp, "elsewhere"), { recursive: true });
+  await symlink(join(tmp, "elsewhere"), join(dir, "escape"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    expect(insideProject(join(dir, "escape"))).toBe(false);
+    expect(insideProject(join(dir, "skills", "alpha"))).toBe(true);
+    expect(insideProject(dir)).toBe(true);
+    expect(insideProject(join(dir, "..hidden"))).toBe(true);
+    expect(insideProject(join(tmp, "elsewhere"))).toBe(false);
+    expect(insideProject(tmp)).toBe(false);
+  } finally {
+    process.chdir(prev);
+  }
+});
+
 test("localSourceId is relative inside the project, absolute outside and global", () => {
   const prev = process.cwd();
   process.chdir(dir);
@@ -128,6 +146,7 @@ test("localSourceId is relative inside the project, absolute outside and global"
     expect(localSourceId(join(dir, "skills", "alpha"), "project")).toBe(
       `${LOCAL_PREFIX}./skills/alpha`,
     );
+    expect(localSourceId(dir, "project")).toBe(`${LOCAL_PREFIX}./`);
     expect(localSourceId("/elsewhere/skill", "project")).toBe(`${LOCAL_PREFIX}/elsewhere/skill`);
     expect(localSourceId(join(dir, "skills", "alpha"), "global")).toBe(
       `${LOCAL_PREFIX}${join(dir, "skills", "alpha")}`,

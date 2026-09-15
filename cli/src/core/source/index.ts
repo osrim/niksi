@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { projectRoot, type Scope } from "../paths.ts";
 import type { DiscoveredSkill } from "./discover.ts";
 import type { SourceKind, Coordinate } from "./coordinate.ts";
@@ -69,12 +70,22 @@ export const resolveCoordinate = async (
   return { rev, skills: await source.discover(rev.commit, dir), dir, ref };
 };
 
+const realOrGiven = (path: string): string => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
+
+export const insideProject = (dir: string): boolean => {
+  const rel = relative(realOrGiven(projectRoot()), realOrGiven(dir));
+  return !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
+};
+
 export const localSourceId = (dir: string, scope: Scope): string => {
-  if (scope === "global") return `${LOCAL_PREFIX}${dir}`;
-  const root = projectRoot();
-  const rel = relative(root, dir);
-  const inside = rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
-  return `${LOCAL_PREFIX}${inside ? `./${rel}` : dir}`;
+  if (scope === "global" || !insideProject(dir)) return `${LOCAL_PREFIX}${dir}`;
+  return `${LOCAL_PREFIX}./${relative(projectRoot(), dir)}`;
 };
 
 export const coordinateFor = (sourceId: string): string =>

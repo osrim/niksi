@@ -48,7 +48,7 @@ grilling: source no longer has skills/grilling, skipped
 
 A failed skill does not stop the batch. The command continues, writes state that matches disk, and exits `1`.
 
-No-op messages are `Nothing selected.` or `Nothing to add|copy|install|update.`
+No-op messages are `Nothing selected.`, `Nothing to add|copy|install|update.`, or `Nothing added.` after a declined warning.
 
 ## Color
 

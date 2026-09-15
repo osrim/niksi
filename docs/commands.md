@@ -41,6 +41,7 @@ git@github.com:owner/repo.git     clone URL
 - `add` shows and scans every file before writing. See [security-scan.md](security-scan.md).
 - `add` finds mentions of other skills from the same source and offers to review them too.
 - `--copy` writes a real directory instead of a link. To switch a skill between link and copy, remove it and add it again.
+- In project scope, a local directory outside the project root, or a symlink to one, is recorded by a path that other machines cannot resolve. `add` warns and asks before it records it. `-y` answers yes. Use `--copy` to put the files in the project, or `-g` to install for this machine only.
 - `--path <directory>` writes each selected skill to `<directory>/<skill name>`. It requires `--copy` and selects project scope. It skips agent selection.
 - Do not combine `--path` with `--global` or `--agent`. Relative paths resolve from the project root. Absolute paths must resolve inside the project root.
 - A path cannot contain `..` or escape the project root through a symlinked ancestor.

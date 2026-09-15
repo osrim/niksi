@@ -16,6 +16,7 @@ import {
 } from "../core/source/revision.ts";
 import type { ScopeOptions } from "../core/install/scope.ts";
 import {
+  insideProject,
   resolveCoordinate,
   sourceForCoordinate,
   type ResolvedCoordinate,
@@ -29,8 +30,8 @@ import { reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { fail } from "../ui/prompt.ts";
-import { logSourceCaution } from "../ui/report.ts";
-import { skillName } from "../ui/style.ts";
+import { logSourceCaution, logWarn } from "../ui/report.ts";
+import { skillName, tildify } from "../ui/style.ts";
 import {
   chooseAgents,
   chooseScope,
@@ -109,6 +110,10 @@ export const run = async (
     where: mode.where,
     mode: mode.verb,
   });
+  if (!(await confirmOutsideProject(parsed, coordinate, scope, options))) {
+    p.outro("Nothing added.");
+    return;
+  }
   const scopedSource = source.forScope(scope);
 
   const loaded = await loadLock(scope);
@@ -211,6 +216,30 @@ const chooseDestination = async (
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }
   return { scope, agents, copyPath: undefined };
+};
+
+const confirmOutsideProject = (
+  parsed: Coordinate,
+  coordinate: string,
+  scope: Scope,
+  options: AddOptions,
+): Promise<boolean> => {
+  if (
+    options.copy ||
+    parsed.kind !== "local" ||
+    scope !== "project" ||
+    insideProject(parsed.repo)
+  ) {
+    return Promise.resolve(true);
+  }
+  logWarn(
+    `${tildify(parsed.repo)} is outside this project. ski-lock.json will record its absolute path, which other machines cannot resolve.\nUse \`ski add --copy ${coordinate}\` to put the files in the project instead, or \`-g\` to install it for this machine only.`,
+  );
+  return confirm("Record the absolute path anyway?", {
+    yes: options.yes,
+    command: "add",
+    initialValue: false,
+  });
 };
 
 const shownLabel = (userRef: string | undefined, entry: Labelled): string =>

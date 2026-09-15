@@ -14,6 +14,7 @@ export const git = async (
   args: string[],
   cwd?: string,
   env?: Record<string, string>,
+  input?: string,
 ): Promise<GitResult> => {
   const full = cwd ? ["git", "-C", cwd, ...args] : ["git", ...args];
   // Bun.spawn, not Bun.$: the shell's captured promise can stay pending after the child exits
@@ -21,7 +22,7 @@ export const git = async (
   const child = Bun.spawn(full, {
     // Prevent Git from waiting for credentials during non-interactive runs.
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
-    stdin: "inherit",
+    stdin: input === undefined ? "inherit" : new Blob([input]),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -133,6 +134,7 @@ export const subtreeOid = async (
 
 export interface TreeEntry {
   mode: string;
+  oid: string;
   path: string;
 }
 
@@ -149,7 +151,8 @@ export const lsTreeEntries = async (
     .filter(Boolean)
     .map((line) => {
       const [meta, entryPath] = line.split("\t") as [string, string];
-      return { mode: meta.split(" ")[0]!, path: entryPath };
+      const [mode, , oid] = meta.split(" ");
+      return { mode: mode!, oid: oid!, path: entryPath };
     });
 };
 
@@ -216,8 +219,71 @@ export const diffSubtree = async (
   return result.code === 0 ? result.buf.toString("utf8") : "";
 };
 
-export const readBlob = async (clone: string, revspec: string): Promise<Buffer> => {
-  const result = await git(["show", revspec], clone);
-  if (result.code !== 0) throw new Error(`cannot read ${revspec}${gitReason(result)}`);
-  return result.buf;
+const parseBatchBlobs = (result: GitResult, oids: string[]): Array<Buffer | undefined> => {
+  if (result.code !== 0) throw new Error(`cannot read blobs${gitReason(result)}`);
+
+  const blobs: Array<Buffer | undefined> = [];
+  let offset = 0;
+  for (const oid of oids) {
+    const headerEnd = result.buf.indexOf("\n", offset);
+    if (headerEnd < 0) throw new Error(`cannot read ${oid} (invalid batch response)`);
+    const header = result.buf.subarray(offset, headerEnd).toString("utf8");
+    if (header === `${oid} missing`) {
+      blobs.push(undefined);
+      offset = headerEnd + 1;
+      continue;
+    }
+    const sizeText = /^\S+ blob (\d+)$/u.exec(header)?.[1];
+    const size = sizeText === undefined ? Number.NaN : Number.parseInt(sizeText, 10);
+    const contentStart = headerEnd + 1;
+    const contentEnd = contentStart + size;
+    if (!Number.isSafeInteger(size) || result.buf[contentEnd] !== 0x0a) {
+      throw new Error(`cannot read ${oid} (${header || "invalid batch response"})`);
+    }
+    blobs.push(result.buf.subarray(contentStart, contentEnd));
+    offset = contentEnd + 1;
+  }
+  return blobs;
+};
+
+const oidLines = (oids: string[]): string => `${oids.join("\n")}\n`;
+
+const catFileBatch = async (clone: string, oids: string[]): Promise<Array<Buffer | undefined>> =>
+  parseBatchBlobs(
+    // Without this, cat-file fetches each absent blob on its own.
+    await git(["cat-file", "--batch"], clone, { GIT_NO_LAZY_FETCH: "1" }, oidLines(oids)),
+    oids,
+  );
+
+// Git's own lazy-fetch command, verbatim. The filter bounds traversal; the oids on stdin still
+// arrive.
+const PREFETCH = [
+  "-c",
+  "fetch.negotiationAlgorithm=noop",
+  "fetch",
+  "origin",
+  "--no-tags",
+  "--no-write-fetch-head",
+  "--recurse-submodules=no",
+  "--filter=blob:none",
+  "--stdin",
+];
+
+export const readBlobs = async (clone: string, oids: string[]): Promise<Buffer[]> => {
+  if (oids.length === 0) return [];
+  const blobs = await catFileBatch(clone, oids);
+  const absent = oids.filter((_, index) => blobs[index] === undefined);
+  if (absent.length === 0) return blobs as Buffer[];
+
+  const fetched = await git(PREFETCH, clone, undefined, oidLines(absent));
+  if (fetched.code !== 0) throw new Error(`cannot fetch blobs${gitReason(fetched)}`);
+
+  const refetched = await catFileBatch(clone, absent);
+  let next = 0;
+  return blobs.map((content, index) => {
+    if (content !== undefined) return content;
+    const blob = refetched[next++];
+    if (blob === undefined) throw new Error(`cannot read ${oids[index]} (missing)`);
+    return blob;
+  });
 };

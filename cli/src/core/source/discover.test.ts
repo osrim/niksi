@@ -179,3 +179,15 @@ test("a root with no SKILL.md under it finds nothing", async () => {
   });
   expect(await discoverSkills(dir, sha, "plugins", "docs")).toEqual([]);
 });
+
+test("a gitlink (submodule) named SKILL.md is not a skill", async () => {
+  const [dir] = await repoWith("gitlink", {
+    "skills/real/SKILL.md": "---\ndescription: d\n---\n",
+  });
+  const target = (await $`git -C ${dir} rev-parse HEAD`.text()).trim();
+  await $`git -C ${dir} update-index --add --cacheinfo 160000,${target},skills/vendor/SKILL.md`.quiet();
+  await $`git -C ${dir} -c commit.gpgsign=false -c user.email=t@t -c user.name=t commit -q -m gitlink`.quiet();
+  const sha = (await $`git -C ${dir} rev-parse HEAD`.text()).trim();
+  const skills = await discoverSkills(dir, sha, "gitlink");
+  expect(skills.map((skill) => skill.name)).toEqual(["real"]);
+});

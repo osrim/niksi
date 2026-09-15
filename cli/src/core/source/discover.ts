@@ -1,6 +1,7 @@
 import { basename, dirname } from "node:path";
 import { Glob } from "bun";
-import { lsTreeEntries, readBlob } from "./git.ts";
+import { lsTreeEntries, readBlobs } from "./git.ts";
+import { MODE_GITLINK } from "../skill/files.ts";
 import { parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 
@@ -64,7 +65,7 @@ const skillDirs = (paths: string[]): string[] => {
 
 export const discoverIn = async (
   paths: string[],
-  read: (path: string) => Promise<Buffer>,
+  read: (paths: string[]) => Promise<Buffer[]>,
   fallbackName: string,
   root = "",
 ): Promise<DiscoveredSkill[]> => {
@@ -73,34 +74,35 @@ export const discoverIn = async (
   const dirs = skillDirs(inRoot.map((path) => path.slice(prefix.length)));
   const rootName = root ? basename(root) : fallbackName;
 
-  const skills = await Promise.all(
-    dirs.map(async (dir): Promise<DiscoveredSkill> => {
-      const skillMd = dir === "" ? `${prefix}SKILL.md` : `${prefix}${dir}/SKILL.md`;
-      const text = (await read(skillMd)).toString("utf8");
-      let frontmatter: Record<string, unknown> = {};
-      let malformed = false;
-      try {
-        frontmatter = parseFrontmatter(text);
-      } catch {
-        malformed = true;
-      }
-      const fallback = dir === "" ? rootName : basename(dir);
-      const declared = frontmatter["name"];
-      const slug = typeof declared === "string" ? slugifySkillName(declared) : "";
-      const name = slug || fallback;
-      const declaredDescription = frontmatter["description"];
-      const description =
-        typeof declaredDescription === "string" && declaredDescription
-          ? declaredDescription
-          : undefined;
-      const warnings = standardWarnings(name, typeof declared !== "string", description);
-      if (malformed) warnings.unshift(`${name}: invalid YAML in SKILL.md frontmatter.`);
-      const skill: DiscoveredSkill = { name, path: dir === "" ? root : `${prefix}${dir}` };
-      if (description !== undefined) skill.description = description;
-      if (warnings.length > 0) skill.warnings = warnings;
-      return skill;
-    }),
+  const contents = await read(
+    dirs.map((dir) => (dir === "" ? `${prefix}SKILL.md` : `${prefix}${dir}/SKILL.md`)),
   );
+
+  const skills = dirs.map((dir, index): DiscoveredSkill => {
+    const text = contents[index]!.toString("utf8");
+    let frontmatter: Record<string, unknown> = {};
+    let malformed = false;
+    try {
+      frontmatter = parseFrontmatter(text);
+    } catch {
+      malformed = true;
+    }
+    const fallback = dir === "" ? rootName : basename(dir);
+    const declared = frontmatter["name"];
+    const slug = typeof declared === "string" ? slugifySkillName(declared) : "";
+    const name = slug || fallback;
+    const declaredDescription = frontmatter["description"];
+    const description =
+      typeof declaredDescription === "string" && declaredDescription
+        ? declaredDescription
+        : undefined;
+    const warnings = standardWarnings(name, typeof declared !== "string", description);
+    if (malformed) warnings.unshift(`${name}: invalid YAML in SKILL.md frontmatter.`);
+    const skill: DiscoveredSkill = { name, path: dir === "" ? root : `${prefix}${dir}` };
+    if (description !== undefined) skill.description = description;
+    if (warnings.length > 0) skill.warnings = warnings;
+    return skill;
+  });
 
   const countByName = new Map<string, number>();
   for (const skill of skills) countByName.set(skill.name, (countByName.get(skill.name) ?? 0) + 1);
@@ -115,10 +117,17 @@ export const discoverSkills = async (
   repoName: string,
   root = "",
 ): Promise<DiscoveredSkill[]> => {
-  const entries = await lsTreeEntries(clone, rev, root);
+  const entries = (await lsTreeEntries(clone, rev, root)).filter(
+    (entry) => entry.mode !== MODE_GITLINK,
+  );
+  const oidByPath = new Map(entries.map((entry) => [entry.path, entry.oid]));
   return discoverIn(
     entries.map((entry) => entry.path),
-    (path) => readBlob(clone, `${rev}:${path}`),
+    (paths) =>
+      readBlobs(
+        clone,
+        paths.map((path) => oidByPath.get(path)!),
+      ),
     repoName,
     root,
   );

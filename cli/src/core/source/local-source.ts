@@ -66,7 +66,7 @@ export class LocalSource implements Source {
     const contentByPath = new Map(files.map((file) => [file.path, file.content]));
     return discoverIn(
       files.map((file) => file.path),
-      (path) => Promise.resolve(contentByPath.get(path) ?? Buffer.alloc(0)),
+      (paths) => Promise.resolve(paths.map((path) => contentByPath.get(path) ?? Buffer.alloc(0))),
       basename(dir),
       root,
     );

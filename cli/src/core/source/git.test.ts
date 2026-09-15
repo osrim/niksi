@@ -17,7 +17,7 @@ import {
   listTags,
   lsTreeEntries,
   resolveRef,
-  readBlob,
+  readBlobs,
   sshAlternate,
   subtreeOid,
 } from "./git.ts";
@@ -151,22 +151,37 @@ test("a rejected initial clone can be retried after the repository appears", asy
 
 test("tree operations preserve paths, modes, contents, and subtree identity", async () => {
   const clone = await ensureClone(remote);
-  expect(await lsTreeEntries(clone, firstSha, "")).toEqual([
+  const entries = await lsTreeEntries(clone, firstSha, "");
+  expect(entries.map(({ mode, path }) => ({ mode, path }))).toEqual([
     { mode: MODE_FILE, path: "README.md" },
     { mode: MODE_SYMLINK, path: "readme-link" },
     { mode: MODE_EXEC, path: "run.sh" },
     { mode: MODE_FILE, path: "skills/demo/SKILL.md" },
   ]);
-  expect(await readBlob(clone, `${firstSha}:skills/demo/SKILL.md`)).toEqual(Buffer.from("first\n"));
+  expect(entries.every((entry) => /^[0-9a-f]{40}$/u.test(entry.oid))).toBeTrue();
+  const skillMd = entries.find((entry) => entry.path === "skills/demo/SKILL.md")!;
+  expect(await readBlobs(clone, [skillMd.oid])).toEqual([Buffer.from("first\n")]);
   expect(await subtreeOid(clone, firstSha, "skills/demo")).toMatch(/^[0-9a-f]{40}$/u);
   expect(await subtreeOid(clone, firstSha, "missing")).toBeNull();
 });
 
-test("readBlob rejects a missing path instead of returning empty content", async () => {
+test("readBlobs rejects an object the remote cannot supply", async () => {
   const clone = await ensureClone(remote);
-  await expect(readBlob(clone, `${firstSha}:missing`)).rejects.toThrow(
-    `cannot read ${firstSha}:missing`,
-  );
+  const absent = "0".repeat(40);
+  await expect(readBlobs(clone, [absent])).rejects.toThrow("cannot fetch blobs");
+});
+
+test("readBlobs returns one buffer per oid, in the order asked, including repeats", async () => {
+  const clone = await ensureClone(remote);
+  const entries = await lsTreeEntries(clone, firstSha, "");
+  const readme = entries.find((entry) => entry.path === "README.md")!.oid;
+  const skill = entries.find((entry) => entry.path === "skills/demo/SKILL.md")!.oid;
+  expect(await readBlobs(clone, [skill, readme, skill])).toEqual([
+    Buffer.from("first\n"),
+    Buffer.from("fixture\n"),
+    Buffer.from("first\n"),
+  ]);
+  expect(await readBlobs(clone, [])).toEqual([]);
 });
 
 test("refs resolve branches, lightweight tags, annotated tags, and commits", async () => {

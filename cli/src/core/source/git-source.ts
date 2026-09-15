@@ -5,10 +5,10 @@ import {
   findRef,
   git,
   lsTreeEntries,
-  readBlob,
+  readBlobs,
   subtreeOid,
 } from "./git.ts";
-import { isSkillContent, type SkillFile } from "../skill/files.ts";
+import { MODE_GITLINK, isSkillContent, type SkillFile } from "../skill/files.ts";
 import { discoverSkills, type DiscoveredSkill } from "./discover.ts";
 import { repoName } from "./coordinate.ts";
 import { resolveRevision, resolveUpstream, type Revision } from "./revision.ts";
@@ -106,15 +106,18 @@ export class GitSource implements Source {
     const clone = await this.clone();
     const entries = await lsTreeEntries(clone, commit, path);
     const strip = path ? path.length + 1 : 0;
-    return Promise.all(
-      entries
-        .filter((entry) => isSkillContent(entry.path.slice(strip)))
-        .map(async (entry) => ({
-          path: entry.path.slice(strip),
-          content: await readBlob(clone, `${commit}:${entry.path}`),
-          mode: entry.mode,
-        })),
+    const files = entries.filter(
+      (entry) => entry.mode !== MODE_GITLINK && isSkillContent(entry.path.slice(strip)),
     );
+    const contents = await readBlobs(
+      clone,
+      files.map((entry) => entry.oid),
+    );
+    return files.map((entry, index) => ({
+      path: entry.path.slice(strip),
+      content: contents[index]!,
+      mode: entry.mode,
+    }));
   }
 
   async changes(from: InstalledSkill, to: string | undefined, _before: string): Promise<Changes> {

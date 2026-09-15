@@ -19,6 +19,7 @@ export interface SkillFile {
 export const MODE_FILE = "100644";
 export const MODE_EXEC = "100755";
 export const MODE_SYMLINK = "120000";
+export const MODE_GITLINK = "160000";
 export const isSymlink = (mode: string): boolean => mode === MODE_SYMLINK;
 
 // Use code-unit order so integrity values do not depend on the system locale.

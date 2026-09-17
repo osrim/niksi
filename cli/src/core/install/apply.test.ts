@@ -163,7 +163,7 @@ test("applySkill links every target agent to one canonical copy", async () => {
   for (const agent of ["claude", "opencode", "universal"] as const)
     expect(await linksTo("multi", agent)).toBe(true);
   expect((await lstat(canonicalPath("multi", "global"))).isSymbolicLink()).toBe(false);
-  expect(await linkedAgents("multi", "global")).toEqual(["claude", "opencode", "universal"]);
+  expect(await linkedAgents("multi", "global")).toEqual(["universal", "claude", "opencode"]);
   expect(Object.keys(lock.skills)).toEqual(["multi"]);
 });
 

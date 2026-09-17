@@ -134,7 +134,7 @@ For global scope, `lockfile` reports the effective path: the config path, or the
 | --- | --- | --- |
 | `-g`, `--global` | all | Use global scope. |
 | `-p`, `--project` | all | Use project scope. |
-| `--agent <id>` | `add`, `install` | Install to `claude`, `opencode`, or `universal`. Repeat the flag or separate ids with commas. |
+| `--agent <id>` | `add`, `install` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
 | `-a`, `--all` | `add`, `update`, `remove` | Select every skill. It does not confirm or approve anything. |
 | `-y`, `--yes` | `add`, `install`, `update`, `remove` | Accept ordinary confirmations and defaults. It cannot approve critical findings. |
 | `--dangerous-skip-critical-approval` | `add`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
@@ -142,7 +142,7 @@ For global scope, `lockfile` reports the effective path: the config path, or the
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
 | `--json` | `list` | Write JSON only. |
 
-`-g` and `-p` cannot be combined. Passing both exits `2`.
+`-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
 `--dangerous-skip-critical-approval` applies only to the current invocation, including dependencies reviewed by `add`. It does not imply `--yes`, `--all`, a scope, an agent, `--copy`, or `--path`. Warn finding review and write confirmation keep their existing behavior. The flag is never saved in the lockfile or configuration and has no environment-variable equivalent.
 

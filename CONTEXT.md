@@ -49,7 +49,7 @@ Use these terms in code, docs, and output.
 | term | meaning | avoid |
 | --- | --- | --- |
 | scope | `global` for one machine or `project` for one project root. | workspace, environment, context |
-| project root | Nearest parent with `ski-lock.json`, an agent's root directory (`.claude`, `.opencode`, `.agents`), or `.git`. | workspace root, repo root, cwd |
+| project root | Nearest parent with `ski-lock.json`, a skills directory's root (`.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`), or `.git`. | workspace root, repo root, cwd |
 | lockfile entry | One skill's record in `ski-lock.json`. | row, record |
 | store | Download cache in `~/.local/share/ski/store`. Installed skills do not depend on it. | cache, vault |
 | store entry | Cached directory in the store holding one skill at one integrity. Never a link target. | package dir, cache entry, snapshot |
@@ -73,7 +73,7 @@ Use these terms in code, docs, and output.
 | location | Where an installed skill already is. It includes its placement and the agents or path-copy presence found on disk. | presence |
 | land | Apply a batch, write the lockfile, and hide links from Git. | commit, finalize, flush |
 | collision | Same skill name in the other scope's skills directory or in an ancestor directory. | conflict, duplicate, clash |
-| overlap | One agent reads another agent's skills directory. OpenCode reads `.claude/skills` and `.agents/skills`. | clash, double load |
+| overlap | One detected agent reads two chosen skills directories. Cursor reads `.claude/skills` and `.agents/skills`. | clash, double load |
 | exclude block | `ski`'s section of `.git/info/exclude` that hides project links. | ignore block |
 | remembered choice | Scope and agents kept in `config.json` and preselected next time. | saved choice, preference, default |
 
@@ -98,9 +98,9 @@ Use these terms in code, docs, and output.
 | term | meaning | avoid |
 | --- | --- | --- |
 | agent | Tool that loads skills. | harness, client, host, editor |
-| universal | `.agents` skills directory for agents other than Claude Code and OpenCode. | other, generic, fallback |
-| detected | Agent whose directory or binary exists on this machine. | installed, found, present |
-| opt-in | Agent that is never detected. `universal` is chosen only by hand. | manual, optional |
+| universal | `.agents` skills directory. Read by Codex, Cursor, Gemini CLI, GitHub Copilot, Windsurf, Amp, Antigravity, Factory Droid, Roo Code, Zed, Junie, Kilo Code, Warp, Augment Code, Trae, and OpenCode. | other, generic, fallback |
+| detected | Agent whose config directory, project directory, or binary exists on this machine. | installed, found, present |
+| cover | Smallest set of skills directories that every detected agent reads in a scope. | default set, minimal set |
 | skills directory | Directory from which an agent loads skills. | skills dir, agent directory, target dir, install dir |
 
 ## ski releases

@@ -342,6 +342,31 @@ test("projectRoot walks up to the nearest marker", async () => {
   });
 });
 
+test("projectRoot treats every skills directory root as a marker, not detection-only dirs", async () => {
+  for (const marker of [".kiro", ".cline", ".qwen"]) {
+    const root = join(tmp, `marker-${marker}`);
+    const nested = join(root, "nested");
+    await mkdir(join(root, marker), { recursive: true });
+    await mkdir(nested, { recursive: true });
+    await inDir(nested, () => {
+      expect(projectRoot()).toBe(root);
+    });
+  }
+  const cursorRoot = join(tmp, "marker-cursor");
+  const cursorNested = join(cursorRoot, "nested");
+  await mkdir(join(cursorRoot, ".cursor"), { recursive: true });
+  await mkdir(cursorNested, { recursive: true });
+  await inDir(cursorNested, () => {
+    expect(projectRoot()).toBe(cursorNested);
+  });
+});
+
+test("an entry with a kiro agent copy round-trips", async () => {
+  const copy = { ...entry, copy: true as const, agents: ["kiro" as const] };
+  await writeGlobal({ lockfileVersion: 1, skills: { tdd: { ...copy, agents: [...copy.agents] } } });
+  expect((await readLock("global")).skills["tdd"]).toEqual(copy);
+});
+
 test("projectRoot falls back to cwd when nothing is found", async () => {
   const bare = join(tmp, "bare", "dir");
   await mkdir(bare, { recursive: true });

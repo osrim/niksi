@@ -170,8 +170,8 @@ test("one canonical copy, one relative link per agent, universal included", asyn
       await realpath(canonicalPath("demo", "global")),
     );
   }
-  expect(await linkedAgents("demo", "global")).toEqual(["claude", "opencode", "universal"]);
-  expect(occupiedAgents("demo", "global")).toEqual(["claude", "opencode", "universal"]);
+  expect(await linkedAgents("demo", "global")).toEqual(["universal", "claude", "opencode"]);
+  expect(occupiedAgents("demo", "global")).toEqual(["universal", "claude", "opencode"]);
 });
 
 test("linkedAgents ignores links and directories that are not ours", async () => {

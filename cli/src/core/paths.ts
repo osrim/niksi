@@ -55,7 +55,16 @@ export const storeDir = (): string => join(dataDir(), "store");
 export const canonicalDir = (scope: Scope): string =>
   join(scope === "global" ? dataDir() : join(projectRoot(), ".ski"), "skills");
 
-const ROOT_MARKERS = [LOCKFILE_NAME, ".claude", ".opencode", ".agents", ".git"];
+const ROOT_MARKERS = [
+  LOCKFILE_NAME,
+  ".agents",
+  ".claude",
+  ".opencode",
+  ".kiro",
+  ".cline",
+  ".qwen",
+  ".git",
+];
 
 export const projectRoot = (): string => {
   const cwd = process.cwd();

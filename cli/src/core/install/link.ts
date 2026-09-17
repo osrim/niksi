@@ -1,7 +1,7 @@
 import { mkdir, rm, symlink, lstat, readlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { skillsDir, AGENTS, type AgentId } from "./agents.ts";
+import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
 import { writeFiles, type SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
 import { canonicalDir, childPath, dataDir, tildify, type Scope } from "../paths.ts";
@@ -27,7 +27,7 @@ export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise
   const resolved = await realpathOrNearest(resolve(dirname(dest), await readlink(dest)));
   const forbidden = [{ label: "the store", root: dataDir() }];
   if (scope === "project") {
-    for (const def of AGENTS)
+    for (const def of SKILLS_DIRS)
       forbidden.push({ label: "a global skills directory", root: def.globalDir() });
   }
   for (const { label, root } of forbidden) {
@@ -73,15 +73,15 @@ export const refuseUnmanaged = async (
 
 export const linkedAgents = async (name: string, scope: Scope): Promise<AgentId[]> => {
   const hits = await Promise.all(
-    AGENTS.map(async (agent) =>
-      (await isManagedLink(skillPath(name, scope, agent.id), scope)) ? agent.id : null,
+    SKILLS_DIRS.map(async (dir) =>
+      (await isManagedLink(skillPath(name, scope, dir.id), scope)) ? dir.id : null,
     ),
   );
   return hits.filter((id): id is AgentId => id !== null);
 };
 
 export const occupiedAgents = (name: string, scope: Scope): AgentId[] =>
-  AGENTS.filter((agent) => present(skillPath(name, scope, agent.id))).map((agent) => agent.id);
+  SKILLS_DIRS.filter((dir) => present(skillPath(name, scope, dir.id))).map((dir) => dir.id);
 
 export const linkSkill = async (name: string, scope: Scope, agent: AgentId): Promise<void> => {
   const path = skillPath(name, scope, agent);

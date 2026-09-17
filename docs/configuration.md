@@ -11,21 +11,51 @@ A skill is installed in one scope.
 | project | `-p` | `<project root>/.ski/skills` | `<project root>/ski-lock.json` |
 | global | `-g` | `~/.local/share/ski/skills` | `~/.config/ski/ski-lock.json` |
 
-The project root is the nearest parent directory that holds `ski-lock.json`, `.claude`, `.opencode`, `.agents`, or `.git`. The search stops at your home directory. Without a marker, the current directory is the root.
+The project root is the nearest parent directory that holds `ski-lock.json`, `.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`, or `.git`. The search stops at your home directory. Without a marker, the current directory is the root.
 
 `ski add` asks for the scope. Every other command defaults to project scope. Running from your home directory selects global scope.
 
 ## Agents
 
-An agent is a tool that loads skills. `ski` writes a relative symlink from the agent's skills directory to the skill in the scope's `skills` directory, or a real copy when you pass `--copy`.
+An agent is a tool that loads skills. `ski` writes a relative symlink from a skills directory that the agent reads to the skill in the scope's `skills` directory, or a real copy when you pass `--copy`.
 
-| agent | project | global |
-| --- | --- | --- |
-| `claude` | `.claude/skills` | `$CLAUDE_HOME/skills` or `~/.claude/skills` |
-| `opencode` | `.opencode/skills` | `$XDG_CONFIG_HOME/opencode/skills` or `~/.config/opencode/skills` |
-| `universal` | `.agents/skills` | `~/.agents/skills` |
+| id | skills directory | project | global |
+| --- | --- | --- | --- |
+| `universal` | Universal | `.agents/skills` | `~/.agents/skills` |
+| `claude` | Claude Code | `.claude/skills` | `$CLAUDE_HOME/skills` or `~/.claude/skills` |
+| `opencode` | OpenCode | `.opencode/skills` | `$XDG_CONFIG_HOME/opencode/skills` or `~/.config/opencode/skills` |
+| `kiro` | Kiro | `.kiro/skills` | `~/.kiro/skills` |
+| `cline` | Cline | `.cline/skills` | `~/.cline/skills` |
+| `qwen` | Qwen Code | `.qwen/skills` | `~/.qwen/skills` |
 
-Without `--agent`, `ski` asks which agents to install to and preselects the ones whose directories already exist. Without a terminal it uses the remembered choice, else the detected agents, else `claude`.
+`--agent` takes an id from the table above or an agent name from the table below. An id selects its own directory, so `--agent opencode` means `.opencode/skills`. A name resolves to the first directory listed for that agent, so `--agent cursor` means `.agents/skills`. `ski` detects an agent when its config directory, project directory, or binary exists, and only in a scope where the agent reads a directory from the table.
+
+| agent | `--agent` name | reads in project scope | reads in global scope | detected when |
+| --- | --- | --- | --- | --- |
+| Claude Code | `claude` | `claude` | `claude` | `$CLAUDE_HOME` or `~/.claude` exists, or `.claude` exists in the project |
+| Codex | `codex` | `universal` | `universal` | `$CODEX_HOME` or `~/.codex` exists, `/etc/codex` exists, or `codex` is on `PATH` |
+| Cursor | `cursor` | `universal`, `claude` | `universal`, `claude` | `~/.cursor` exists, or `.cursor` exists in the project |
+| Gemini CLI | `gemini` | `universal` | `universal` | `~/.gemini` exists, `.gemini` exists in the project, or `gemini` is on `PATH` |
+| GitHub Copilot | `copilot` | `universal`, `claude` | `universal` | `~/.copilot` exists, or `copilot` is on `PATH` |
+| Windsurf | `windsurf` | `universal` | `universal` | `~/.codeium/windsurf` exists, or `.windsurf` exists in the project |
+| Amp | `amp` | `universal`, `claude` | `universal`, `claude` | `$XDG_CONFIG_HOME/amp` or `~/.config/amp` exists, or `amp` is on `PATH` |
+| Antigravity | `antigravity` | `universal` | none | `~/.gemini/antigravity` exists |
+| Factory Droid | `droid` | `universal` | `universal` | `~/.factory` exists, `.factory` exists in the project, or `droid` is on `PATH` |
+| Roo Code | `roo` | `universal` | `universal` | `~/.roo` exists, or `.roo` exists in the project |
+| Zed | `zed` | `universal` | `universal` | `$XDG_CONFIG_HOME/zed` or `~/.config/zed` exists, or `zed` is on `PATH` |
+| Junie | `junie` | `universal` | `universal` | `~/.junie` exists, or `.junie` exists in the project |
+| Kilo Code | `kilo` | `universal` | none | `~/.kilo` or `~/.kilocode` exists, or `.kilo` exists in the project |
+| Warp | `warp` | `universal`, `claude`, `opencode` | `universal`, `claude`, `opencode` | `~/.warp` exists, or `warp` is on `PATH` |
+| Augment Code | `augment` | `universal`, `claude` | `universal`, `claude` | `~/.augment` exists, or `.augment` exists in the project |
+| Trae | `trae` | `universal` | none | `~/.trae` exists, or `.trae` exists in the project |
+| Kiro | `kiro` | `kiro` | `kiro` | `~/.kiro` exists, `.kiro` exists in the project, or `kiro` is on `PATH` |
+| Cline | `cline` | `cline`, `claude` | `cline` | `~/.cline` exists, or `.cline` exists in the project |
+| Qwen Code | `qwen` | `qwen` | `qwen` | `~/.qwen` exists, or `.qwen` exists in the project |
+| OpenCode | `opencode` | `universal`, `claude`, `opencode` | `universal`, `claude`, `opencode` | `$XDG_CONFIG_HOME/opencode` or `~/.config/opencode` exists, `.opencode` exists in the project, or `opencode` is on `PATH` |
+
+Without `--agent`, `ski` asks which agents to link to, one row per skills directory. It preselects the cover: the smallest set of directories that every detected agent reads. Rows a detected agent reads sit under `Detected`, with those agents named beside them. The rest sit under `Other`. Without a terminal it uses the remembered choice, else the cover, else `claude`.
+
+When a detected agent reads two of the chosen directories, `ski` warns that the agent loads skills twice.
 
 Editing a linked skill changes it for every linked agent.
 

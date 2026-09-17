@@ -2,23 +2,26 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import * as p from "@clack/prompts";
 import {
-  AGENTS,
+  SKILLS_DIRS,
   agentDisplay,
   ancestorSkillsDirs,
   defaultAgents,
   detectAgents,
-  isOptIn,
   loadedScope,
-  overlapWarning,
+  overlapWarnings,
   parseAgentFlag,
+  shortSkillsDir,
   skillsDir,
+  unreadWarnings,
   type AgentId,
+  type DetectedAgent,
 } from "../core/install/agents.ts";
 import { readConfig, remember } from "../core/config.ts";
 import { syncExcludes } from "../core/install/exclude.ts";
 import { projectRoot, type Scope } from "../core/paths.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
-import { isInteractive, unwrap, fail } from "./prompt.ts";
+import { usageError } from "../core/usage.ts";
+import { isInteractive, unwrap } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
 import { dim, pad, skillName, tildify } from "./style.ts";
 
@@ -75,23 +78,59 @@ const VERBS = {
   },
 } as const;
 
+export interface AgentRow {
+  value: AgentId;
+  label: string;
+}
+
+export type AgentPicker =
+  | { kind: "flat"; rows: AgentRow[] }
+  | { kind: "grouped"; groups: { Detected: AgentRow[]; Other: AgentRow[] } };
+
+const MAX_NAMES = 3;
+
+const readerNames = (id: AgentId, detected: DetectedAgent[]): string => {
+  const names = detected.filter((agent) => agent.reads.includes(id)).map((agent) => agent.display);
+  const shown = names.slice(0, MAX_NAMES).join(", ");
+  return names.length > MAX_NAMES ? `${shown} +${names.length - MAX_NAMES}` : shown;
+};
+
 export const agentRows = (
-  paths: string[],
-  detected: AgentId[],
-): { value: AgentId; label: string }[] => {
-  const nameWidth = Math.max(...AGENTS.map((agent) => Bun.stringWidth(agent.display)));
+  scope: Scope,
+  detected: DetectedAgent[],
+  preselected: AgentId[],
+): AgentPicker => {
+  const paths = SKILLS_DIRS.map((dir) => shortSkillsDir(scope, dir.id));
+  const nameWidth = Math.max(...SKILLS_DIRS.map((dir) => Bun.stringWidth(dir.display)));
   const pathWidth = Math.max(...paths.map((path) => Bun.stringWidth(path)));
-  return AGENTS.map((agent, index) => {
-    const marker = detected.includes(agent.id) ? "(detected)" : isOptIn(agent) ? "(opt-in)" : "";
-    const cells = [pad(agent.display, nameWidth), pad(paths[index]!, pathWidth), dim(marker)];
-    return { value: agent.id, label: cells.join("  ").trimEnd() };
+  const rows = SKILLS_DIRS.map((dir, index) => {
+    const cells = [pad(dir.display, nameWidth), pad(paths[index]!, pathWidth)];
+    cells.push(dim(readerNames(dir.id, detected)));
+    return { value: dir.id, label: cells.join("  ").trimEnd() };
   });
+  if (detected.length === 0) return { kind: "flat", rows };
+  const isRead = (row: AgentRow): boolean =>
+    detected.some((agent) => agent.reads.includes(row.value));
+  const isPreselected = (row: AgentRow): boolean => preselected.includes(row.value);
+  return {
+    kind: "grouped",
+    groups: {
+      Detected: [
+        ...rows.filter(isPreselected),
+        ...rows.filter((row) => isRead(row) && !isPreselected(row)),
+      ],
+      Other: rows.filter((row) => !isRead(row) && !isPreselected(row)),
+    },
+  };
 };
 
 export const preferredAgents = (
+  scope: Scope,
   remembered: AgentId[] | undefined,
-  detected: AgentId[],
-): AgentId[] => remembered ?? defaultAgents(detected);
+  detected: DetectedAgent[],
+): AgentId[] => remembered ?? defaultAgents(scope, detected);
+
+const NO_AGENT = "No agent detected. Using claude. Pass --agent to choose.";
 
 export const chooseAgents = async (
   options: AgentSelection,
@@ -103,55 +142,53 @@ export const chooseAgents = async (
     try {
       return parseAgentFlag(options.agent);
     } catch (e) {
-      return fail((e as Error).message);
+      throw usageError((e as Error).message);
     }
   })();
+  const detected = detectAgents(scope);
   if (explicit) {
+    for (const warning of unreadWarnings(options.agent, scope)) warn(warning);
     await remember({ agents: explicit });
-    return warnOverlap(explicit);
+    return warnOverlap(explicit, scope, detected);
   }
 
   const remembered = (await readConfig()).agents;
 
   if (options.yes || !isInteractive()) {
-    if (remembered) {
-      p.log.info(`${gerund} to ${remembered.join(", ")}.`);
-      return warnOverlap(remembered);
-    }
-    const detected = detectAgents();
-    const preferred = preferredAgents(undefined, detected);
-    if (detected.length === 0) {
-      warn("No agent detected. Using claude. Pass --agent to choose.");
-    }
+    const preferred = preferredAgents(scope, remembered, detected);
+    if (!remembered && detected.length === 0) warn(NO_AGENT);
     p.log.info(`${gerund} to ${preferred.join(", ")}.`);
-    return warnOverlap(preferred);
+    return warnOverlap(preferred, scope, detected);
   }
 
-  const detected = detectAgents();
-  const preferred = preferredAgents(remembered, detected);
-  if (detected.length === 0) {
-    warn("No agent detected. Using claude. Pass --agent to choose.");
-  }
-
+  const preferred = preferredAgents(scope, remembered, detected);
+  if (detected.length === 0) warn(NO_AGENT);
   if (explainer) p.log.info(explainer);
+  const picker = agentRows(scope, detected, preferred);
+  const message = `${imperative} to which agents?`;
   const picked = unwrap(
-    await p.multiselect<AgentId>({
-      message: `${imperative} to which agents?`,
-      options: agentRows(
-        AGENTS.map((agent) => tildify(skillsDir(scope, agent.id))),
-        detected,
-      ),
-      initialValues: preferred,
-      required: true,
-    }),
+    picker.kind === "flat"
+      ? await p.multiselect<AgentId>({
+          message,
+          options: picker.rows,
+          initialValues: preferred,
+          required: true,
+        })
+      : await p.groupMultiselect<AgentId>({
+          message,
+          options: picker.groups,
+          initialValues: preferred,
+          required: true,
+          selectableGroups: false,
+          maxItems: 10,
+        }),
   );
   await remember({ agents: picked });
-  return warnOverlap(picked);
+  return warnOverlap(picked, scope, detected);
 };
 
-const warnOverlap = (agents: AgentId[]): AgentId[] => {
-  const warning = overlapWarning(agents);
-  if (warning) warn(warning);
+const warnOverlap = (agents: AgentId[], scope: Scope, detected: DetectedAgent[]): AgentId[] => {
+  for (const warning of overlapWarnings(agents, scope, detected)) warn(warning);
   return agents;
 };
 

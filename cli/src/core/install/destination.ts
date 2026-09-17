@@ -147,7 +147,7 @@ export const updateDestination = async (
   const placement = placementOf(skill);
   if (placement.kind === "link") {
     const linked = await linkedAgents(skill.name, scope);
-    const agents = linked.length > 0 ? linked : defaultAgents();
+    const agents = linked.length > 0 ? linked : defaultAgents(scope);
     return {
       destination: { kind: "link", scope, lock, agents },
       defaulted: linked.length === 0,

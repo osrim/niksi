@@ -34,6 +34,8 @@ test("no file is no preferences", async () => {
 test("a recorded key reads back", async () => {
   await remember({ scope: "global", agents: ["opencode"] });
   expect(await readConfig()).toEqual({ scope: "global", agents: ["opencode"] });
+  await remember({ agents: ["cline"] });
+  expect(await readConfig()).toEqual({ scope: "global", agents: ["cline"] });
 });
 
 test("recording a key merges with and overwrites prior values", async () => {

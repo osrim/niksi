@@ -1,20 +1,21 @@
 import { existsSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { projectRoot, claudeDir, envPath, userHome, type Scope } from "../paths.ts";
+import { projectRoot, claudeDir, envPath, tildify, userHome, type Scope } from "../paths.ts";
 
-export type AgentId = "claude" | "opencode" | "universal";
+export type AgentId = "universal" | "claude" | "opencode" | "kiro" | "cline" | "qwen";
 
-interface AgentDef {
+interface SkillsDirDef {
   id: AgentId;
   display: string;
   rootDir: string;
   globalDir: () => string;
-  detect: (() => boolean) | null;
   loads: Scope | null;
 }
 
-const opencodeConfigDir = (): string =>
-  join(envPath("XDG_CONFIG_HOME") ?? join(userHome(), ".config"), "opencode");
+const userPath = (...segments: string[]): string => join(userHome(), ...segments);
+
+const xdgConfigDir = (name: string): string =>
+  join(envPath("XDG_CONFIG_HOME") ?? userPath(".config"), name);
 
 const onPath = (binary: string): boolean =>
   (process.env.PATH ?? "")
@@ -23,76 +24,278 @@ const onPath = (binary: string): boolean =>
 
 const inProject = (dir: string): boolean => existsSync(join(projectRoot(), dir));
 
-export const AGENTS: AgentDef[] = [
+const inUserHome = (...segments: string[]): boolean => existsSync(userPath(...segments));
+
+export const SKILLS_DIRS: SkillsDirDef[] = [
+  {
+    id: "universal",
+    display: "Universal",
+    rootDir: ".agents",
+    globalDir: () => userPath(".agents", "skills"),
+    loads: null,
+  },
   {
     id: "claude",
     display: "Claude Code",
     rootDir: ".claude",
     globalDir: () => join(claudeDir(), "skills"),
-    detect: () => existsSync(claudeDir()) || inProject(".claude"),
     loads: "global",
   },
   {
     id: "opencode",
     display: "OpenCode",
     rootDir: ".opencode",
-    globalDir: () => join(opencodeConfigDir(), "skills"),
-    detect: () => existsSync(opencodeConfigDir()) || onPath("opencode") || inProject(".opencode"),
+    globalDir: () => join(xdgConfigDir("opencode"), "skills"),
     loads: "project",
   },
   {
-    id: "universal",
-    display: "Universal",
-    rootDir: ".agents",
-    globalDir: () => join(userHome(), ".agents", "skills"),
-    detect: null,
-    loads: null,
+    id: "kiro",
+    display: "Kiro",
+    rootDir: ".kiro",
+    globalDir: () => userPath(".kiro", "skills"),
+    loads: "project",
+  },
+  {
+    id: "cline",
+    display: "Cline",
+    rootDir: ".cline",
+    globalDir: () => userPath(".cline", "skills"),
+    loads: "global",
+  },
+  {
+    id: "qwen",
+    display: "Qwen Code",
+    rootDir: ".qwen",
+    globalDir: () => userPath(".qwen", "skills"),
+    loads: "project",
   },
 ];
 
-export const AGENT_IDS: AgentId[] = AGENTS.map((agent) => agent.id);
+export const AGENT_IDS: AgentId[] = SKILLS_DIRS.map((dir) => dir.id);
 
-export const isOptIn = (agent: AgentDef): boolean => agent.detect === null;
+interface AgentDef {
+  name: string;
+  display: string;
+  reads: Record<Scope, AgentId[]>;
+  detect: () => boolean;
+}
 
-const agentDef = (id: AgentId): AgentDef => {
-  const found = AGENTS.find((agent) => agent.id === id);
+const reads = (project: AgentId[], global: AgentId[] = project): Record<Scope, AgentId[]> => ({
+  project,
+  global,
+});
+
+export const AGENTS: AgentDef[] = [
+  {
+    name: "claude",
+    display: "Claude Code",
+    reads: reads(["claude"]),
+    detect: () => existsSync(claudeDir()) || inProject(".claude"),
+  },
+  {
+    name: "codex",
+    display: "Codex",
+    reads: reads(["universal"]),
+    detect: () =>
+      existsSync(envPath("CODEX_HOME") ?? userPath(".codex")) ||
+      existsSync("/etc/codex") ||
+      onPath("codex"),
+  },
+  {
+    name: "cursor",
+    display: "Cursor",
+    reads: reads(["universal", "claude"]),
+    detect: () => inUserHome(".cursor") || inProject(".cursor"),
+  },
+  {
+    name: "gemini",
+    display: "Gemini CLI",
+    reads: reads(["universal"]),
+    detect: () => inUserHome(".gemini") || inProject(".gemini") || onPath("gemini"),
+  },
+  {
+    name: "copilot",
+    display: "GitHub Copilot",
+    reads: reads(["universal", "claude"], ["universal"]),
+    detect: () => inUserHome(".copilot") || onPath("copilot"),
+  },
+  {
+    name: "windsurf",
+    display: "Windsurf",
+    reads: reads(["universal"]),
+    detect: () => inUserHome(".codeium", "windsurf") || inProject(".windsurf"),
+  },
+  {
+    name: "amp",
+    display: "Amp",
+    reads: reads(["universal", "claude"]),
+    detect: () => existsSync(xdgConfigDir("amp")) || onPath("amp"),
+  },
+  {
+    name: "antigravity",
+    display: "Antigravity",
+    reads: reads(["universal"], []),
+    detect: () => inUserHome(".gemini", "antigravity"),
+  },
+  {
+    name: "droid",
+    display: "Factory Droid",
+    reads: reads(["universal"]),
+    detect: () => inUserHome(".factory") || inProject(".factory") || onPath("droid"),
+  },
+  {
+    name: "roo",
+    display: "Roo Code",
+    reads: reads(["universal"]),
+    detect: () => inUserHome(".roo") || inProject(".roo"),
+  },
+  {
+    name: "zed",
+    display: "Zed",
+    reads: reads(["universal"]),
+    detect: () => existsSync(xdgConfigDir("zed")) || onPath("zed"),
+  },
+  {
+    name: "junie",
+    display: "Junie",
+    reads: reads(["universal"]),
+    detect: () => inUserHome(".junie") || inProject(".junie"),
+  },
+  {
+    name: "kilo",
+    display: "Kilo Code",
+    reads: reads(["universal"], []),
+    detect: () => inUserHome(".kilo") || inUserHome(".kilocode") || inProject(".kilo"),
+  },
+  {
+    name: "warp",
+    display: "Warp",
+    reads: reads(["universal", "claude", "opencode"]),
+    detect: () => inUserHome(".warp") || onPath("warp"),
+  },
+  {
+    name: "augment",
+    display: "Augment Code",
+    reads: reads(["universal", "claude"]),
+    detect: () => inUserHome(".augment") || inProject(".augment"),
+  },
+  {
+    name: "trae",
+    display: "Trae",
+    reads: reads(["universal"], []),
+    detect: () => inUserHome(".trae") || inProject(".trae"),
+  },
+  {
+    name: "kiro",
+    display: "Kiro",
+    reads: reads(["kiro"]),
+    detect: () => inUserHome(".kiro") || inProject(".kiro") || onPath("kiro"),
+  },
+  {
+    name: "cline",
+    display: "Cline",
+    reads: reads(["cline", "claude"], ["cline"]),
+    detect: () => inUserHome(".cline") || inProject(".cline"),
+  },
+  {
+    name: "qwen",
+    display: "Qwen Code",
+    reads: reads(["qwen"]),
+    detect: () => inUserHome(".qwen") || inProject(".qwen"),
+  },
+  {
+    name: "opencode",
+    display: "OpenCode",
+    reads: reads(["universal", "claude", "opencode"]),
+    detect: () =>
+      existsSync(xdgConfigDir("opencode")) || onPath("opencode") || inProject(".opencode"),
+  },
+];
+
+const AGENT_NAMES = AGENTS.map((agent) => agent.name).filter(
+  (name) => !AGENT_IDS.includes(name as AgentId),
+);
+
+const homeOf = (agent: AgentDef): AgentId => agent.reads.project[0]!;
+
+const skillsDirDef = (id: AgentId): SkillsDirDef => {
+  const found = SKILLS_DIRS.find((dir) => dir.id === id);
   if (!found) throw new Error(`unknown agent: ${id}`);
   return found;
 };
 
-export const agentDisplay = (id: AgentId): string => agentDef(id).display;
+export const agentDisplay = (id: AgentId): string => skillsDirDef(id).display;
 
-export const loadedScope = (id: AgentId): Scope | null => agentDef(id).loads;
+export const loadedScope = (id: AgentId): Scope | null => skillsDirDef(id).loads;
 
 export const skillsDir = (scope: Scope, agent: AgentId): string => {
-  const def = agentDef(agent);
+  const def = skillsDirDef(agent);
   return scope === "global" ? def.globalDir() : join(projectRoot(), def.rootDir, "skills");
 };
 
-export const detectAgents = (): AgentId[] =>
-  AGENTS.filter((agent) => agent.detect?.() === true).map((agent) => agent.id);
+export const shortSkillsDir = (scope: Scope, agent: AgentId): string =>
+  scope === "global" ? tildify(skillsDir(scope, agent)) : `${skillsDirDef(agent).rootDir}/skills`;
 
-export const defaultAgents = (detected: AgentId[] = detectAgents()): AgentId[] => {
-  if (detected.includes("claude")) return ["claude"];
-  if (detected.includes("opencode")) return ["opencode"];
-  return ["claude"];
+export interface DetectedAgent {
+  display: string;
+  reads: AgentId[];
+}
+
+export const detectAgents = (scope: Scope): DetectedAgent[] =>
+  AGENTS.filter((agent) => agent.reads[scope].length > 0 && agent.detect()).map((agent) => ({
+    display: agent.display,
+    reads: agent.reads[scope],
+  }));
+
+const homeCount = (ids: AgentId[], detected: DetectedAgent[]): number =>
+  new Set(detected.map((agent) => agent.reads[0]!).filter((home) => ids.includes(home))).size;
+
+const compareCovers = (a: AgentId[], b: AgentId[], detected: DetectedAgent[]): number => {
+  if (a.length !== b.length) return a.length - b.length;
+  const homes = homeCount(b, detected) - homeCount(a, detected);
+  if (homes !== 0) return homes;
+  for (let i = 0; i < a.length; i++) {
+    const delta = AGENT_IDS.indexOf(a[i]!) - AGENT_IDS.indexOf(b[i]!);
+    if (delta !== 0) return delta;
+  }
+  return 0;
 };
 
-export const overlapWarning = (agents: AgentId[]): string | null => {
-  if (!agents.includes("opencode")) return null;
-  const clashes = agents.filter((agent) => agent === "claude" || agent === "universal");
-  if (clashes.length === 0) return null;
-  const dirs = clashes.map((agent) => `${agentDef(agent).rootDir}/skills`).join(" and ");
-  return `opencode also reads ${dirs}. Pick one agent to avoid loading skills twice.`;
+const cover = (detected: DetectedAgent[]): AgentId[] => {
+  // Tries every subset of the table. Fine to about twelve rows.
+  let best: AgentId[] | null = null;
+  for (let mask = 1; mask < 1 << AGENT_IDS.length; mask++) {
+    const ids = AGENT_IDS.filter((_, index) => mask & (1 << index));
+    if (!detected.every((agent) => agent.reads.some((id) => ids.includes(id)))) continue;
+    if (best === null || compareCovers(ids, best, detected) < 0) best = ids;
+  }
+  return best ?? [];
 };
+
+export const defaultAgents = (
+  scope: Scope,
+  detected: DetectedAgent[] = detectAgents(scope),
+): AgentId[] => (detected.length === 0 ? ["claude"] : cover(detected).toSorted());
+
+export const overlapWarnings = (
+  chosen: AgentId[],
+  scope: Scope,
+  detected: DetectedAgent[],
+): string[] =>
+  detected.flatMap((agent) => {
+    const both = chosen.filter((id) => agent.reads.includes(id));
+    if (both.length < 2) return [];
+    const dirs = both.map((id) => shortSkillsDir(scope, id)).join(" and ");
+    return [`${agent.display} also reads ${dirs}. Pick one to avoid loading skills twice.`];
+  });
 
 export const ancestorSkillsDirs = (): string[] => {
   const home = userHome();
   const dirs: string[] = [];
   let dir = dirname(projectRoot());
   while (dir !== home && dir !== dirname(dir)) {
-    for (const agent of AGENTS) {
-      const candidate = join(dir, agent.rootDir, "skills");
+    for (const def of SKILLS_DIRS) {
+      const candidate = join(dir, def.rootDir, "skills");
       if (existsSync(candidate)) dirs.push(candidate);
     }
     if (existsSync(join(dir, ".git"))) break;
@@ -101,16 +304,38 @@ export const ancestorSkillsDirs = (): string[] => {
   return dirs;
 };
 
+const agentTokens = (value: string | string[] | undefined): string[] =>
+  value === undefined
+    ? []
+    : (Array.isArray(value) ? value : [value])
+        .flatMap((item) => String(item).split(","))
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => item !== "");
+
+const isAgentId = (token: string): token is AgentId => AGENT_IDS.includes(token as AgentId);
+
+const agentByNameOnly = (token: string): AgentDef | undefined =>
+  isAgentId(token) ? undefined : AGENTS.find((agent) => agent.name === token);
+
 export const parseAgentFlag = (value: string | string[] | undefined): AgentId[] | null => {
-  if (value === undefined) return null;
-  const raw = (Array.isArray(value) ? value : [value])
-    .flatMap((item) => String(item).split(","))
-    .map((item) => item.trim().toLowerCase())
-    .filter((item) => item !== "");
-  if (raw.length === 0) return null;
-  const unknown = raw.filter((item) => !AGENT_IDS.includes(item as AgentId));
+  const tokens = agentTokens(value);
+  if (tokens.length === 0) return null;
+  const unknown = tokens.filter(
+    (token) => !isAgentId(token) && agentByNameOnly(token) === undefined,
+  );
   if (unknown.length > 0) {
-    throw new Error(`Unknown agent(s): ${unknown.join(", ")}\nKnown: ${AGENT_IDS.join(", ")}`);
+    throw new Error(
+      `Unknown agent(s): ${unknown.join(", ")}\nIds: ${AGENT_IDS.join(", ")}\nAgents: ${AGENT_NAMES.join(", ")}`,
+    );
   }
-  return [...new Set(raw as AgentId[])];
+  const ids = tokens.map((token) => (isAgentId(token) ? token : homeOf(agentByNameOnly(token)!)));
+  return [...new Set(ids)];
 };
+
+export const unreadWarnings = (value: string | string[] | undefined, scope: Scope): string[] =>
+  agentTokens(value).flatMap((token) => {
+    const agent = agentByNameOnly(token);
+    if (agent === undefined || agent.reads[scope].includes(homeOf(agent))) return [];
+    const dir = shortSkillsDir(scope, homeOf(agent));
+    return [`${agent.display} does not read ${dir}. Nothing loads in ${scope} scope.`];
+  });

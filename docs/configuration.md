@@ -55,7 +55,7 @@ An agent is a tool that loads skills. `niksi` writes a relative symlink from a s
 
 Without `--agent`, `niksi` asks which agents to link to, one row per skills directory. It preselects the cover: the smallest set of directories that every detected agent reads. Rows a detected agent reads sit under `Detected`, with those agents named beside them. The rest sit under `Other`. Without a terminal it uses the remembered choice, else the cover, else `claude`.
 
-When a detected agent reads two of the chosen directories, `niksi` warns that the agent loads skills twice.
+When a detected agent reads two or more of the chosen directories, `niksi` warns that the agent loads skills twice and names the directories you can drop. A directory can be dropped when every detected agent still reads one of the remaining ones. When every chosen directory is needed, there is no warning.
 
 Editing a linked skill changes it for every linked agent.
 

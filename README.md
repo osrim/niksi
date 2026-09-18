@@ -5,9 +5,9 @@
 
 `niksi` installs, updates, and links community skills into your coding agent. `add` and `update` scan every file before writing it and record what you installed in `niksi-lock.json`. `install` verifies that record, so your team runs the same reviewed skills.
 
-The command is `nik`. The name is Finnish for a trick or knack.
+The command is `nik`.
 
-<img width="1200" height="663" alt="niksi-screen-capture" src="https://github.com/user-attachments/assets/ff8199c3-346d-4758-830c-ece12cc7607a" />
+<img width="1200" height="642" alt="niksi-demo" src="https://github.com/user-attachments/assets/beac3a26-1c8a-479f-9e69-ee4e3409a6f2" />
 
 ## Features
 

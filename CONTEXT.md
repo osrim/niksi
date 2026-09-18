@@ -73,7 +73,7 @@ Use these terms in code, docs, and output.
 | location | Where an installed skill already is. It includes its placement and the agents or path-copy presence found on disk. | presence |
 | land | Apply a batch, write the lockfile, and hide links from Git. | commit, finalize, flush |
 | collision | Same skill name in the other scope's skills directory or in an ancestor directory. | conflict, duplicate, clash |
-| overlap | One detected agent reads two chosen skills directories. Cursor reads `.claude/skills` and `.agents/skills`. | clash, double load |
+| overlap | One detected agent reads two or more chosen skills directories, and at least one of them can be dropped. Cursor reads `.claude/skills` and `.agents/skills`. | clash, double load |
 | exclude block | `niksi`'s section of `.git/info/exclude` that hides project links. | ignore block |
 | remembered choice | Scope and agents kept in `config.json` and preselected next time. | saved choice, preference, default |
 

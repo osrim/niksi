@@ -261,22 +261,21 @@ const compareCovers = (a: AgentId[], b: AgentId[], detected: DetectedAgent[]): n
   return 0;
 };
 
-const covers = (ids: AgentId[], detected: DetectedAgent[]): boolean =>
+const isCover = (ids: AgentId[], detected: DetectedAgent[]): boolean =>
   detected.every((agent) => agent.reads.some((id) => ids.includes(id)));
 
-const cover = (detected: DetectedAgent[], pool: AgentId[] = AGENT_IDS): AgentId[] => {
-  // Tries every subset of the pool. Fine to about twelve rows.
+const cover = (detected: DetectedAgent[], candidates: AgentId[] = AGENT_IDS): AgentId[] => {
+  const pool = AGENT_IDS.filter((id) => candidates.includes(id));
   let best: AgentId[] | null = null;
   for (let mask = 1; mask < 1 << pool.length; mask++) {
     const ids = pool.filter((_, index) => mask & (1 << index));
-    if (!covers(ids, detected)) continue;
+    if (!isCover(ids, detected)) continue;
     if (best === null || compareCovers(ids, best, detected) < 0) best = ids;
   }
   return best ?? [];
 };
 
-// Chosen directories the detected agents still reach without.
-const redundant = (chosen: AgentId[], detected: DetectedAgent[]): AgentId[] => {
+const spareIds = (chosen: AgentId[], detected: DetectedAgent[]): AgentId[] => {
   const served = detected.filter((agent) => agent.reads.some((id) => chosen.includes(id)));
   const keep = cover(served, chosen);
   return chosen.filter((id) => !keep.includes(id));
@@ -297,13 +296,13 @@ export const overlapWarnings = (
   scope: Scope,
   detected: DetectedAgent[],
 ): string[] => {
-  const spare = redundant(chosen, detected);
+  const spare = spareIds(chosen, detected);
   return detected.flatMap((agent) => {
-    const both = chosen.filter((id) => agent.reads.includes(id));
-    const drop = both.filter((id) => spare.includes(id));
-    if (both.length < 2 || drop.length === 0) return [];
+    const both = AGENT_IDS.filter((id) => chosen.includes(id) && agent.reads.includes(id));
+    const agentSpare = both.filter((id) => spare.includes(id));
+    if (both.length < 2 || agentSpare.length === 0) return [];
     return [
-      `${agent.display} also reads ${listDirs(scope, both)}. Drop ${listDirs(scope, drop)} to avoid loading skills twice.`,
+      `${agent.display} also reads ${listDirs(scope, both)}. Drop ${listDirs(scope, agentSpare)} to avoid loading skills twice.`,
     ];
   });
 };

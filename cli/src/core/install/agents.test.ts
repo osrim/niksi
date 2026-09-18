@@ -242,14 +242,30 @@ test("with no detected agent the default is claude", async () => {
 test("only a detected agent that reads two chosen directories warns", async () => {
   await project("overlap");
   expect(overlapWarnings(["claude", "universal"], "global", [cursor])).toEqual([
-    `Cursor also reads ~/.claude/skills and ~/.agents/skills. Pick one to avoid loading skills twice.`,
+    `Cursor also reads ~/.claude/skills and ~/.agents/skills. Drop ~/.claude/skills to avoid loading skills twice.`,
   ]);
   expect(overlapWarnings(["opencode", "universal"], "project", [opencode])).toEqual([
-    `OpenCode also reads .opencode/skills and .agents/skills. Pick one to avoid loading skills twice.`,
+    `OpenCode also reads .opencode/skills and .agents/skills. Drop .opencode/skills to avoid loading skills twice.`,
   ]);
   expect(overlapWarnings(["claude", "opencode"], "project", [claude])).toEqual([]);
   expect(overlapWarnings(["claude", "universal"], "global", [claude, codex])).toEqual([]);
   expect(overlapWarnings(["claude"], "global", [cursor])).toEqual([]);
+});
+
+test("the overlap warning names only directories no detected agent needs", async () => {
+  await project("overlap-needed");
+  expect(overlapWarnings(["claude", "universal"], "global", [claude, opencode])).toEqual([
+    `OpenCode also reads ~/.claude/skills and ~/.agents/skills. Drop ~/.agents/skills to avoid loading skills twice.`,
+  ]);
+  expect(overlapWarnings(["claude", "universal"], "global", [claude, codex, opencode])).toEqual([]);
+  expect(overlapWarnings(["universal", "claude", "opencode"], "project", [opencode])).toEqual([
+    `OpenCode also reads .agents/skills, .claude/skills, and .opencode/skills. Drop .claude/skills and .opencode/skills to avoid loading skills twice.`,
+  ]);
+  expect(
+    overlapWarnings(["universal", "claude", "opencode"], "project", [claude, opencode]),
+  ).toEqual([
+    `OpenCode also reads .agents/skills, .claude/skills, and .opencode/skills. Drop .agents/skills and .opencode/skills to avoid loading skills twice.`,
+  ]);
 });
 
 test("--agent parses repeats, commas and case, and resolves agent names to ids", () => {

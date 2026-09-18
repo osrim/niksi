@@ -261,16 +261,31 @@ const compareCovers = (a: AgentId[], b: AgentId[], detected: DetectedAgent[]): n
   return 0;
 };
 
-const cover = (detected: DetectedAgent[]): AgentId[] => {
-  // Tries every subset of the table. Fine to about twelve rows.
+const covers = (ids: AgentId[], detected: DetectedAgent[]): boolean =>
+  detected.every((agent) => agent.reads.some((id) => ids.includes(id)));
+
+const cover = (detected: DetectedAgent[], pool: AgentId[] = AGENT_IDS): AgentId[] => {
+  // Tries every subset of the pool. Fine to about twelve rows.
   let best: AgentId[] | null = null;
-  for (let mask = 1; mask < 1 << AGENT_IDS.length; mask++) {
-    const ids = AGENT_IDS.filter((_, index) => mask & (1 << index));
-    if (!detected.every((agent) => agent.reads.some((id) => ids.includes(id)))) continue;
+  for (let mask = 1; mask < 1 << pool.length; mask++) {
+    const ids = pool.filter((_, index) => mask & (1 << index));
+    if (!covers(ids, detected)) continue;
     if (best === null || compareCovers(ids, best, detected) < 0) best = ids;
   }
   return best ?? [];
 };
+
+// Chosen directories the detected agents still reach without.
+const redundant = (chosen: AgentId[], detected: DetectedAgent[]): AgentId[] => {
+  const served = detected.filter((agent) => agent.reads.some((id) => chosen.includes(id)));
+  const keep = cover(served, chosen);
+  return chosen.filter((id) => !keep.includes(id));
+};
+
+const listDirs = (scope: Scope, ids: AgentId[]): string =>
+  new Intl.ListFormat("en", { type: "conjunction" }).format(
+    ids.map((id) => shortSkillsDir(scope, id)),
+  );
 
 export const defaultAgents = (
   scope: Scope,
@@ -281,13 +296,17 @@ export const overlapWarnings = (
   chosen: AgentId[],
   scope: Scope,
   detected: DetectedAgent[],
-): string[] =>
-  detected.flatMap((agent) => {
+): string[] => {
+  const spare = redundant(chosen, detected);
+  return detected.flatMap((agent) => {
     const both = chosen.filter((id) => agent.reads.includes(id));
-    if (both.length < 2) return [];
-    const dirs = both.map((id) => shortSkillsDir(scope, id)).join(" and ");
-    return [`${agent.display} also reads ${dirs}. Pick one to avoid loading skills twice.`];
+    const drop = both.filter((id) => spare.includes(id));
+    if (both.length < 2 || drop.length === 0) return [];
+    return [
+      `${agent.display} also reads ${listDirs(scope, both)}. Drop ${listDirs(scope, drop)} to avoid loading skills twice.`,
+    ];
   });
+};
 
 export const ancestorSkillsDirs = (): string[] => {
   const home = userHome();

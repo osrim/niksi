@@ -107,7 +107,7 @@ export const run = async (
   if (!fetched) return;
   const { rev, skills } = fetched;
 
-  await migrateIfLegacy("project");
+  await migrateIfLegacy(options.global ? "global" : "project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
     where: mode.where,
     mode: mode.verb,

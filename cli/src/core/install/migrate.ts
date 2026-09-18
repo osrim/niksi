@@ -96,7 +96,9 @@ const renameExcludeMarkers = async (): Promise<void> => {
   const file = await excludeFile(projectRoot());
   if (!file) return;
   const text = await readFile(file, "utf8").catch(() => null);
-  if (text === null || !text.includes(LEGACY_BLOCK_BEGIN)) return;
+  if (text === null || !text.includes(LEGACY_BLOCK_BEGIN) || !text.includes(LEGACY_BLOCK_END)) {
+    return;
+  }
   await writeFile(
     file,
     text.replace(LEGACY_BLOCK_BEGIN, BLOCK_BEGIN).replace(LEGACY_BLOCK_END, BLOCK_END),

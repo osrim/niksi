@@ -3,7 +3,7 @@
 [![release](https://img.shields.io/github/v/release/osrim/niksi)](https://github.com/osrim/niksi/releases)
 [![checks](https://github.com/osrim/niksi/actions/workflows/checks.yml/badge.svg)](https://github.com/osrim/niksi/actions/workflows/checks.yml)
 
-`niksi` installs, updates, and links community skills into your coding agent. It scans every file before writing it and records what you installed in `niksi-lock.json`, so your team runs the same reviewed skills.
+`niksi` installs, updates, and links community skills into your coding agent. `add` and `update` scan every file before writing it and record what you installed in `niksi-lock.json`. `install` verifies that record, so your team runs the same reviewed skills.
 
 The command is `nik`. The name is Finnish for a trick or knack.
 
@@ -15,7 +15,7 @@ The command is `nik`. The name is Finnish for a trick or knack.
 - **One install, every agent**: _Claude Code_, _Codex_, _Cursor_, _Gemini CLI_, _GitHub Copilot_, _OpenCode_, _Windsurf_, _Amp_, _Kiro_, _Cline_, _Qwen Code_, and every other agent that reads `.agents/skills`. Each skill is stored once and symlinked into every skills directory.
 - **Reviewed updates**: `nik update` compares each installed skill with its source and shows the diff before it changes anything.
 - **Dependencies**: skills that depend on other skills from the same source are detected, and `nik add` offers to add them too.
-- **Security scan**: every file is scanned before it is written. A critical finding stops the install until you approve it. See [Security scan](docs/security-scan.md).
+- **Security scan**: `add` and `update` scan every file before it is written. A critical finding stops the install until you approve it. See [Security scan](docs/security-scan.md).
 
 ## Install
 

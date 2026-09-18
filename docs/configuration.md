@@ -102,7 +102,7 @@ When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `
 
 ### Migrating from ski
 
-Before 0.3.0 the project was named `ski`. The first `nik` command in a project renames `ski-lock.json` to `niksi-lock.json` and `.ski` to `.niksi`, re-points the agent skill links, and renames the block in `.git/info/exclude`. The first `nik` command with `-g` moves the global skills, lockfile, store, config, and cache from `~/.local/share/ski`, `~/.config/ski`, and `~/.cache/ski` to `niksi` the same way. A skills directory or lockfile whose new path already exists is left alone. An old store, cache, or config beside a new one is deleted. `SKI_HOME` is now `NIKSI_HOME`. A set `SKI_HOME` without `NIKSI_HOME` exits `2`.
+Before 0.3.0 the project was named `ski`. The first `nik` command in a project renames `ski-lock.json` to `niksi-lock.json` and `.ski` to `.niksi`, re-points the agent skill links, renames the block in `.git/info/exclude`, and moves `~/.config/ski/config.json` to `~/.config/niksi/config.json`. The first `nik` command with `-g` moves the global skills, lockfile, store, config, and cache from `~/.local/share/ski`, `~/.config/ski`, and `~/.cache/ski` to `niksi` the same way. A skills directory or lockfile whose new path already exists is left alone. An old store, cache, or config beside a new one is deleted. `SKI_HOME` is now `NIKSI_HOME`. A set `SKI_HOME` without `NIKSI_HOME` exits `2`.
 
 ### Moving an existing global lockfile
 

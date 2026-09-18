@@ -173,7 +173,7 @@ Install a pinned release and check it against the release's `checksums.txt`. Eve
 
 ```sh
 set -e
-NIKSI_VERSION=0.2.0
+NIKSI_VERSION=0.3.0
 BASE="https://github.com/osrim/niksi/releases/download/v$NIKSI_VERSION"
 curl -fsSLO "$BASE/niksi-linux-x64.tar.gz"
 curl -fsSL "$BASE/checksums.txt" | grep niksi-linux-x64.tar.gz | sha256sum -c -

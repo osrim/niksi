@@ -182,3 +182,17 @@ test("SKI_HOME without NIKSI_HOME is a usage error", () => {
     delete process.env.SKI_HOME;
   }
 });
+
+test("an unterminated legacy exclude block is left alone", async () => {
+  const root = join(tmp, `p${n++}`);
+  await mkdir(join(root, ".git", "info"), { recursive: true });
+  expect((await git(["init", "--quiet"], root)).code).toBe(0);
+  await writeFile(join(root, "ski-lock.json"), LOCK);
+  const exclude = `# >>> ski: managed skill links (rebuilt by \`ski install\`)\n.claude/skills/demo\n*.log\n`;
+  await writeFile(join(root, ".git", "info", "exclude"), exclude);
+  process.chdir(root);
+
+  await migrateLegacyLayout("project");
+
+  expect(await readFile(join(root, ".git", "info", "exclude"), "utf8")).toBe(exclude);
+});

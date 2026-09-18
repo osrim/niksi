@@ -25,6 +25,18 @@ The command is `nik`.
 brew install osrim/tap/niksi
 ```
 
+Or [npm](https://www.npmjs.com/package/niksi):
+
+```sh
+npm install -g niksi
+```
+
+Or run it without installing:
+
+```sh
+npx niksi add owner/repo
+```
+
 Or download the binary for your platform from the [latest release](https://github.com/osrim/niksi/releases/latest) and put it on your `PATH`. `niksi` needs `git`. For CI, see [Commands](docs/commands.md#ci).
 
 ## Quickstart

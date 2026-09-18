@@ -62,8 +62,12 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
+          no-cache: true # a cache written by a PR run must never feed a release
       - run: bun install --frozen-lockfile
         working-directory: .
+      # The release job never installs dependencies, so the suite runs here, without secrets.
+      - run: bun run test
+        if: ${{ matrix.os == 'linux' && matrix.arch == 'x64' }}
 
       - name: Build and pack
         run: |
@@ -100,17 +104,18 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write # npm trusted publishing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
+      # No bun install. This job holds the release token, the tap key, and the npm OIDC
+      # token, so it runs no third-party code. The two scripts import only builtins.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-        working-directory: .
-      - run: bun run test
+          no-cache: true
 
       - name: Check that package.json matches the tag
         run: |
@@ -141,6 +146,18 @@ jobs:
 
           \`\`\`sh
           brew install osrim/tap/niksi
+          \`\`\`
+
+          Or [npm](https://www.npmjs.com/package/niksi):
+
+          \`\`\`sh
+          npm install -g niksi
+          \`\`\`
+
+          Or run it without installing:
+
+          \`\`\`sh
+          npx niksi add owner/repo
           \`\`\`
 
           Or download"
@@ -185,3 +202,34 @@ jobs:
                 commit -m "niksi $TAG"
             git push
           fi
+
+      # No token. The registry trusts this workflow through OIDC and records provenance.
+      # The trusted publisher can only stage. Nothing goes live until a maintainer approves
+      # each package with 2FA. See docs/releasing.md.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24 # ships npm 11.19, trusted publishing needs 11.5.1 or newer
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Stage the npm packages
+        run: |
+          version="${TAG#v}"
+          dist_tag=latest
+          case "$TAG" in *-*) dist_tag=next;; esac
+
+          bun scripts/npm-packages.ts "$version" dist/npm
+          for dir in dist/npm/niksi-*/; do
+            tar xzf "dist/$(basename "$dir").tar.gz" -C "$dir"
+          done
+
+          # The OIDC token can only stage, not list, so this loop cannot see a version that
+          # an earlier run staged. Approve or reject it before a re-run. See docs/releasing.md.
+          for dir in dist/npm/*/; do
+            name=$(jq -r .name "$dir/package.json")
+            if npm view "$name@$version" version > /dev/null 2>&1; then
+              echo "$name@$version is already published"
+            else
+              (cd "$dir" && npm stage publish --access public --tag "$dist_tag" --provenance)
+            fi
+          done
+          echo "Staged. Approve with: npm stage list, then npm stage approve <stage-id>" >> "$GITHUB_STEP_SUMMARY"

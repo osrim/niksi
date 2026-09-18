@@ -59,9 +59,9 @@ export const upgradeHint = (binary: string): string => {
   try {
     resolved = realpathSync(binary);
   } catch {}
-  return resolved.includes("/Cellar/")
-    ? "Run `brew upgrade osrim/tap/niksi` to update."
-    : "Download it from https://github.com/osrim/niksi/releases/latest";
+  if (resolved.includes("/Cellar/")) return "Run `brew upgrade osrim/tap/niksi` to update.";
+  if (resolved.includes("/node_modules/")) return "Run `npm install -g niksi` to update.";
+  return "Download it from https://github.com/osrim/niksi/releases/latest";
 };
 
 export const startUpdateCheck = async (

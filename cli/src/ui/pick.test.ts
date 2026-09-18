@@ -30,9 +30,9 @@ describe("skillOption", () => {
     const option = skillOption({
       skill: skill(),
       held: true,
-      why: "installed from owner/repo, use ski remove",
+      why: "installed from owner/repo, use nik remove",
     });
-    expect(option.hint).toBe("installed from owner/repo, use ski remove");
+    expect(option.hint).toBe("installed from owner/repo, use nik remove");
   });
 
   test("an offerable skill is selectable and hints its description", () => {
@@ -60,14 +60,14 @@ describe("skillOption", () => {
 describe("pickSkillsToAdd", () => {
   let tmp: string;
   let upstream: LocalSource;
-  const restoreEnv = captureEnv("HOME", "SKI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME");
+  const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME");
   const files: SkillFile[] = [{ path: "SKILL.md", content: Buffer.from("hi\n"), mode: "100644" }];
   const sourceId = "https://github.com/o/r";
   const rev = { track: "auto" as const };
   const only = skill({ name: "adhd", path: "adhd" });
 
   beforeAll(async () => {
-    tmp = await mkdtemp(join(tmpdir(), "ski-pick-test-"));
+    tmp = await mkdtemp(join(tmpdir(), "niksi-pick-test-"));
     const sourceDir = join(tmp, "source");
     await mkdir(join(sourceDir, "adhd"), { recursive: true });
     await mkdir(join(sourceDir, "copied"), { recursive: true });
@@ -76,7 +76,7 @@ describe("pickSkillsToAdd", () => {
     await writeFile(join(sourceDir, "copied", "SKILL.md"), "hi\n");
     await writeFile(join(sourceDir, "changed", "SKILL.md"), "changed\n");
     upstream = new LocalSource(sourceDir, sourceId);
-    process.env.SKI_HOME = join(tmp, "ski-home");
+    process.env.NIKSI_HOME = join(tmp, "niksi-home");
     process.env.CLAUDE_HOME = join(tmp, "claude-home");
     process.env.XDG_CONFIG_HOME = join(tmp, "xdg-config");
     process.env.HOME = tmp;

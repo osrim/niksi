@@ -25,7 +25,7 @@ const RULES = {
   "user-invocable": { help: "hidden from you, still callable by the agent" },
   "skill-config": { help: "sets how the agent runs it" },
   "skill-name": { help: "declared name is not a valid skill name" },
-  "unknown-field": { help: "a frontmatter field ski has no rule for" },
+  "unknown-field": { help: "a frontmatter field niksi has no rule for" },
   frontmatter: { help: "frontmatter could not be read" },
   "frontmatter-inventory": { help: "frontmatter in a file no agent loads" },
   "agent-config": { help: "bundles agent config" },

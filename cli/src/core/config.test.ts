@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { configPath, parseConfig, readConfig, remember } from "./config.ts";
 
 let tmp: string;
-const previousHome = process.env.SKI_HOME;
+const previousHome = process.env.NIKSI_HOME;
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-config-test-")));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-config-test-")));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
 });
 
 beforeEach(async () => {
@@ -17,13 +17,13 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  if (previousHome === undefined) delete process.env.SKI_HOME;
-  else process.env.SKI_HOME = previousHome;
+  if (previousHome === undefined) delete process.env.NIKSI_HOME;
+  else process.env.NIKSI_HOME = previousHome;
   await rm(tmp, { recursive: true, force: true });
 });
 
 const writeConfig = async (text: string): Promise<void> => {
-  await mkdir(join(tmp, "ski-home"), { recursive: true });
+  await mkdir(join(tmp, "niksi-home"), { recursive: true });
   await writeFile(configPath(), text);
 };
 

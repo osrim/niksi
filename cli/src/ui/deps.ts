@@ -27,7 +27,7 @@ const warnMentions = (missing: MissingDep[], note: string): void => {
 const reportNotInstalled = (missing: MissingDep[], sourceId: string, scope: Scope): void => {
   warnMentions(missing, "not installed");
   p.log.info(
-    `Add them: ${dim(`ski add ${coordinateFor(sourceId)} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
+    `Add them: ${dim(`nik add ${coordinateFor(sourceId)} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );
 };
 

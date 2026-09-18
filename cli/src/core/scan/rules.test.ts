@@ -216,7 +216,7 @@ test("declarative fields are inventoried at info, one per field", () => {
   ]);
 });
 
-test("a field ski has not been taught is reported rather than passed over", () => {
+test("a field niksi has not been taught is reported rather than passed over", () => {
   const hits = findingsFor("unknown-field", skill("name: x", "sandbox: false", "wat: 1"));
   expect(hits.map((f) => [f.severity, f.detail])).toEqual([
     ["info", "sandbox: false"],

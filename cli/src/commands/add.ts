@@ -28,6 +28,7 @@ import { resolveDeps, type DepsContext } from "../ui/deps.ts";
 import { confirm, fetchSkillFiles, land, type SkillFiles } from "../ui/flow.ts";
 import { reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
+import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { fail } from "../ui/prompt.ts";
 import { logSourceCaution, logWarn } from "../ui/report.ts";
@@ -53,11 +54,11 @@ export const help: CommandHelp = {
     "./skills/my-skill                 local directory",
   ].join("\n"),
   examples: [
-    "$ ski add anthropics/skills",
-    "$ ski add anthropics/skills/pdf -g",
-    "$ ski add owner/repo@v1.2.0 --all -y",
-    "$ ski add owner/repo/pdf --copy",
-    "$ ski add owner/repo --all -y --copy --path ./custom-directory",
+    "$ nik add anthropics/skills",
+    "$ nik add anthropics/skills/pdf -g",
+    "$ nik add owner/repo@v1.2.0 --all -y",
+    "$ nik add owner/repo/pdf --copy",
+    "$ nik add owner/repo --all -y --copy --path ./custom-directory",
   ],
 };
 
@@ -70,7 +71,7 @@ interface AddOptions extends ScopeOptions, ReviewOptions {
 
 const MODES = {
   link: {
-    intro: "ski add",
+    intro: "nik add",
     where: "Add where?",
     verb: "link",
     confirm: "Add",
@@ -79,7 +80,7 @@ const MODES = {
     extended: "linked",
   },
   copy: {
-    intro: "ski add --copy",
+    intro: "nik add --copy",
     where: "Copy where?",
     verb: "copy",
     confirm: "Copy",
@@ -106,6 +107,7 @@ export const run = async (
   if (!fetched) return;
   const { rev, skills } = fetched;
 
+  await migrateIfLegacy("project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
     where: mode.where,
     mode: mode.verb,
@@ -114,6 +116,7 @@ export const run = async (
     p.outro("Nothing added.");
     return;
   }
+  await migrateIfLegacy(scope);
   const scopedSource = source.forScope(scope);
 
   const loaded = await loadLock(scope);
@@ -233,7 +236,7 @@ const confirmOutsideProject = (
     return Promise.resolve(true);
   }
   logWarn(
-    `${tildify(parsed.repo)} is outside this project. ski-lock.json will record a path that other machines cannot resolve.\nUse \`ski add --copy ${coordinate}\` to put the files in the project instead, or \`-g\` to install it for this machine only.`,
+    `${tildify(parsed.repo)} is outside this project. niksi-lock.json will record a path that other machines cannot resolve.\nUse \`nik add --copy ${coordinate}\` to put the files in the project instead, or \`-g\` to install it for this machine only.`,
   );
   return confirm("Record it anyway?", {
     yes: options.yes,

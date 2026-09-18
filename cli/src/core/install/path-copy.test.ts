@@ -14,7 +14,7 @@ const files: SkillFile[] = [{ path: "SKILL.md", content: Buffer.from("hello\n"),
 const integrity = integrityOf(files);
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-path-copy-test-")));
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-path-copy-test-")));
   process.env.HOME = tmp;
 });
 

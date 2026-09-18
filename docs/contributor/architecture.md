@@ -1,6 +1,6 @@
 # Architecture
 
-For contributors. `ski` is a Bun workspace with one package in `cli/`. Terms follow [CONTEXT.md](../../CONTEXT.md).
+For contributors. `niksi` is a Bun workspace with one package in `cli/`. Terms follow [CONTEXT.md](../../CONTEXT.md).
 
 ## Layers
 
@@ -23,7 +23,7 @@ cli/src/
   index.ts
   test-env.ts        environment capture and restore, tests only
   commands/          add, install, update, remove, list
-  ui/                prompts, gate, reports, help, status, destination choices
+  ui/                prompts, gate, reports, help, status, destination choices, legacy migration notice
   core/
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
@@ -33,7 +33,7 @@ cli/src/
     source/          coordinates, Git and local sources, revisions, upstream
     skill/           files, frontmatter, integrity, dependency mentions
     scan/            scan rules and findings
-    install/         scope, agents, store, target checks, links, path copies, destination, lockfile
+    install/         scope, agents, store, target checks, links, path copies, destination, lockfile, ski layout migration
 ```
 
 `core/source/` and `core/install/` are siblings. Runtime imports point from `install/` to `source/` only. Source adapters may type-import installed skill data. Commands and UI combine the two.

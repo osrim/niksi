@@ -156,7 +156,7 @@ export const copyState = async (
 export const unlinkSkill = async (name: string, scope: Scope, agent: AgentId): Promise<void> => {
   const path = skillPath(name, scope, agent);
   if (await isUnmanaged(path, scope)) {
-    throw new Error(`${displayPath(path)} is not managed by ski. Delete it yourself.`);
+    throw new Error(`${displayPath(path)} is not managed by niksi. Delete it yourself.`);
   }
   await rm(path, { recursive: true, force: true });
 };

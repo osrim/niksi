@@ -137,7 +137,7 @@ export const parseCoordinate = (raw: string): Coordinate => {
   if (isLocalPath(base)) {
     if (ref !== undefined) {
       throw new Error(
-        `Local paths cannot use @ref.\nUse Git instead: ski add file://${localPath(base)}@${ref}`,
+        `Local paths cannot use @ref.\nUse Git instead: nik add file://${localPath(base)}@${ref}`,
       );
     }
     return { repo: localPath(base), kind: "local" };

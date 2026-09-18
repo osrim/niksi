@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something ski should do.
+about: Something niksi should do.
 labels: enhancement
 ---
 
@@ -10,4 +10,4 @@ What are you trying to do, and what stops you?
 
 ## Proposal
 
-What should `ski` do? Include the command and output you would expect.
+What should `niksi` do? Include the command and output you would expect.

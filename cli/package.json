@@ -1,15 +1,15 @@
 {
-	"name": "@osrim/ski",
+	"name": "niksi",
 	"version": "0.2.3",
 	"private": true,
-	"description": "Skill manager for coding agents",
+	"description": "niksi skills CLI: install, update, and link skills into coding agents",
 	"type": "module",
 	"bin": {
-		"ski": "./src/index.ts"
+		"nik": "./src/index.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "bun build --compile --minify --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/index.ts --outfile dist/ski",
+		"build": "bun build --compile --minify --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/index.ts --outfile dist/nik",
 		"lint": "oxlint src scripts",
 		"lint:fix": "oxlint --fix src scripts",
 		"fmt": "oxfmt src scripts",

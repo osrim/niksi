@@ -149,7 +149,7 @@ const pickFrom = async (
   source: string,
   offered: PickerRow[],
 ): Promise<DiscoveredSkill[]> => {
-  requireTTY("ski add needs to know which skills", COORDINATE_REMEDY);
+  requireTTY("nik add needs to know which skills", COORDINATE_REMEDY);
   const picked = new Set(
     unwrap(
       await p.multiselect<string>({
@@ -248,7 +248,7 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
   };
   const failHeld = (skill: DiscoveredSkill, why: string): never =>
     fail(
-      `${skill.name} is already ${why}.\nRun \`ski remove ${skill.name}${scopeFlag(scope)}\` first.`,
+      `${skill.name} is already ${why}.\nRun \`nik remove ${skill.name}${scopeFlag(scope)}\` first.`,
     );
   const lacking = await approvedMissingAgentsByPath(selection, held);
   const complete = (skill: DiscoveredSkill): boolean => lacking.get(skill.path)?.length === 0;
@@ -296,14 +296,14 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
   const rows = skills.map((skill): PickerRow => {
     if (lock.skills[skill.name] === undefined) return offerableRow(skill, scope, agents);
     const why = held(skill);
-    if (why) return { skill, held: true, why: `${why}, use ski remove` };
+    if (why) return { skill, held: true, why: `${why}, use nik remove` };
     const missing = lacking.get(skill.path);
     if (missing === undefined || missing.length === 0) return { skill, held: true };
     return extendRow(skill, scope, missing);
   });
   if (rows.every((row) => row.held === true)) {
     listHeld(rows, (row) =>
-      complete(row.skill) ? alreadyIn : "already installed, use ski update",
+      complete(row.skill) ? alreadyIn : "already installed, use nik update",
     );
     return split([], false);
   }
@@ -312,7 +312,7 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
 };
 
 export const pickUpdates = async (updatable: OutdatedVerdict[]): Promise<string[]> => {
-  requireTTY("ski update needs to know which skills", SELECTION_REMEDY);
+  requireTTY("nik update needs to know which skills", SELECTION_REMEDY);
   const groups = groupOptionsBySource(
     updatable,
     (verdict) => verdict.skill.source,
@@ -336,7 +336,7 @@ export const pickToRemove = async (
   lock: Lockfile,
   locations: Map<string, Location>,
 ): Promise<string[]> => {
-  requireTTY("ski remove needs to know which skills", SELECTION_REMEDY);
+  requireTTY("nik remove needs to know which skills", SELECTION_REMEDY);
   const groups = groupOptionsBySource(
     installed,
     (name) => friendlySource(lock.skills[name]!.source),

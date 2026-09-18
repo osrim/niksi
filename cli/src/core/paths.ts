@@ -3,7 +3,8 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import * as find from "empathic/find";
 
-const LOCKFILE_NAME = "ski-lock.json";
+export const LOCKFILE_NAME = "niksi-lock.json";
+export const LEGACY_LOCKFILE_NAME = "ski-lock.json";
 
 export type Scope = "global" | "project";
 
@@ -43,20 +44,25 @@ export const tildify = (path: string): string =>
 
 export const claudeDir = (): string => envPath("CLAUDE_HOME") ?? join(userHome(), ".claude");
 
+export const xdgRoot = (variable: string, homeSegment: string): string =>
+  envPath(variable, false) ?? join(userHome(), homeSegment);
+
 const xdgDir = (variable: string, homeSegment: string): string =>
-  join(envPath(variable, false) ?? join(userHome(), homeSegment), "ski");
+  join(xdgRoot(variable, homeSegment), "niksi");
 
 export const dataDir = (): string =>
-  envPath("SKI_HOME") ?? xdgDir("XDG_DATA_HOME", join(".local", "share"));
-export const configDir = (): string => envPath("SKI_HOME") ?? xdgDir("XDG_CONFIG_HOME", ".config");
+  envPath("NIKSI_HOME") ?? xdgDir("XDG_DATA_HOME", join(".local", "share"));
+export const configDir = (): string =>
+  envPath("NIKSI_HOME") ?? xdgDir("XDG_CONFIG_HOME", ".config");
 export const cacheDir = (): string => xdgDir("XDG_CACHE_HOME", ".cache");
 
 export const storeDir = (): string => join(dataDir(), "store");
 export const canonicalDir = (scope: Scope): string =>
-  join(scope === "global" ? dataDir() : join(projectRoot(), ".ski"), "skills");
+  join(scope === "global" ? dataDir() : join(projectRoot(), ".niksi"), "skills");
 
 const ROOT_MARKERS = [
   LOCKFILE_NAME,
+  LEGACY_LOCKFILE_NAME, // ponytail: finds unmigrated ski projects. Delete in 0.5.0.
   ".agents",
   ".claude",
   ".opencode",

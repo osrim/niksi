@@ -21,7 +21,7 @@ import { captureEnv } from "../../test-env.ts";
 
 let tmp: string;
 
-const restoreEnv = captureEnv("HOME", "SKI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME", "PATH");
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME", "PATH");
 
 const files: SkillFile[] = [
   { path: "SKILL.md", content: Buffer.from("hello\n"), mode: "100644" },
@@ -40,8 +40,8 @@ const entry = (name: string, agents?: AgentId[]): LockEntry & { name: string } =
 });
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-placement-test-"));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await mkdtemp(join(tmpdir(), "niksi-placement-test-"));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   process.env.CLAUDE_HOME = join(tmp, "claude-home");
   process.env.XDG_CONFIG_HOME = join(tmp, "xdg-config");
   process.env.HOME = tmp;

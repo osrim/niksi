@@ -13,12 +13,12 @@ import { captureEnv } from "../test-env.ts";
 let tmp: string;
 let cwd: string;
 
-const restoreEnv = captureEnv("SKI_HOME", "XDG_CACHE_HOME");
+const restoreEnv = captureEnv("NIKSI_HOME", "XDG_CACHE_HOME");
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-flow-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-flow-test-"));
   cwd = process.cwd();
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   process.env.XDG_CACHE_HOME = join(tmp, "cache");
 });
 

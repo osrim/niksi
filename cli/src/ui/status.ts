@@ -60,7 +60,7 @@ export const reportVerdicts = (
         break;
       case "pinned":
         p.log.info(
-          `${skillName(skill.name)}: pinned at ${displayLabel(skill)}. Latest: ${displayLabel(verdict.upstream)}.\nRun ${dim(`ski update ${skill.name}${scopeFlag(scope)}`)} to update.`,
+          `${skillName(skill.name)}: pinned at ${displayLabel(skill)}. Latest: ${displayLabel(verdict.upstream)}.\nRun ${dim(`nik update ${skill.name}${scopeFlag(scope)}`)} to update.`,
         );
         break;
       case "moved":

@@ -1,6 +1,6 @@
 # Glossary
 
-`ski` installs Agent Skills from Git repositories and local directories. It scans each new skill and pins its content.
+`niksi` installs Agent Skills from Git repositories and local directories. It scans each new skill and pins its content.
 
 Use these terms in code, docs, and output.
 
@@ -18,7 +18,7 @@ Use these terms in code, docs, and output.
 | commit | Full 40-character Git commit. | ref, hash, SHA |
 | short id | First 8 hex characters of a commit, or of the integrity when there is no commit. | short hash, abbreviated commit |
 | label | Human form of a revision: the pinned ref, else the tag, else the short id. | display name, version string |
-| integrity | `ski`'s sha256 of installed skill files. | hash, checksum, digest |
+| integrity | `niksi`'s sha256 of installed skill files. | hash, checksum, digest |
 | ref | Tag, branch, or commit typed after `@`. | revision, reference |
 | pinned | Installed with an explicit ref. It updates only when named. | locked, frozen |
 | upstream | Revision an installed skill would move to. | target, remote, head |
@@ -49,12 +49,12 @@ Use these terms in code, docs, and output.
 | term | meaning | avoid |
 | --- | --- | --- |
 | scope | `global` for one machine or `project` for one project root. | workspace, environment, context |
-| project root | Nearest parent with `ski-lock.json`, a skills directory's root (`.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`), or `.git`. | workspace root, repo root, cwd |
-| lockfile entry | One skill's record in `ski-lock.json`. | row, record |
-| store | Download cache in `~/.local/share/ski/store`. Installed skills do not depend on it. | cache, vault |
+| project root | Nearest parent with `niksi-lock.json`, a skills directory's root (`.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`), or `.git`. | workspace root, repo root, cwd |
+| lockfile entry | One skill's record in `niksi-lock.json`. | row, record |
+| store | Download cache in `~/.local/share/niksi/store`. Installed skills do not depend on it. | cache, vault |
 | store entry | Cached directory in the store holding one skill at one integrity. Never a link target. | package dir, cache entry, snapshot |
 | materialize | Write skill files into a store entry and check the integrity. | download, cache, populate |
-| canonical copy | Real skill directory in the scope's `skills` directory (`.ski/skills` or `~/.local/share/ski/skills`) that links point to. One per scope. `ski` owns it while a link entry names it. | master copy, primary |
+| canonical copy | Real skill directory in the scope's `skills` directory (`.niksi/skills` or `~/.local/share/niksi/skills`) that links point to. One per scope. `niksi` owns it while a link entry names it. | master copy, primary |
 | link | Relative symlink from an agent's skills directory to the canonical copy. | shortcut, alias, pointer |
 | copy | Real skill directory that `add --copy` writes: an agent copy or a path copy. | clone, download |
 | agent copy | Copy in an agent's skills directory. The lockfile entry records the agents. | agent-dir copy |
@@ -63,18 +63,18 @@ Use these terms in code, docs, and output.
 | mode | `link` or `copy`: whether an installed skill is a symlink or real directory. | form, verb, kind |
 | destination root | Project-relative directory recorded in `copyPath` for path copies. Each skill is a named child. | output directory, target directory |
 | managed | Link that points into the canonical copy, or copy that the matching lockfile entry names. | owned, tracked |
-| unmanaged | Existing link or directory at a destination that is not managed. `ski` refuses to replace or delete it. | foreign, stray, existing |
+| unmanaged | Existing link or directory at a destination that is not managed. `niksi` refuses to replace or delete it. | foreign, stray, existing |
 | recorded | Present in the lockfile, whether or not a link or copy exists. | listed, locked |
 | installed | Recorded in the lockfile and present as a link or copy. | added, present, tracked |
 | missing | Recorded, but no link or copy is present at its recorded location. | not linked, not installed, absent |
 | held | Installed skill that the `add` picker shows but does not offer. | disabled, taken |
 | extend | Add an installed skill to more agents without a new review. | relink, widen |
-| destination | Where `ski` writes a skill: its scope, placement, and agents or destination root. | target |
+| destination | Where `niksi` writes a skill: its scope, placement, and agents or destination root. | target |
 | location | Where an installed skill already is. It includes its placement and the agents or path-copy presence found on disk. | presence |
 | land | Apply a batch, write the lockfile, and hide links from Git. | commit, finalize, flush |
 | collision | Same skill name in the other scope's skills directory or in an ancestor directory. | conflict, duplicate, clash |
 | overlap | One detected agent reads two chosen skills directories. Cursor reads `.claude/skills` and `.agents/skills`. | clash, double load |
-| exclude block | `ski`'s section of `.git/info/exclude` that hides project links. | ignore block |
+| exclude block | `niksi`'s section of `.git/info/exclude` that hides project links. | ignore block |
 | remembered choice | Scope and agents kept in `config.json` and preselected next time. | saved choice, preference, default |
 
 ## Security
@@ -103,10 +103,10 @@ Use these terms in code, docs, and output.
 | cover | Smallest set of skills directories that every detected agent reads in a scope. | default set, minimal set |
 | skills directory | Directory from which an agent loads skills. | skills dir, agent directory, target dir, install dir |
 
-## ski releases
+## niksi releases
 
 | term | meaning | avoid |
 | --- | --- | --- |
-| version | `ski`'s semver number. | revision, build |
+| version | `niksi`'s semver number. | revision, build |
 | release | Tagged commit and GitHub release with the binaries for one version. Stable versions also get the Homebrew formula. | publish, ship, cut |
 | update notice | Two stderr lines after a successful run that name a newer release and how to get it. Fed by a release check that runs once a day, or on the next run after a failed request or an unwritten cache. | update prompt, upgrade nag, version warning |

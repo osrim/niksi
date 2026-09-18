@@ -5,17 +5,17 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | command | alias | purpose |
 | --- | --- | --- |
 | `add <coordinate> [...skills]` | | Fetch, review, and add skills. |
-| `install` | `i` | Restore every skill in `ski-lock.json`. |
+| `install` | `i` | Restore every skill in `niksi-lock.json`. |
 | `update [...skills]` | `up` | Check upstream and update skills. |
 | `remove [...skills]` | `rm` | Remove installed skills. |
 | `list` | `ls` | Show installed skills. |
 
-`ski --help` and `ski <command> --help` print usage. `ski --version` prints the version, platform, and Bun version.
+`nik --help` and `nik <command> --help` print usage. `nik --version` prints the version, platform, and Bun version.
 
 ## `add`
 
 ```text
-ski add <coordinate> [...skills] [-g|-p] [-a] [-y] [--agent <id>] [--copy [--path <directory>]] [--dangerous-skip-critical-approval]
+nik add <coordinate> [...skills] [-g|-p] [-a] [-y] [--agent <id>] [--copy [--path <directory>]] [--dangerous-skip-critical-approval]
 ```
 
 A coordinate names a source:
@@ -32,12 +32,12 @@ git@github.com:owner/repo.git     clone URL
 
 `owner/repo` always means GitHub. Every other forge needs a full URL. Segments after `owner/repo` name one skill: its path in the source, or else a skill whose name is the last segment. A URL path is the repository, so name the skill as a positional argument instead.
 
-`ski` rejects plain `http://` URLs, URLs that carry a username or password, and any coordinate that contains `#`.
+`niksi` rejects plain `http://` URLs, URLs that carry a username or password, and any coordinate that contains `#`.
 
 - Without skill names, `add` opens a picker. A source with one skill skips the picker.
 - `--all` selects every skill in the source.
 - Named skills must exist in the source and have distinct names.
-- `@ref` pins the skill. A pinned skill updates only when you name it in `ski update`.
+- `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
 - `add` shows and scans every file before writing. See [security-scan.md](security-scan.md).
 - `add` finds mentions of other skills from the same source and offers to review them too.
 - `--copy` writes a real directory instead of a link. To switch a skill between link and copy, remove it and add it again.
@@ -45,12 +45,12 @@ git@github.com:owner/repo.git     clone URL
 - `--path <directory>` writes each selected skill to `<directory>/<skill name>`. It requires `--copy` and selects project scope. It skips agent selection.
 - Do not combine `--path` with `--global` or `--agent`. Relative paths resolve from the project root. Absolute paths must resolve inside the project root.
 - A path cannot contain `..` or escape the project root through a symlinked ancestor.
-- A matching lockfile entry manages an existing path-copy destination. `ski` skips other existing directories and continues the batch.
+- A matching lockfile entry manages an existing path-copy destination. `niksi` skips other existing directories and continues the batch.
 
 ## `install`
 
 ```text
-ski install [-g|-p] [-y] [--agent <id>]
+nik install [-g|-p] [-y] [--agent <id>]
 ```
 
 `install` restores every lockfile entry. It takes no positional arguments; passing one exits `2`.
@@ -66,7 +66,7 @@ Link entries install to the agents you pass with `--agent`, or to the saved or d
 ## `update`
 
 ```text
-ski update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
+nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 ```
 
 `update` checks every installed skill against its source, then shows and scans changed files before writing.
@@ -76,23 +76,23 @@ ski update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 - A skill whose files did not change at a new revision updates without review.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
 - Missing dependencies are reported, not installed.
-- Updating a modified skill discards your edits. Run `ski install` to restore the locked files instead.
+- Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.
 - `update` compares and updates each path copy at its recorded project-relative destination.
 
 ## `remove`
 
 ```text
-ski remove [...skills] [-g|-p] [-a] [-y]
+nik remove [...skills] [-g|-p] [-a] [-y]
 ```
 
-`remove` deletes the selected lockfile entries and the links or copies that `ski` created. For a path copy, it deletes only the named skill directory. It keeps the destination root and does not use the network.
+`remove` deletes the selected lockfile entries and the links or copies that `niksi` created. For a path copy, it deletes only the named skill directory. It keeps the destination root and does not use the network.
 
 Without names or `--all`, it opens a picker. `--all` selects every installed skill. `--yes` skips the confirmation.
 
 ## `list`
 
 ```text
-ski list [-g|-p] [--json]
+nik list [-g|-p] [--json]
 ```
 
 `list` shows every lockfile entry with its revision and location. It marks missing skills and skills whose files differ from the lockfile.
@@ -104,7 +104,7 @@ Path copies show their project-relative destination. `list` does not use the net
 ```json
 {
   "scope": "project",
-  "lockfile": "/work/repo/ski-lock.json",
+  "lockfile": "/work/repo/niksi-lock.json",
   "skills": [
     {
       "name": "pdf",
@@ -126,7 +126,7 @@ Path copies show their project-relative destination. `list` does not use the net
 
 Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`.
 
-For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `ski` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
+For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `niksi` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
 
 ## Flags
 
@@ -152,7 +152,7 @@ Running a command from your home directory selects global scope.
 
 ## Non-interactive use
 
-`ski` prompts when it needs a decision. Each prompt has a flag replacement:
+`niksi` prompts when it needs a decision. Each prompt has a flag replacement:
 
 | prompt | replacement |
 | --- | --- |
@@ -169,30 +169,30 @@ Ctrl-C exits `130`. Files already written stay written.
 
 ## CI
 
-Install a pinned release and check it against the release's `checksums.txt`. Every release has a `ski-<os>-<arch>.tar.gz` for `linux-x64`, `linux-arm64`, `darwin-arm64`, and `darwin-x64`.
+Install a pinned release and check it against the release's `checksums.txt`. Every release has a `niksi-<os>-<arch>.tar.gz` for `linux-x64`, `linux-arm64`, `darwin-arm64`, and `darwin-x64`.
 
 ```sh
 set -e
-SKI_VERSION=0.2.0
-BASE="https://github.com/osrim/ski/releases/download/v$SKI_VERSION"
-curl -fsSLO "$BASE/ski-linux-x64.tar.gz"
-curl -fsSL "$BASE/checksums.txt" | grep ski-linux-x64.tar.gz | sha256sum -c -
-tar xzf ski-linux-x64.tar.gz
-install -m 755 ski /usr/local/bin/ski
+NIKSI_VERSION=0.2.0
+BASE="https://github.com/osrim/niksi/releases/download/v$NIKSI_VERSION"
+curl -fsSLO "$BASE/niksi-linux-x64.tar.gz"
+curl -fsSL "$BASE/checksums.txt" | grep niksi-linux-x64.tar.gz | sha256sum -c -
+tar xzf niksi-linux-x64.tar.gz
+install -m 755 nik /usr/local/bin/nik
 
-ski install --agent claude --yes
+nik install --agent claude --yes
 ```
 
-`git` must be on `PATH`. `ski install` exits `0` when every entry in `ski-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
+`git` must be on `PATH`. `nik install` exits `0` when every entry in `niksi-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
 
-`ski add` and `ski update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `ski list --json` prints machine-readable output.
+`nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
 
 For reviewed sources whose critical findings you accept, use CI to keep a repository's published skill copies current. Every run still lists files, scans them, and prints all findings:
 
 ```sh
-ski add owner/skills --all --yes --copy --path ./custom-directory --dangerous-skip-critical-approval
-ski update --all --yes --dangerous-skip-critical-approval
-git diff --exit-code ski-lock.json ./custom-directory
+nik add owner/skills --all --yes --copy --path ./custom-directory --dangerous-skip-critical-approval
+nik update --all --yes --dangerous-skip-critical-approval
+git diff --exit-code niksi-lock.json ./custom-directory
 ```
 
 ## Exit codes

@@ -234,7 +234,7 @@ export const hideLinksFromGit = async (scope: Scope): Promise<void> => {
   if (!sync?.changed) return;
   p.log.info(
     sync.patterns.length === 0
-      ? "Cleared ski's entries from .git/info/exclude."
-      : `${sync.patterns.length} link(s) hidden with .git/info/exclude. Commit ski-lock.json.`,
+      ? "Cleared niksi's entries from .git/info/exclude."
+      : `${sync.patterns.length} link(s) hidden with .git/info/exclude. Commit niksi-lock.json.`,
   );
 };

@@ -1,5 +1,5 @@
-const asset = (os: string, arch: string): string => `ski-${os}-${arch}.tar.gz`;
-const DOWNLOAD = "https://github.com/osrim/ski/releases/download";
+const asset = (os: string, arch: string): string => `niksi-${os}-${arch}.tar.gz`;
+const DOWNLOAD = "https://github.com/osrim/niksi/releases/download";
 
 export const sha256For = (checksums: string, name: string): string => {
   const line = checksums.split("\n").find((entry) => entry.trim().endsWith(` ${name}`));
@@ -33,9 +33,9 @@ ${source(release, os, "x64")}
 
 export const renderFormula = (version: string, checksums: string): string => {
   const release = { version, checksums };
-  return `class Ski < Formula
+  return `class Niksi < Formula
   desc "Skill manager for coding agents"
-  homepage "https://github.com/osrim/ski"
+  homepage "https://github.com/osrim/niksi"
   version "${version}"
   license "MIT"
 
@@ -46,11 +46,19 @@ ${onSystem(release, "darwin")}
 ${onSystem(release, "linux")}
 
   def install
-    bin.install "ski"
+    bin.install "nik"
+  end
+
+  def caveats
+    <<~EOS
+      ski was renamed to niksi. The command is now nik.
+      Run any nik command in an existing project to migrate ski-lock.json and .ski.
+      See https://github.com/osrim/niksi/releases/tag/v0.3.0
+    EOS
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/ski --version")
+    assert_match version.to_s, shell_output("#{bin}/nik --version")
   end
 end
 `;

@@ -6,13 +6,13 @@ import { tmpdir } from "node:os";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
-const restoreEnv = captureEnv("HOME", "SKI_HOME");
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
 const cli = join(import.meta.dir, "..", "index.ts");
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-path-cli-test-")));
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-path-cli-test-")));
   process.env.HOME = tmp;
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
 });
 
 afterAll(async () => {
@@ -32,7 +32,7 @@ const runCli = async (cwd: string, ...args: string[]): Promise<RunResult> => {
     env: {
       ...process.env,
       HOME: tmp,
-      SKI_HOME: join(tmp, "ski-home"),
+      NIKSI_HOME: join(tmp, "niksi-home"),
       CI: "1",
       NO_COLOR: "1",
       TERM: "dumb",
@@ -57,7 +57,7 @@ const runInteractiveCli = async (cwd: string, ...args: string[]): Promise<RunRes
     env: {
       ...process.env,
       HOME: tmp,
-      SKI_HOME: join(tmp, "ski-home"),
+      NIKSI_HOME: join(tmp, "niksi-home"),
       CI: "1",
       NO_COLOR: "1",
       TERM: "dumb",
@@ -113,7 +113,7 @@ test("add --copy --path writes every skill below the destination root and record
   expect(await readFile(join(project, "custom-directory", "beta", "SKILL.md"), "utf8")).toContain(
     "name: beta",
   );
-  const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
   expect(lock.skills.alpha).toMatchObject({
     copy: true,
     copyPath: "custom-directory",
@@ -145,7 +145,7 @@ test.each([false, true])(
     expect(result.exitCode).toBe(0);
     expect(existsSync(join(project, "published", "primary", "SKILL.md"))).toBe(true);
     expect(existsSync(join(project, "published", "helper", "SKILL.md"))).toBe(true);
-    const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+    const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
     expect(lock.skills.primary).toMatchObject({ copy: true, copyPath: "published" });
     expect(lock.skills.helper).toMatchObject({ copy: true, copyPath: "published" });
     if (critical) {
@@ -302,7 +302,7 @@ test("remove deletes only the managed skill directory below a destination root",
   expect(removed.exitCode).toBe(0);
   expect(existsSync(join(project, "published", "demo"))).toBe(false);
   expect(await readFile(join(project, "published", "keep.txt"), "utf8")).toBe("keep\n");
-  const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
   expect(lock.skills).toEqual({});
 });
 
@@ -336,7 +336,7 @@ test.each([false, true])(
     expect(await readFile(join(project, "published", "beta", "SKILL.md"), "utf8")).toContain(
       "name: beta",
     );
-    const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+    const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
     expect(Object.keys(lock.skills)).toEqual(["beta"]);
   },
 );
@@ -362,8 +362,8 @@ test("changing a path copy to an agent copy requires remove then add", async () 
     "--yes",
   );
   expect(changed.exitCode).toBe(1);
-  expect(changed.stderr).toContain("Run `ski remove demo` first");
-  const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+  expect(changed.stderr).toContain("Run `nik remove demo` first");
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
   expect(lock.skills.demo.copyPath).toBe("published");
   expect(lock.skills.demo.agents).toBeUndefined();
 });
@@ -387,7 +387,7 @@ test("install restores mixed link, agent-copy, and path-copy placements", async 
 
   await rm(join(project, "published", "alpha"), { recursive: true });
   await rm(join(project, ".claude", "skills", "beta"), { force: true });
-  await rm(join(project, ".ski", "skills", "beta"), { recursive: true });
+  await rm(join(project, ".niksi", "skills", "beta"), { recursive: true });
   await rm(join(project, ".agents", "skills", "gamma"), { recursive: true });
 
   const installed = await runCli(project, "install", "--agent", "opencode", "--yes");
@@ -448,7 +448,7 @@ test("the dangerous flag writes a path copy while retaining critical findings", 
   expect(await readFile(join(project, "published", "dangerous", "hooks.json"), "utf8")).toBe(
     "{}\n",
   );
-  const lock = JSON.parse(await readFile(join(project, "ski-lock.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
   expect(lock.skills.dangerous).toMatchObject({ copy: true, copyPath: "published" });
   expect(JSON.stringify(lock)).not.toContain("dangerousSkipCriticalApproval");
 });
@@ -463,7 +463,7 @@ test("a path-copy update needs a fresh critical approval override on each invoca
       .exitCode,
   ).toBe(0);
   const installed = join(project, "published", "demo", "SKILL.md");
-  const lockPath = join(project, "ski-lock.json");
+  const lockPath = join(project, "niksi-lock.json");
   const beforeFile = await readFile(installed, "utf8");
   const beforeLock = await readFile(lockPath, "utf8");
   await makeSkill(source, "demo", "version two\n");
@@ -531,5 +531,5 @@ test("the dangerous flag does not confirm a path-copy write", async () => {
   expect(result.stdout).toContain("critical");
   expect(result.stderr).toContain("Pass -y to proceed.");
   expect(existsSync(join(project, "published", "demo"))).toBe(false);
-  expect(existsSync(join(project, "ski-lock.json"))).toBe(false);
+  expect(existsSync(join(project, "niksi-lock.json"))).toBe(false);
 });

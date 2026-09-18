@@ -35,8 +35,8 @@ const lazy = (): Promise<SkillFile[]> => Promise.resolve(files);
 const revision: Revision = { commit: "a".repeat(40), branch: "main", track: "auto", tag: "v1.0.0" };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-apply-test-"));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await mkdtemp(join(tmpdir(), "niksi-apply-test-"));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   process.env.CLAUDE_HOME = join(tmp, "claude-home");
   process.env.XDG_CONFIG_HOME = join(tmp, "xdg-config");
   prevHome = process.env.HOME;
@@ -207,7 +207,7 @@ test("an unsafe agent dir is refused before the canonical copy is written", asyn
         { kind: "link", scope: "project", agents: ["claude", "universal"] },
       ),
     ).rejects.toThrow("symlink into the store");
-    expect(existsSync(join(dir, ".ski"))).toBe(false);
+    expect(existsSync(join(dir, ".niksi"))).toBe(false);
     expect(existsSync(join(dir, ".claude"))).toBe(false);
   } finally {
     process.chdir(prev);
@@ -302,7 +302,7 @@ test("applySkill refuses an unmanaged path copy before it writes a store entry",
         { name: "taken", source: "https://github.com/o/r", path: "", revision, files: lazy },
         { kind: "path-copy", scope: "project", root: "published", managed: false },
       ),
-    ).rejects.toThrow("ski skipped this skill because published/taken exists but is unmanaged");
+    ).rejects.toThrow("niksi skipped this skill because published/taken exists but is unmanaged");
     expect(await readFile(join(project, "published", "taken", "mine.txt"), "utf8")).toBe("mine\n");
     expect(existsSync(storeEntryPath("https://github.com/o/r", "taken", integrity))).toBe(false);
   } finally {

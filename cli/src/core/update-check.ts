@@ -6,7 +6,7 @@ import { z } from "zod";
 import { cacheDir } from "./paths.ts";
 import { isNewerVersion } from "./source/semver.ts";
 
-const LATEST_RELEASE_URL = "https://api.github.com/repos/osrim/ski/releases/latest";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/osrim/niksi/releases/latest";
 const TTL_MS = 24 * 60 * 60 * 1000;
 const TIMEOUT_MS = 1500;
 
@@ -37,7 +37,7 @@ const silenced = (json: boolean): boolean =>
   !process.stdout.isTTY ||
   Boolean(process.env.CI) ||
   Boolean(process.env.NO_UPDATE_NOTIFIER) ||
-  Boolean(process.env.SKI_NO_UPDATE_NOTIFIER) ||
+  Boolean(process.env.NIKSI_NO_UPDATE_NOTIFIER) ||
   inGitCheckout();
 
 const latestVersion = async (): Promise<string | null> => {
@@ -60,8 +60,8 @@ export const upgradeHint = (binary: string): string => {
     resolved = realpathSync(binary);
   } catch {}
   return resolved.includes("/Cellar/")
-    ? "Run `brew upgrade osrim/tap/ski` to update."
-    : "Download it from https://github.com/osrim/ski/releases/latest";
+    ? "Run `brew upgrade osrim/tap/niksi` to update."
+    : "Download it from https://github.com/osrim/niksi/releases/latest";
 };
 
 export const startUpdateCheck = async (

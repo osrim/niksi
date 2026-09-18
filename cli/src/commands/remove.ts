@@ -12,12 +12,13 @@ import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { pickToRemove } from "../ui/pick.ts";
 import { fail, intro, outro, promptWarn } from "../ui/prompt.ts";
+import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description: "Remove selected lockfile entries and managed links or copies.",
-  examples: ["$ ski remove", "$ ski rm grilling", "$ ski remove --all -y", "$ ski rm -g grilling"],
+  examples: ["$ nik remove", "$ nik rm grilling", "$ nik remove --all -y", "$ nik rm -g grilling"],
 };
 
 interface RemoveOptions extends ScopeOptions {
@@ -26,8 +27,9 @@ interface RemoveOptions extends ScopeOptions {
 }
 
 export const run = async (names: string[], options: RemoveOptions): Promise<void> => {
-  intro("ski remove");
+  intro("nik remove");
   const scope = resolveScope(options, promptWarn) ?? "project";
+  await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
   const installed = Object.keys(loaded.lock.skills).toSorted();

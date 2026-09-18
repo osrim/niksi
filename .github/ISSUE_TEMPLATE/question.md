@@ -1,6 +1,6 @@
 ---
 name: Question
-about: Ask how ski works or whether it can do something.
+about: Ask how niksi works or whether it can do something.
 labels: question
 ---
 

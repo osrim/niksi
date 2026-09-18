@@ -42,7 +42,10 @@ test("writePackages lays out one directory per package with the shim in the main
   const shim = await readFile(join(out, "niksi", "bin", "nik.js"), "utf8");
   expect(shim.startsWith("#!/usr/bin/env node\n")).toBe(true);
   expect((await stat(join(out, "niksi", "bin", "nik.js"))).mode & 0o111).not.toBe(0);
-  expect(await readFile(join(out, "niksi", "README.md"), "utf8")).toContain("npm install -g niksi");
+  const readme = await readFile(join(out, "niksi", "README.md"), "utf8");
+  expect(readme).toContain("npm install -g niksi");
+  expect(readme).toContain("](https://github.com/osrim/niksi/blob/v0.4.0/docs/commands.md)");
+  expect(readme).not.toMatch(/\]\((docs|CONTRIBUTING|LICENSE)/u);
   for (const [os, arch] of PLATFORMS) {
     const pkg = JSON.parse(
       await readFile(join(out, `niksi-${os}-${arch}`, "package.json"), "utf8"),

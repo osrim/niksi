@@ -1,8 +1,8 @@
-import { chmod, copyFile, mkdir, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "../package.json" with { type: "json" };
 
-const LICENSE = join(import.meta.dir, "..", "..", "LICENSE");
+const ROOT = join(import.meta.dir, "..", "..");
 
 // release.yml extracts niksi-<os>-<arch>.tar.gz into the matching directory before publishing.
 export const PLATFORMS: readonly (readonly [os: string, arch: string])[] = [
@@ -53,28 +53,20 @@ export const mainPackage = (version: string): Manifest => ({
   ...COMMON,
 });
 
-const README = `# niksi
-
-\`niksi\` installs, updates, and links community skills into your coding agent. The command is \`nik\`.
-
-\`\`\`sh
-npm install -g niksi
-nik --help
-\`\`\`
-
-Docs, Homebrew, and release binaries: ${REPO}
-`;
+const readmeWithAbsoluteLinks = (readme: string, version: string): string =>
+  readme.replace(/\]\((?!https?:\/\/|#)([^)]+)\)/gu, `](${REPO}/blob/v${version}/$1)`);
 
 const writeManifest = async (dir: string, manifest: Manifest): Promise<void> => {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-  await copyFile(LICENSE, join(dir, "LICENSE"));
+  await copyFile(join(ROOT, "LICENSE"), join(dir, "LICENSE"));
 };
 
 export const writePackages = async (version: string, outDir: string): Promise<void> => {
   const main = join(outDir, "niksi");
   await writeManifest(main, mainPackage(version));
-  await writeFile(join(main, "README.md"), README);
+  const readme = await readFile(join(ROOT, "README.md"), "utf8");
+  await writeFile(join(main, "README.md"), readmeWithAbsoluteLinks(readme, version));
   await mkdir(join(main, "bin"), { recursive: true });
   const shim = join(main, "bin", "nik.js");
   await copyFile(join(import.meta.dir, "npm-shim.js"), shim);

@@ -63,6 +63,8 @@ npm stage approve <stage-id>       # the four @osrim/niksi-* first, then niksi
 npm logout
 ```
 
+The registry scans each staged tarball before it accepts an approval. Until then `approve` fails with "automated review hasn't finished". The binaries take a few minutes. Retry.
+
 Approve the platform packages before `niksi`, so `niksi` never resolves before its binaries exist. `npm stage reject <stage-id>` drops a staged version and spends the version number. Log out afterwards. The 2025 worms stole live sessions from `~/.npmrc`.
 
 Then check from an empty directory: `npx niksi --version`.

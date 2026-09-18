@@ -8,9 +8,8 @@ let binary;
 try {
   binary = createRequire(import.meta.url).resolve(`@osrim/niksi-${platform}/nik`);
 } catch {
-  console.error(
-    `niksi has no npm binary for ${platform}. See https://github.com/osrim/niksi#install`,
-  );
+  console.error(`niksi has no npm binary for ${platform}.`);
+  console.error("Download one from the GitHub releases of osrim/niksi.");
   process.exit(1);
 }
 

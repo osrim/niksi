@@ -41,5 +41,5 @@ export const isInside = (path: string, root: string): boolean =>
 
 export const unmanagedError = (path: string): Error =>
   new Error(
-    `ski skipped this skill because ${path} exists but is unmanaged.\nMove or delete it, then run the command again.`,
+    `niksi skipped this skill because ${path} exists but is unmanaged.\nMove or delete it, then run the command again.`,
   );

@@ -32,8 +32,8 @@ const installed = (
 });
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-source-test-")));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-source-test-")));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   dir = join(tmp, "workspace");
   await mkdir(join(dir, "skills", "alpha"), { recursive: true });
   await mkdir(join(dir, "skills", "beta"), { recursive: true });
@@ -169,7 +169,7 @@ test("a project-scoped local source records its project-relative id", () => {
   }
 });
 
-test("coordinateFor turns a recorded id back into something ski add accepts", async () => {
+test("coordinateFor turns a recorded id back into something nik add accepts", async () => {
   await mkdir(join(dir, ".git"), { recursive: true });
   const prev = process.cwd();
   process.chdir(join(dir, "skills"));

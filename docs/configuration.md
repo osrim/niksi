@@ -1,6 +1,6 @@
 # Configuration
 
-Where `ski` writes files, which environment variables it reads, and what the lockfile contains. Commands and flags are in [commands.md](commands.md).
+Where `niksi` writes files, which environment variables it reads, and what the lockfile contains. Commands and flags are in [commands.md](commands.md).
 
 ## Scope
 
@@ -8,16 +8,16 @@ A skill is installed in one scope.
 
 | scope | flag | skills live in | lockfile |
 | --- | --- | --- | --- |
-| project | `-p` | `<project root>/.ski/skills` | `<project root>/ski-lock.json` |
-| global | `-g` | `~/.local/share/ski/skills` | `~/.config/ski/ski-lock.json` |
+| project | `-p` | `<project root>/.niksi/skills` | `<project root>/niksi-lock.json` |
+| global | `-g` | `~/.local/share/niksi/skills` | `~/.config/niksi/niksi-lock.json` |
 
-The project root is the nearest parent directory that holds `ski-lock.json`, `.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`, or `.git`. The search stops at your home directory. Without a marker, the current directory is the root.
+The project root is the nearest parent directory that holds `niksi-lock.json`, `.agents`, `.claude`, `.opencode`, `.kiro`, `.cline`, `.qwen`, or `.git`. The search stops at your home directory. Without a marker, the current directory is the root.
 
-`ski add` asks for the scope. Every other command defaults to project scope. Running from your home directory selects global scope.
+`nik add` asks for the scope. Every other command defaults to project scope. Running from your home directory selects global scope.
 
 ## Agents
 
-An agent is a tool that loads skills. `ski` writes a relative symlink from a skills directory that the agent reads to the skill in the scope's `skills` directory, or a real copy when you pass `--copy`.
+An agent is a tool that loads skills. `niksi` writes a relative symlink from a skills directory that the agent reads to the skill in the scope's `skills` directory, or a real copy when you pass `--copy`.
 
 | id | skills directory | project | global |
 | --- | --- | --- | --- |
@@ -28,7 +28,7 @@ An agent is a tool that loads skills. `ski` writes a relative symlink from a ski
 | `cline` | Cline | `.cline/skills` | `~/.cline/skills` |
 | `qwen` | Qwen Code | `.qwen/skills` | `~/.qwen/skills` |
 
-`--agent` takes an id from the table above or an agent name from the table below. An id selects its own directory, so `--agent opencode` means `.opencode/skills`. A name resolves to the first directory listed for that agent, so `--agent cursor` means `.agents/skills`. `ski` detects an agent when its config directory, project directory, or binary exists, and only in a scope where the agent reads a directory from the table.
+`--agent` takes an id from the table above or an agent name from the table below. An id selects its own directory, so `--agent opencode` means `.opencode/skills`. A name resolves to the first directory listed for that agent, so `--agent cursor` means `.agents/skills`. `niksi` detects an agent when its config directory, project directory, or binary exists, and only in a scope where the agent reads a directory from the table.
 
 | agent | `--agent` name | reads in project scope | reads in global scope | detected when |
 | --- | --- | --- | --- | --- |
@@ -53,31 +53,31 @@ An agent is a tool that loads skills. `ski` writes a relative symlink from a ski
 | Qwen Code | `qwen` | `qwen` | `qwen` | `~/.qwen` exists, or `.qwen` exists in the project |
 | OpenCode | `opencode` | `universal`, `claude`, `opencode` | `universal`, `claude`, `opencode` | `$XDG_CONFIG_HOME/opencode` or `~/.config/opencode` exists, `.opencode` exists in the project, or `opencode` is on `PATH` |
 
-Without `--agent`, `ski` asks which agents to link to, one row per skills directory. It preselects the cover: the smallest set of directories that every detected agent reads. Rows a detected agent reads sit under `Detected`, with those agents named beside them. The rest sit under `Other`. Without a terminal it uses the remembered choice, else the cover, else `claude`.
+Without `--agent`, `niksi` asks which agents to link to, one row per skills directory. It preselects the cover: the smallest set of directories that every detected agent reads. Rows a detected agent reads sit under `Detected`, with those agents named beside them. The rest sit under `Other`. Without a terminal it uses the remembered choice, else the cover, else `claude`.
 
-When a detected agent reads two of the chosen directories, `ski` warns that the agent loads skills twice.
+When a detected agent reads two of the chosen directories, `niksi` warns that the agent loads skills twice.
 
 Editing a linked skill changes it for every linked agent.
 
-In project scope, `.ski/.gitignore` keeps the skill directories out of Git. Links in the agents' skills directories are hidden with `.git/info/exclude`, in a block that `ski` rebuilds after every write. Commit `ski-lock.json`. Copies made with `--copy` can be committed.
+In project scope, `.niksi/.gitignore` keeps the skill directories out of Git. Links in the agents' skills directories are hidden with `.git/info/exclude`, in a block that `niksi` rebuilds after every write. Commit `niksi-lock.json`. Copies made with `--copy` can be committed.
 
 ## Path copies
 
-`ski add --copy --path <directory>` writes each selected skill to `<directory>/<skill name>`. The destination root uses project scope.
+`nik add --copy --path <directory>` writes each selected skill to `<directory>/<skill name>`. The destination root uses project scope.
 
 This command does not select or remember agents. Path copies remain visible to Git.
 
-`ski` resolves relative input from the project root, even when the command runs in a subdirectory. It accepts absolute input only inside the project root.
+`niksi` resolves relative input from the project root, even when the command runs in a subdirectory. It accepts absolute input only inside the project root.
 
-`ski` records a normalized project-relative `copyPath`. It rejects traversal and symlinks that escape the project. `ski` repeats this check when it reads the lockfile.
+`niksi` records a normalized project-relative `copyPath`. It rejects traversal and symlinks that escape the project. `niksi` repeats this check when it reads the lockfile.
 
-`ski` manages a named skill directory only when the lockfile contains a matching entry. `update` and an approved `install` may replace that directory.
+`niksi` manages a named skill directory only when the lockfile contains a matching entry. `update` and an approved `install` may replace that directory.
 
 `remove` deletes the skill directory. It keeps the destination root and its other contents.
 
 ## Remembered choices
 
-When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `ski` remembers the choice in `config.json` and preselects it next time. A new choice replaces the remembered one. A config file that fails to parse is ignored.
+When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `niksi` remembers the choice in `config.json` and preselects it next time. A new choice replaces the remembered one. A config file that fails to parse is ignored.
 
 ```json
 {
@@ -88,32 +88,36 @@ When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `
 
 ## Paths
 
-`ski` follows the XDG base directory specification.
+`niksi` follows the XDG base directory specification.
 
 | path | default | variable |
 | --- | --- | --- |
-| global skills | `~/.local/share/ski/skills` | `XDG_DATA_HOME` |
-| global lockfile | `~/.config/ski/ski-lock.json` | `XDG_CONFIG_HOME` |
-| store | `~/.local/share/ski/store` | `XDG_DATA_HOME` |
-| config | `~/.config/ski/config.json` | `XDG_CONFIG_HOME` |
-| update-check cache | `~/.cache/ski/last-update-check` | `XDG_CACHE_HOME` |
+| global skills | `~/.local/share/niksi/skills` | `XDG_DATA_HOME` |
+| global lockfile | `~/.config/niksi/niksi-lock.json` | `XDG_CONFIG_HOME` |
+| store | `~/.local/share/niksi/store` | `XDG_DATA_HOME` |
+| config | `~/.config/niksi/config.json` | `XDG_CONFIG_HOME` |
+| update-check cache | `~/.cache/niksi/last-update-check` | `XDG_CACHE_HOME` |
 
-`SKI_HOME` replaces the data and config roots at once. `SKI_HOME=/tmp/x` puts the global skills, the global lockfile, the store, and the config under `/tmp/x`. It does not move the cache.
+`NIKSI_HOME` replaces the data and config roots at once. `NIKSI_HOME=/tmp/x` puts the global skills, the global lockfile, the store, and the config under `/tmp/x`. It does not move the cache.
+
+### Migrating from ski
+
+Before 0.3.0 the project was named `ski`. The first `nik` command in a project renames `ski-lock.json` to `niksi-lock.json` and `.ski` to `.niksi`, re-points the agent skill links, renames the block in `.git/info/exclude`, and moves `~/.config/ski/config.json` to `~/.config/niksi/config.json`. The first `nik` command with `-g` moves the global skills, lockfile, store, config, and cache from `~/.local/share/ski`, `~/.config/ski`, and `~/.cache/ski` to `niksi` the same way. A skills directory or lockfile whose new path already exists is left alone. An old store, cache, or config beside a new one is deleted. `SKI_HOME` is now `NIKSI_HOME`. A set `SKI_HOME` without `NIKSI_HOME` exits `2`.
 
 ### Moving an existing global lockfile
 
-The global lockfile is `$XDG_CONFIG_HOME/ski/ski-lock.json`, or `~/.config/ski/ski-lock.json` when `XDG_CONFIG_HOME` is unset. If that file does not exist, `ski` keeps using the legacy lockfile at `$XDG_DATA_HOME/ski/ski-lock.json`, which defaults to `~/.local/share/ski/ski-lock.json`. Reads and writes keep using the legacy file until you move it.
+The global lockfile is `$XDG_CONFIG_HOME/niksi/niksi-lock.json`, or `~/.config/niksi/niksi-lock.json` when `XDG_CONFIG_HOME` is unset. If that file does not exist, `niksi` keeps using the legacy lockfile at `$XDG_DATA_HOME/niksi/niksi-lock.json`, which defaults to `~/.local/share/niksi/niksi-lock.json`. Reads and writes keep using the legacy file until you move it.
 
-When both files exist, `ski` uses the config file. Confirm that the config file does not already exist, then migrate by moving the legacy file:
+When both files exist, `niksi` uses the config file. Confirm that the config file does not already exist, then migrate by moving the legacy file:
 
 ```sh
 config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}
 data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
-mkdir -p "$config_home/ski"
-mv "$data_home/ski/ski-lock.json" "$config_home/ski/ski-lock.json"
+mkdir -p "$config_home/niksi"
+mv "$data_home/niksi/niksi-lock.json" "$config_home/niksi/niksi-lock.json"
 ```
 
-Do not copy the file. Leaving both paths populated makes the legacy file inactive and lets the two files drift. `SKI_HOME` users do not need to migrate because both paths resolve to `$SKI_HOME/ski-lock.json`.
+Do not copy the file. Leaving both paths populated makes the legacy file inactive and lets the two files drift. `NIKSI_HOME` users do not need to migrate because both paths resolve to `$NIKSI_HOME/niksi-lock.json`.
 
 Every path variable, including `HOME` and `CLAUDE_HOME`, must be an absolute path. `~` is not expanded.
 
@@ -121,7 +125,7 @@ The store is a download cache. A lockfile entry installs without the network whe
 
 ## Lockfile
 
-`ski-lock.json` records every installed skill in a scope. `ski install` recreates the installation from it.
+`niksi-lock.json` records every installed skill in a scope. `nik install` recreates the installation from it.
 
 ```json
 {
@@ -163,19 +167,19 @@ Releases without path-copy support reject these entries because `copy: true` has
 
 | variable | effect |
 | --- | --- |
-| `SKI_HOME` | Root for data and config. See [Paths](#paths). |
+| `NIKSI_HOME` | Root for data and config. See [Paths](#paths). |
 | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` | Standard XDG roots. |
 | `CLAUDE_HOME` | Global Claude directory. Default `~/.claude`. |
 | `NO_COLOR` | Disable color. |
 | `FORCE_COLOR` | Enable color when stdout is not a terminal. |
-| `CI`, `NO_UPDATE_NOTIFIER`, `SKI_NO_UPDATE_NOTIFIER` | Disable the update notice and its release check. |
+| `CI`, `NO_UPDATE_NOTIFIER`, `NIKSI_NO_UPDATE_NOTIFIER` | Disable the update notice and its release check. |
 
 Color is also off when stdout is not a terminal or `TERM=dumb`.
 
 ## Update notice
 
-Every `ski` run that exits `0` prints a notice on stderr, after its own output, while the installed version is older than the latest GitHub release. This includes `ski`, `ski --version`, `ski list`, and `ski remove`. Help for a single command, such as `ski add --help`, prints no notice. The notice names `brew upgrade` when the binary is a Homebrew install and links to the latest release otherwise. It stops on the first run after you upgrade.
+Every `nik` run that exits `0` prints a notice on stderr, after its own output, while the installed version is older than the latest GitHub release. This includes `nik`, `nik --version`, `nik list`, and `nik remove`. Help for a single command, such as `nik add --help`, prints no notice. The notice names `brew upgrade` when the binary is a Homebrew install and links to the latest release otherwise. It stops on the first run after you upgrade.
 
-`ski` asks GitHub for the latest release once a day and stores the check time and the version it found in the update-check cache. Runs between checks reuse the cached version. A failed request is silent and leaves the cache untouched, so the next run checks again. A cache file that does not parse, does not match the expected shape, holds the legacy bare timestamp, or records a check time in the future counts as no prior check, so the run asks GitHub again.
+`niksi` asks GitHub for the latest release once a day and stores the check time and the version it found in the update-check cache. Runs between checks reuse the cached version. A failed request is silent and leaves the cache untouched, so the next run checks again. A cache file that does not parse, does not match the expected shape, holds the legacy bare timestamp, or records a check time in the future counts as no prior check, so the run asks GitHub again.
 
-No request is made and no notice is printed when stdout is not a terminal, when `--json` is set, when `ski` runs from a Git checkout, or when one of the variables above is set. A command that fails prints no notice.
+No request is made and no notice is printed when stdout is not a terminal, when `--json` is set, when `niksi` runs from a Git checkout, or when one of the variables above is set. A command that fails prints no notice.

@@ -18,13 +18,14 @@ import { land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { logError, logSkillError } from "../ui/report.ts";
+import { migrateIfLegacy } from "../ui/migrate.ts";
 import { reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 import { chooseAgents, warnScopeCollisions } from "../ui/destination.ts";
 
 export const help: CommandHelp = {
-  description: "Restore every skill in ski-lock.json. Modified files need confirmation.",
-  examples: ["$ ski install", "$ ski i -g", "$ ski install --agent opencode -y"],
+  description: "Restore every skill in niksi-lock.json. Modified files need confirmation.",
+  examples: ["$ nik install", "$ nik i -g", "$ nik install --agent opencode -y"],
 };
 
 interface InstallOptions extends ScopeOptions {
@@ -33,12 +34,13 @@ interface InstallOptions extends ScopeOptions {
 }
 
 export const run = async (options: InstallOptions): Promise<void> => {
-  p.intro("ski install");
+  p.intro("nik install");
   const scope = resolveScope(options, p.log.warn) ?? "project";
+  await migrateIfLegacy(scope);
   const lock = await readLock(scope);
   const skills = installedSkills(lock);
   if (skills.length === 0) {
-    p.log.info(`${scope} lockfile is empty. Run \`ski add\`.`);
+    p.log.info(`${scope} lockfile is empty. Run \`nik add\`.`);
     p.outro("Nothing to install.");
     return;
   }
@@ -71,7 +73,7 @@ export const run = async (options: InstallOptions): Promise<void> => {
       const { name } = entry;
       if (modified.has(name) && !restore) {
         throw new Error(
-          "modified, skipped\nCopy the edits or run `ski install -y` to discard them.",
+          "modified, skipped\nCopy the edits or run `nik install -y` to discard them.",
         );
       }
       const destination = await installDestination(entry, scope, agents);
@@ -122,10 +124,10 @@ const confirmOptional = async (message: string, yes?: boolean): Promise<boolean>
 const reportMismatch = (name: string, error: IntegrityError): void => {
   logError(
     [
-      `${skillName(name)}: source files do not match ski-lock.json`,
+      `${skillName(name)}: source files do not match niksi-lock.json`,
       `  expected  ${error.expected}`,
       `  actual    ${error.actual}`,
-      "Run `ski add` to re-review the content.",
+      "Run `nik add` to re-review the content.",
     ].join("\n"),
   );
 };

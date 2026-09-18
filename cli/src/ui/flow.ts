@@ -41,7 +41,7 @@ interface ConfirmOptions {
 export const confirm = async (message: string, options: ConfirmOptions): Promise<boolean> => {
   if (options.yes) return true;
   if (!isInteractive()) {
-    failNoTTY(`ski ${options.command} needs confirmation`, "Pass -y to proceed.");
+    failNoTTY(`nik ${options.command} needs confirmation`, "Pass -y to proceed.");
   }
   return unwrap(await p.confirm({ message, initialValue: options.initialValue ?? true }));
 };

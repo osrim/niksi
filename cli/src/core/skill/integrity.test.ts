@@ -21,7 +21,7 @@ const file = (path: string, text: string, mode = "100644"): SkillFile => ({
 });
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), "ski-integrity-test-"));
+  dir = await mkdtemp(join(tmpdir(), "niksi-integrity-test-"));
   await mkdir(join(dir, "scripts"), { recursive: true });
   await mkdir(join(dir, ".git"), { recursive: true });
   await mkdir(join(dir, "node_modules", "pkg"), { recursive: true });

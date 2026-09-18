@@ -15,12 +15,13 @@ import { displayLabel } from "../core/source/revision.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { logWarn } from "../ui/report.ts";
+import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage, friendlySource, reportModified } from "../ui/status.ts";
 import { bold, dim, pad, skillName, softOrange, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description: "Show revisions, agents, missing installs, and modified files.",
-  examples: ["$ ski list", "$ ski list -g", "$ ski ls --json"],
+  examples: ["$ nik list", "$ nik list -g", "$ nik ls --json"],
 };
 
 const MODIFIED_GLYPH = p.S_WARN;
@@ -39,8 +40,9 @@ interface ListRow {
 export const run = async (options: ListOptions): Promise<void> => {
   if (options.json) return runJson(options);
 
-  p.intro("ski list");
+  p.intro("nik list");
   const scope = resolveScope(options, p.log.warn) ?? "project";
+  await migrateIfLegacy(scope);
   const { file, lock } = await loadLock(scope);
   if (Object.keys(lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
@@ -104,7 +106,7 @@ const reportMissing = (rows: ListRow[]): void => {
   const missing = rows.filter((row) => !locationPresent(row.location));
   if (missing.length === 0) return;
   p.log.info(
-    `${missing.length} missing: ${missing.map((row) => skillName(row.name)).join(", ")}\nRun \`ski install\`.`,
+    `${missing.length} missing: ${missing.map((row) => skillName(row.name)).join(", ")}\nRun \`nik install\`.`,
   );
 };
 
@@ -113,7 +115,7 @@ const reportModifiedRows = (rows: ListRow[], scope: Scope): void => {
   if (modified.length === 0) return;
   reportModified(
     modified.map((row) => row.name),
-    `Run ${dim(`ski install${scopeFlag(scope)}`)} to restore them.`,
+    `Run ${dim(`nik install${scopeFlag(scope)}`)} to restore them.`,
   );
 };
 
@@ -132,6 +134,7 @@ const summaryLine = (rows: ListRow[], scope: Scope): string => {
 
 const runJson = async (options: ListOptions): Promise<void> => {
   const scope = resolveScope(options, logWarn) ?? "project";
+  await migrateIfLegacy(scope, true);
   const { file, lock } = await loadLock(scope);
   const rows = await buildRows(lock, scope);
   console.log(

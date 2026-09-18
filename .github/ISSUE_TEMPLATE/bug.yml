@@ -1,5 +1,5 @@
 name: Bug report
-description: ski did something wrong.
+description: niksi did something wrong.
 labels: [bug]
 body:
   - type: checkboxes
@@ -7,15 +7,15 @@ body:
     attributes:
       label: Before filing
       options:
-        - label: I searched the existing issues and read the [docs](https://github.com/osrim/ski/tree/main/docs).
+        - label: I searched the existing issues and read the [docs](https://github.com/osrim/niksi/tree/main/docs).
           required: true
 
   - type: input
     id: version
     attributes:
       label: Version
-      description: Output of `ski --version`.
-      placeholder: ski/0.2.0 darwin-arm64 bun-v1.3.0
+      description: Output of `nik --version`.
+      placeholder: nik/0.2.0 darwin-arm64 bun-v1.3.0
     validations:
       required: true
 
@@ -49,7 +49,7 @@ body:
     id: output
     attributes:
       label: Output
-      description: What ski printed. Put large output in a gist.
+      description: What niksi printed. Put large output in a gist.
       render: text
     validations:
       required: true
@@ -58,6 +58,6 @@ body:
     id: expected
     attributes:
       label: Expected
-      description: What you expected ski to do.
+      description: What you expected niksi to do.
     validations:
       required: true

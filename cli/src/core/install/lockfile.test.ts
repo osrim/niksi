@@ -19,11 +19,11 @@ import { captureEnv } from "../../test-env.ts";
 
 let tmp: string;
 
-const restoreEnv = captureEnv("SKI_HOME");
+const restoreEnv = captureEnv("NIKSI_HOME");
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-lock-test-")));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-lock-test-")));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
 });
 
 afterAll(async () => {
@@ -71,15 +71,15 @@ const withXdgRoots = async <T>(
   name: string,
   fn: (paths: XdgLockPaths) => T | Promise<T>,
 ): Promise<T> => {
-  const restore = captureEnv("SKI_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME");
+  const restore = captureEnv("NIKSI_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME");
   const root = join(tmp, name);
-  delete process.env.SKI_HOME;
+  delete process.env.NIKSI_HOME;
   process.env.XDG_CONFIG_HOME = join(root, "config");
   process.env.XDG_DATA_HOME = join(root, "data");
   try {
     return await fn({
-      config: join(root, "config", "ski", "ski-lock.json"),
-      legacy: join(root, "data", "ski", "ski-lock.json"),
+      config: join(root, "config", "niksi", "niksi-lock.json"),
+      legacy: join(root, "data", "niksi", "niksi-lock.json"),
     });
   } finally {
     restore();
@@ -255,7 +255,7 @@ test("a path copy survives serialization with one project-relative placement", (
     },
   };
 
-  expect(parseLock(serializeLock(lock), "ski-lock.json")).toEqual(lock);
+  expect(parseLock(serializeLock(lock), "niksi-lock.json")).toEqual(lock);
   expect(Object.keys(JSON.parse(serializeLock(lock)).skills.tdd)).toEqual([
     "source",
     "branch",
@@ -312,15 +312,15 @@ test("parse errors: bad version, unparseable JSON, bad track, missing or non-SRI
   expect(() =>
     parseLock(
       `{"lockfileVersion":1,"skills":{"a":{"source":"r","branch":"main","path":"","sha":"${"a".repeat(40)}","track":"auto"}}}`,
-      "ski-lock.json",
+      "niksi-lock.json",
     ),
-  ).toThrow("ski-lock.json: a: missing integrity");
+  ).toThrow("niksi-lock.json: a: missing integrity");
   expect(() =>
     parseLock(
       `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"sha256:${"f".repeat(64)}","track":"auto"}}}`,
-      "ski-lock.json",
+      "niksi-lock.json",
     ),
-  ).toThrow("ski-lock.json: a: integrity must be sha256-<base64>");
+  ).toThrow("niksi-lock.json: a: integrity must be sha256-<base64>");
   expect(parseLock("", "f")).toEqual(emptyLock());
 });
 
@@ -331,12 +331,12 @@ test("projectRoot walks up to the nearest marker", async () => {
   await mkdir(deep, { recursive: true });
   await inDir(deep, () => {
     expect(projectRoot()).toBe(root);
-    expect(lockPath("project")).toBe(join(root, "ski-lock.json"));
+    expect(lockPath("project")).toBe(join(root, "niksi-lock.json"));
   });
 
   const lockRoot = join(tmp, "lockroot");
   await mkdir(join(lockRoot, "nested"), { recursive: true });
-  await writeFile(join(lockRoot, "ski-lock.json"), serializeLock(emptyLock()));
+  await writeFile(join(lockRoot, "niksi-lock.json"), serializeLock(emptyLock()));
   await inDir(join(lockRoot, "nested"), () => {
     expect(projectRoot()).toBe(lockRoot);
   });
@@ -447,7 +447,7 @@ test("placementOf reads exactly one placement from an entry", () => {
 
 test("a lockfile carrying installedAt loads without it and re-serializes without it", () => {
   const text = `{"lockfileVersion":1,"skills":{"tdd":{"source":"r","path":"","integrity":"${integrity}","track":"auto","installedAt":"2026-08-03T12:00:00Z"}}}`;
-  const parsed = parseLock(text, "ski-lock.json");
+  const parsed = parseLock(text, "niksi-lock.json");
   expect(parsed.skills["tdd"]).toEqual({ source: "r", path: "", integrity, track: "auto" });
   expect(serializeLock(parsed)).not.toContain("installedAt");
 });
@@ -464,7 +464,7 @@ test("readLock rejects path copies in global scope and symlink escapes in projec
   await symlink(outside, join(root, "published"));
   await inDir(root, async () => {
     await writeFile(
-      join(root, "ski-lock.json"),
+      join(root, "niksi-lock.json"),
       serializeLock({
         lockfileVersion: 1,
         skills: { demo: pathEntry },

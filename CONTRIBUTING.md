@@ -1,23 +1,23 @@
 # Contributing
 
-Thanks for considering contributing to `ski`!
+Thanks for considering contributing to `niksi`!
 
 Every kind of contribution is welcome:
 
 - Issues: bug reports, feature requests, questions, ideas
 - Pull requests: docs fixes, bug fixes, new features
 
-> Reports from Linux and from agents other than Claude Code help most right now. Most use of `ski` so far was on macOS with Claude Code and Codex.
+> Reports from Linux and from agents other than Claude Code help most right now. Most use of `niksi` so far was on macOS with Claude Code and Codex.
 
 ## Reporting a bug
 
-[Open a bug report](https://github.com/osrim/ski/issues/new?template=bug.yml). The form asks for `ski --version`, the command, what `ski` printed, and what you expected. A report with those four things can usually be fixed without a follow-up question.
+[Open a bug report](https://github.com/osrim/niksi/issues/new?template=bug.yml). The form asks for `nik --version`, the command, what `niksi` printed, and what you expected. A report with those four things can usually be fixed without a follow-up question.
 
 ## Before you start on a change
 
 Open an issue first for anything beyond a small fix, so the change can be discussed before you spend time on it. Questions go in issues too.
 
-## Set up `ski` locally
+## Set up `niksi` locally
 
 You need [Bun](https://bun.sh).
 
@@ -27,7 +27,7 @@ cd cli
 bun link
 ```
 
-If `ski` is not found, add Bun to `PATH`:
+If `nik` is not found, add Bun to `PATH`:
 
 ```sh
 export PATH="$HOME/.bun/bin:$PATH"

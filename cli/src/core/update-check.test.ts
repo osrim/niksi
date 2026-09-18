@@ -8,13 +8,13 @@ import { startUpdateCheck, upgradeHint } from "./update-check.ts";
 
 const NOW = Date.UTC(2026, 7, 24, 12);
 const TTL_MS = 24 * 60 * 60 * 1000;
-const LATEST_RELEASE_URL = "https://api.github.com/repos/osrim/ski/releases/latest";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/osrim/niksi/releases/latest";
 
 let tmp: string;
 const restoreEnv = captureEnv(
   "XDG_CACHE_HOME",
   "CI",
-  "SKI_NO_UPDATE_NOTIFIER",
+  "NIKSI_NO_UPDATE_NOTIFIER",
   "NO_UPDATE_NOTIFIER",
 );
 let ttyDescriptor: PropertyDescriptor | undefined;
@@ -22,12 +22,12 @@ let execPathDescriptor: PropertyDescriptor | undefined;
 let fetchDescriptor: PropertyDescriptor;
 let fetchMock: ReturnType<typeof mock>;
 
-const cachePath = (): string => join(process.env.XDG_CACHE_HOME!, "ski", "last-update-check");
+const cachePath = (): string => join(process.env.XDG_CACHE_HOME!, "niksi", "last-update-check");
 
 const readCache = async (): Promise<unknown> => JSON.parse(await readFile(cachePath(), "utf8"));
 
 const writeCache = async (content: string): Promise<void> => {
-  await mkdir(join(process.env.XDG_CACHE_HOME!, "ski"), { recursive: true });
+  await mkdir(join(process.env.XDG_CACHE_HOME!, "niksi"), { recursive: true });
   await writeFile(cachePath(), content);
 };
 
@@ -38,7 +38,7 @@ const latestRelease = (tag_name: unknown, status = 200): Response =>
   Response.json({ tag_name }, { status });
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-update-check-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-update-check-test-"));
   ttyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
   execPathDescriptor = Object.getOwnPropertyDescriptor(process, "execPath");
   fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch")!;
@@ -47,12 +47,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   process.env.XDG_CACHE_HOME = join(tmp, crypto.randomUUID());
   delete process.env.CI;
-  delete process.env.SKI_NO_UPDATE_NOTIFIER;
+  delete process.env.NIKSI_NO_UPDATE_NOTIFIER;
   delete process.env.NO_UPDATE_NOTIFIER;
   Object.defineProperty(process.stdout, "isTTY", { configurable: true, value: true });
   Object.defineProperty(process, "execPath", {
     configurable: true,
-    value: join(tmp, "plain", "ski"),
+    value: join(tmp, "plain", "niksi"),
   });
   spyOn(fs, "existsSync").mockReturnValue(false);
   spyOn(Date, "now").mockReturnValue(NOW);
@@ -77,7 +77,7 @@ afterAll(async () => {
 
 test("a newer release returns the update notice and records the check", async () => {
   expect(await startUpdateCheck("1.1.0", false)).toBe(
-    "Update available: 1.1.0 → 1.2.0\nDownload it from https://github.com/osrim/ski/releases/latest",
+    "Update available: 1.1.0 → 1.2.0\nDownload it from https://github.com/osrim/niksi/releases/latest",
   );
   expect(fetchMock).toHaveBeenCalledTimes(1);
   const [url, options] = fetchMock.mock.calls[0]!;
@@ -90,19 +90,19 @@ test("a newer release returns the update notice and records the check", async ()
 });
 
 test("the upgrade hint names brew only for a Cellar binary", () => {
-  const brew = "Run `brew upgrade osrim/tap/ski` to update.";
-  const download = "Download it from https://github.com/osrim/ski/releases/latest";
-  expect(upgradeHint("/opt/homebrew/Cellar/ski/1.2.0/bin/ski")).toBe(brew);
-  expect(upgradeHint("/home/linuxbrew/.linuxbrew/Cellar/ski/1.2.0/bin/ski")).toBe(brew);
-  expect(upgradeHint(join(tmp, "plain", "ski"))).toBe(download);
+  const brew = "Run `brew upgrade osrim/tap/niksi` to update.";
+  const download = "Download it from https://github.com/osrim/niksi/releases/latest";
+  expect(upgradeHint("/opt/homebrew/Cellar/niksi/1.2.0/bin/nik")).toBe(brew);
+  expect(upgradeHint("/home/linuxbrew/.linuxbrew/Cellar/niksi/1.2.0/bin/nik")).toBe(brew);
+  expect(upgradeHint(join(tmp, "plain", "niksi"))).toBe(download);
 });
 
 test("the upgrade hint resolves a symlink into the Cellar", async () => {
-  const cellar = join(tmp, "Cellar", "ski", "1.2.0", "bin");
+  const cellar = join(tmp, "Cellar", "niksi", "1.2.0", "bin");
   await mkdir(cellar, { recursive: true });
-  await writeFile(join(cellar, "ski"), "");
-  await symlink(join(cellar, "ski"), join(tmp, "ski"));
-  expect(upgradeHint(join(tmp, "ski"))).toContain("brew upgrade");
+  await writeFile(join(cellar, "nik"), "");
+  await symlink(join(cellar, "nik"), join(tmp, "niksi"));
+  expect(upgradeHint(join(tmp, "niksi"))).toContain("brew upgrade");
 });
 
 test("an up-to-date version is silent but still records the completed check", async () => {
@@ -114,7 +114,7 @@ test("an up-to-date version is silent but still records the completed check", as
 test("a fresh cache with a newer version returns the notice without a request", async () => {
   await writeCache(cacheEntry(NOW - TTL_MS + 1, "1.2.0"));
   expect(await startUpdateCheck("1.1.0", false)).toBe(
-    "Update available: 1.1.0 → 1.2.0\nDownload it from https://github.com/osrim/ski/releases/latest",
+    "Update available: 1.1.0 → 1.2.0\nDownload it from https://github.com/osrim/niksi/releases/latest",
   );
   expect(fetchMock).not.toHaveBeenCalled();
 });
@@ -189,7 +189,7 @@ test.each([
   [
     "the environment opt-out",
     () => {
-      process.env.SKI_NO_UPDATE_NOTIFIER = "1";
+      process.env.NIKSI_NO_UPDATE_NOTIFIER = "1";
       return startUpdateCheck("1.1.0", false);
     },
   ],

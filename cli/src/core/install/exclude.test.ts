@@ -9,10 +9,10 @@ import { git } from "../source/git.ts";
 import type { SkillFile } from "../skill/files.ts";
 
 let tmp: string;
-let prev: { cwd: string; home?: string | undefined; ski?: string | undefined };
+let prev: { cwd: string; home?: string | undefined; niksi?: string | undefined };
 let n = 0;
 
-const BEGIN = "# >>> ski: managed skill links (rebuilt by `ski install`)";
+const BEGIN = "# >>> niksi: managed skill links (rebuilt by `nik install`)";
 
 const repo = async (init = true): Promise<string> => {
   const dir = join(tmp, `p${n++}`);
@@ -47,10 +47,10 @@ const untracked = async (root: string): Promise<string> =>
   (await git(["status", "--porcelain", "-uall"], root)).out;
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-exclude-test-"));
-  prev = { cwd: process.cwd(), home: process.env.HOME, ski: process.env.SKI_HOME };
+  tmp = await mkdtemp(join(tmpdir(), "niksi-exclude-test-"));
+  prev = { cwd: process.cwd(), home: process.env.HOME, niksi: process.env.NIKSI_HOME };
   process.env.HOME = tmp;
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
 });
 
 afterEach(() => process.chdir(prev.cwd));
@@ -58,11 +58,11 @@ afterEach(() => process.chdir(prev.cwd));
 afterAll(async () => {
   process.chdir(prev.cwd);
   process.env.HOME = prev.home;
-  process.env.SKI_HOME = prev.ski;
+  process.env.NIKSI_HOME = prev.niksi;
   await rm(tmp, { recursive: true, force: true });
 });
 
-test("a link is hidden, .ski hides itself, and a hand-written skill beside it is not", async () => {
+test("a link is hidden, .niksi hides itself, and a hand-written skill beside it is not", async () => {
   const root = await repo();
   await link("demo");
   await mkdir(join(root, ".claude", "skills", "hand-written"), { recursive: true });
@@ -75,8 +75,8 @@ test("a link is hidden, .ski hides itself, and a hand-written skill beside it is
   const status = await untracked(root);
   expect(status).toContain(".claude/skills/hand-written/SKILL.md");
   expect(status).not.toContain(".claude/skills/demo");
-  expect(status).not.toContain(".ski/");
-  expect(await readFile(join(root, ".ski", ".gitignore"), "utf8")).toBe("*\n");
+  expect(status).not.toContain(".niksi/");
+  expect(await readFile(join(root, ".niksi", ".gitignore"), "utf8")).toBe("*\n");
 });
 
 test("a second sync changes nothing", async () => {

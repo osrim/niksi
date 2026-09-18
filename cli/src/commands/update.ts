@@ -21,6 +21,7 @@ import { reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import { reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
+import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
 import { logSourceCaution, warn } from "../ui/report.ts";
@@ -31,10 +32,10 @@ export const help: CommandHelp = {
   description:
     "Check upstream, review changes, and update selected skills. Name pinned skills to update them.",
   examples: [
-    "$ ski update",
-    "$ ski up grilling prototype",
-    "$ ski update --all -y",
-    "$ ski update -g",
+    "$ nik update",
+    "$ nik up grilling prototype",
+    "$ nik update --all -y",
+    "$ nik update -g",
   ],
 };
 
@@ -45,8 +46,9 @@ interface UpdateOptions extends ScopeOptions, ReviewOptions {
 const DIFF_PREVIEW_LINES = 120;
 
 export const run = async (names: string[], options: UpdateOptions): Promise<void> => {
-  p.intro("ski update");
+  p.intro("nik update");
   const scope = resolveScope(options, p.log.warn) ?? "project";
+  await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
   const skills = installedSkills(loaded.lock);
@@ -66,7 +68,7 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   if (modified.size > 0) {
     reportModified(
       [...modified],
-      `Updating one discards its edits. Run ${dim(`ski install${scopeFlag(scope)}`)} to restore it instead.`,
+      `Updating one discards its edits. Run ${dim(`nik install${scopeFlag(scope)}`)} to restore it instead.`,
     );
   }
 

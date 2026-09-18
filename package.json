@@ -1,5 +1,5 @@
 {
-	"name": "ski",
+	"name": "niksi-monorepo",
 	"private": true,
 	"workspaces": ["cli"]
 }

@@ -7,7 +7,7 @@ import { isInside, present, realpathOrNearest, relativeInside } from "./target.t
 let tmp: string;
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-target-test-")));
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-target-test-")));
 });
 
 afterAll(async () => {

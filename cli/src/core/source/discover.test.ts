@@ -22,7 +22,7 @@ const repoWith = async (name: string, files: Record<string, string>): Promise<[s
 };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-discover-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-discover-test-"));
 });
 
 afterAll(async () => {

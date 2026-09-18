@@ -7,7 +7,7 @@ let tmp: string;
 const cli = join(import.meta.dir, "..", "index.ts");
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "ski-list-cli-test-")));
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-list-cli-test-")));
 });
 
 afterAll(async () => {
@@ -16,7 +16,7 @@ afterAll(async () => {
 
 test("list --global --json reports the legacy lockfile it read", async () => {
   const home = join(tmp, "home");
-  const legacy = join(tmp, "data", "ski", "ski-lock.json");
+  const legacy = join(tmp, "data", "niksi", "niksi-lock.json");
   await mkdir(dirname(legacy), { recursive: true });
   await writeFile(legacy, '{"lockfileVersion":1,"skills":{}}\n');
 
@@ -27,7 +27,7 @@ test("list --global --json reports the legacy lockfile it read", async () => {
       HOME: home,
       XDG_CONFIG_HOME: join(tmp, "config"),
       XDG_DATA_HOME: join(tmp, "data"),
-      SKI_HOME: undefined,
+      NIKSI_HOME: undefined,
       CI: "1",
       NO_COLOR: "1",
       TERM: "dumb",

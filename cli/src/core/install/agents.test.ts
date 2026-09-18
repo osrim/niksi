@@ -27,7 +27,7 @@ const resetEnv = (): void => {
 };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-agents-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-agents-test-"));
   cwd = process.cwd();
   resetEnv();
 });

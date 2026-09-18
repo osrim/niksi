@@ -35,7 +35,7 @@ const commitAll = async (message: string): Promise<string> => {
 };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-revision-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-revision-test-"));
   process.env.XDG_CACHE_HOME = join(tmp, "cache");
 
   upstream = join(tmp, "upstream");

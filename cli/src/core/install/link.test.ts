@@ -35,7 +35,7 @@ import { captureEnv } from "../../test-env.ts";
 
 let tmp: string;
 
-const restoreEnv = captureEnv("HOME", "SKI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME");
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME");
 
 const files: SkillFile[] = [
   { path: "SKILL.md", content: Buffer.from("hello\n"), mode: "100644" },
@@ -43,8 +43,8 @@ const files: SkillFile[] = [
 ];
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-install-test-"));
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  tmp = await mkdtemp(join(tmpdir(), "niksi-install-test-"));
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   process.env.CLAUDE_HOME = join(tmp, "claude-home");
   process.env.XDG_CONFIG_HOME = join(tmp, "xdg-config");
   process.env.HOME = tmp;
@@ -153,7 +153,7 @@ test("linkSkill writes a relative link to the canonical copy; relink is idempote
   await linkSkill("demo", "global", "claude");
   const target = skillPath("demo", "global", "claude");
   expect((await lstat(target)).isSymbolicLink()).toBe(true);
-  expect(await readlink(target)).toBe(join("..", "..", "ski-home", "skills", "demo"));
+  expect(await readlink(target)).toBe(join("..", "..", "niksi-home", "skills", "demo"));
   expect(await realpath(target)).toBe(await realpath(canonicalPath("demo", "global")));
   await linkSkill("demo", "global", "claude");
 });
@@ -208,7 +208,7 @@ test("a real dir at the target is refused, not clobbered", async () => {
 
   await writeCanonical("mine", files, "global");
   await expect(linkSkill("mine", "global", "claude")).rejects.toThrow(
-    "ski skipped this skill because ~/claude-home/skills/mine exists but is unmanaged.\nMove or delete it, then run the command again.",
+    "niksi skipped this skill because ~/claude-home/skills/mine exists but is unmanaged.\nMove or delete it, then run the command again.",
   );
   expect(await readFile(join(target, "SKILL.md"), "utf8")).toBe("the user's own skill\n");
 });
@@ -249,7 +249,7 @@ test("unlinkSkill removes links but refuses unmanaged dirs; removeCanonical drop
 
   const target = skillPath("real", "global", "claude");
   await mkdir(target, { recursive: true });
-  expect(unlinkSkill("real", "global", "claude")).rejects.toThrow("not managed by ski");
+  expect(unlinkSkill("real", "global", "claude")).rejects.toThrow("not managed by niksi");
 });
 
 test("a refusal names a path inside the project relative to it", async () => {
@@ -260,25 +260,27 @@ test("a refusal names a path inside the project relative to it", async () => {
   try {
     await writeCanonical("tdd", files, "project");
     await expect(linkSkill("tdd", "project", "claude")).rejects.toThrow(
-      "ski skipped this skill because .claude/skills/tdd exists but is unmanaged.\nMove or delete it, then run the command again.",
+      "niksi skipped this skill because .claude/skills/tdd exists but is unmanaged.\nMove or delete it, then run the command again.",
     );
   } finally {
     process.chdir(prev);
   }
 });
 
-test("writeCanonical in project scope hides .ski from Git with its own .gitignore", async () => {
+test("writeCanonical in project scope hides .niksi from Git with its own .gitignore", async () => {
   const dir = join(tmp, "proj-ignore");
   await mkdir(join(dir, ".git"), { recursive: true });
   const prev = process.cwd();
   process.chdir(dir);
   try {
     await writeCanonical("demo", files, "project");
-    expect(await readFile(join(dir, ".ski", ".gitignore"), "utf8")).toBe("*\n");
-    expect(await readFile(join(dir, ".ski", "skills", "demo", "SKILL.md"), "utf8")).toBe("hello\n");
-    await writeFile(join(dir, ".ski", ".gitignore"), "# theirs\n");
+    expect(await readFile(join(dir, ".niksi", ".gitignore"), "utf8")).toBe("*\n");
+    expect(await readFile(join(dir, ".niksi", "skills", "demo", "SKILL.md"), "utf8")).toBe(
+      "hello\n",
+    );
+    await writeFile(join(dir, ".niksi", ".gitignore"), "# theirs\n");
     await writeCanonical("demo", files, "project");
-    expect(await readFile(join(dir, ".ski", ".gitignore"), "utf8")).toBe("# theirs\n");
+    expect(await readFile(join(dir, ".niksi", ".gitignore"), "utf8")).toBe("# theirs\n");
   } finally {
     process.chdir(prev);
   }
@@ -286,13 +288,13 @@ test("writeCanonical in project scope hides .ski from Git with its own .gitignor
 
 test("assertSkillsDirSafe rejects an agent skills dir that is the canonical dir", async () => {
   const dir = join(tmp, "proj-canonical");
-  await mkdir(join(dir, ".ski", "skills"), { recursive: true });
+  await mkdir(join(dir, ".niksi", "skills"), { recursive: true });
   await mkdir(join(dir, ".claude"), { recursive: true });
   await mkdir(join(dir, ".opencode", "skills"), { recursive: true });
   const prev = process.cwd();
   process.chdir(dir);
   try {
-    await symlink(join("..", ".ski", "skills"), join(dir, ".claude", "skills"));
+    await symlink(join("..", ".niksi", "skills"), join(dir, ".claude", "skills"));
     await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
       "are the same directory",
     );
@@ -366,7 +368,7 @@ test("assertSkillsDirSafe leaves a global skills dir symlink alone", async () =>
   }
 });
 
-test("a symlink ski did not create is refused, not clobbered", async () => {
+test("a symlink niksi did not create is refused, not clobbered", async () => {
   const dir = skillsDir("global", "claude");
   await mkdir(dir, { recursive: true });
   const theirs = join(tmp, "their-skill");
@@ -392,7 +394,7 @@ test("unlinkSkill refuses a symlink that does not point at the canonical dir", a
   const dir = skillsDir("global", "universal");
   await mkdir(dir, { recursive: true });
   await symlink(join(tmp, "their-skill"), join(dir, "theirs"));
-  expect(unlinkSkill("theirs", "global", "universal")).rejects.toThrow("not managed by ski");
+  expect(unlinkSkill("theirs", "global", "universal")).rejects.toThrow("not managed by niksi");
   expect((await lstat(join(dir, "theirs"))).isSymbolicLink()).toBe(true);
 });
 

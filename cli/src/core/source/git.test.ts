@@ -46,7 +46,7 @@ const addSecondCommit = async (): Promise<string> => {
 };
 
 beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-git-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-git-test-"));
   previousCache = process.env.XDG_CACHE_HOME;
   previousGitConfig = process.env.GIT_CONFIG_GLOBAL;
   previousGitConfigCount = process.env.GIT_CONFIG_COUNT;
@@ -103,7 +103,7 @@ test("ensureClone fetches a source once per run and shares the clone with every 
   const first = ensureClone(remote);
   expect(ensureClone(remote)).toBe(first);
   const clone = await first;
-  expect(clone).toStartWith(join(process.env.XDG_CACHE_HOME!, "ski", "repos"));
+  expect(clone).toStartWith(join(process.env.XDG_CACHE_HOME!, "niksi", "repos"));
   expect(await headCommit(clone, "main")).toBe(firstSha);
 
   await addSecondCommit();
@@ -145,7 +145,7 @@ test("a rejected initial clone can be retried after the repository appears", asy
   await expect(ensureClone(lateRemote)).rejects.toThrow(`cannot reach ${lateRemote}`);
   await $`git init -q --bare --object-format=sha1 --initial-branch=main ${lateRemote}`.quiet();
   expect(await ensureClone(lateRemote)).toStartWith(
-    join(process.env.XDG_CACHE_HOME!, "ski", "repos"),
+    join(process.env.XDG_CACHE_HOME!, "niksi", "repos"),
   );
 });
 
@@ -247,15 +247,15 @@ test("an https address maps to the scp-style ssh address of the same repository"
 test("an unreachable https clone falls back to the ssh address", async () => {
   await writeFile(
     process.env.GIT_CONFIG_GLOBAL!,
-    `[url "${remote}"]\n\tinsteadOf = git@ski-test.invalid:demo\n`,
+    `[url "${remote}"]\n\tinsteadOf = git@niksi-test.invalid:demo\n`,
   );
-  const clone = await cloneOrFetch("https://ski-test.invalid/demo");
+  const clone = await cloneOrFetch("https://niksi-test.invalid/demo");
   expect(await headCommit(clone, "main")).toBe(firstSha);
 }, 30_000);
 
 test("a failure on both addresses reports the https attempt the user named", async () => {
-  await expect(cloneOrFetch("https://ski-test.invalid/demo")).rejects.toThrow(
-    /cannot reach https:\/\/ski-test\.invalid\/demo \(.*ski-test\.invalid/u,
+  await expect(cloneOrFetch("https://niksi-test.invalid/demo")).rejects.toThrow(
+    /cannot reach https:\/\/niksi-test\.invalid\/demo \(.*niksi-test\.invalid/u,
   );
 }, 30_000);
 

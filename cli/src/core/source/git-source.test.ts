@@ -13,7 +13,7 @@ let repo: string;
 const LARGE_FILE = Buffer.alloc(70 * 1024, "x");
 const SUPPORTING_FILE_COUNT = 70;
 
-// ski passes -C on every git call; the children git spawns do not.
+// niksi passes -C on every git call; the children git spawns do not.
 const skiGitProcesses = async (trace: string): Promise<number> => {
   const events = (await readFile(trace, "utf8"))
     .trim()
@@ -23,7 +23,7 @@ const skiGitProcesses = async (trace: string): Promise<number> => {
 };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-git-source-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-git-source-test-"));
   process.env.XDG_CACHE_HOME = join(tmp, "cache");
 
   repo = join(tmp, "repo");

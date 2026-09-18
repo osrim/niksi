@@ -26,7 +26,7 @@ const isCommandName = (name: string | undefined): name is CommandName =>
 let matchedHelp: CommandHelp | undefined;
 
 const buildCli = (): CAC => {
-  const cli = cac("ski");
+  const cli = cac("nik");
   cli
     .command("add <coordinate> [...skills]", "Add skills from Git or a local path")
     .option("-g, --global", "Use global scope")
@@ -47,7 +47,7 @@ const buildCli = (): CAC => {
       (await LOADERS.add()).run(coordinate, skills, options),
     );
   cli
-    .command("install", "Restore skills from ski-lock.json")
+    .command("install", "Restore skills from niksi-lock.json")
     .alias("i")
     .option("-g, --global", "Use the global scope")
     .option("-p, --project", "Use project scope")
@@ -110,7 +110,7 @@ try {
   const notice = startUpdateCheck(pkg.version, Boolean(cli.options.json));
 
   if (cli.options.version) {
-    console.info(`ski/${pkg.version} ${process.platform}-${process.arch} bun-v${Bun.version}`);
+    console.info(`nik/${pkg.version} ${process.platform}-${process.arch} bun-v${Bun.version}`);
     await printNotice(notice);
     process.exit(0);
   }
@@ -132,14 +132,14 @@ try {
     }
     const guess = suggestCommand(cli, typo);
     console.error(
-      `Unknown command: ${typo}\n${guess ? `Did you mean \`ski ${guess}\`?` : "Run `ski --help` for the command list."}`,
+      `Unknown command: ${typo}\n${guess ? `Did you mean \`nik ${guess}\`?` : "Run `nik --help` for the command list."}`,
     );
     process.exit(2);
   }
 
   if (cli.matchedCommand.name === "install" && cli.args.length > 0) {
     console.error(
-      `ski install takes no arguments.\nTo add ${cli.args[0]}, run \`ski add ${cli.args.join(" ")}\`.`,
+      `nik install takes no arguments.\nTo add ${cli.args[0]}, run \`nik add ${cli.args.join(" ")}\`.`,
     );
     process.exit(2);
   }
@@ -148,7 +148,7 @@ try {
   await printNotice(notice);
 } catch (e) {
   if (e instanceof Error && (e.name === "CACError" || e.name === USAGE_ERROR)) {
-    console.error(`${e.message}\nSee \`ski --help\`.`);
+    console.error(`${e.message}\nSee \`nik --help\`.`);
     process.exit(2);
   }
   console.error(`Error: ${e instanceof Error ? e.message : e}`);

@@ -27,11 +27,11 @@ const commitAll = async (message: string): Promise<string> => {
 };
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "ski-upstream-test-"));
+  tmp = await mkdtemp(join(tmpdir(), "niksi-upstream-test-"));
   prevHome = process.env.HOME;
   process.env.HOME = tmp;
   process.env.XDG_CACHE_HOME = join(tmp, "cache");
-  process.env.SKI_HOME = join(tmp, "ski-home");
+  process.env.NIKSI_HOME = join(tmp, "niksi-home");
   process.env.CLAUDE_HOME = join(tmp, "claude-home");
 
   upstream = join(tmp, "upstream");

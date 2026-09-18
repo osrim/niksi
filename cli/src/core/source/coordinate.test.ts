@@ -72,13 +72,13 @@ test("local paths resolve to absolute local sources", () => {
 
 test("~ expands to $HOME", () => {
   const prev = process.env.HOME;
-  process.env.HOME = "/tmp/ski-test-home";
+  process.env.HOME = "/tmp/niksi-test-home";
   try {
     expect(parseCoordinate("~/dev/skill")).toMatchObject({
-      repo: "/tmp/ski-test-home/dev/skill",
+      repo: "/tmp/niksi-test-home/dev/skill",
       kind: "local",
     });
-    expect(parseCoordinate("~")).toMatchObject({ repo: "/tmp/ski-test-home", kind: "local" });
+    expect(parseCoordinate("~")).toMatchObject({ repo: "/tmp/niksi-test-home", kind: "local" });
   } finally {
     process.env.HOME = prev;
   }

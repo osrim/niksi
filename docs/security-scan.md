@@ -42,7 +42,7 @@ Only `SKILL.md` grants permissions when an agent loads the skill. Non-standard f
 | `context: fork` | `warn` |
 | `user-invocable: false` without `disable-model-invocation: true` | `warn` |
 | Invalid YAML | `critical` |
-| Declared string `name` that agents will reject, when `ski` can derive an install name from it | `info` |
+| Declared string `name` that agents will reject, when `niksi` can derive an install name from it | `info` |
 | Fields that configure the agent, and unknown fields | `info` |
 
 ### Load-time execution

@@ -4,7 +4,7 @@ For maintainers. A release is a tag, a GitHub Release with four binaries, and a 
 
 ## Version scheme
 
-`ski` is 0.x. A breaking change bumps the minor version. Anything else bumps the patch version. Move to 1.0 when a breaking minor bump would annoy users.
+`niksi` is 0.x. A breaking change bumps the minor version. Anything else bumps the patch version. Move to 1.0 when a breaking minor bump would annoy users.
 
 The version lives in `cli/package.json`. The tag is the version with a `v` prefix. `release.yml` fails when they differ.
 
@@ -31,7 +31,7 @@ The `build` job is a matrix. Each matrix job compiles one binary on a runner tha
 | `linux-x64` | `ubuntu-latest` |
 | `linux-arm64` | `ubuntu-24.04-arm` |
 
-Each matrix job checks `ski --version`, runs `ski add` and `ski install` against a local skill, and uploads `ski-<os>-<arch>.tar.gz` as a workflow artifact.
+Each matrix job checks `nik --version`, runs `nik add` and `nik install` against a local skill, and uploads `niksi-<os>-<arch>.tar.gz` as a workflow artifact.
 
 The `release` job runs on `ubuntu-latest` after all matrix jobs pass:
 
@@ -39,17 +39,17 @@ The `release` job runs on `ubuntu-latest` after all matrix jobs pass:
 2. Checks that `cli/package.json` matches the tag.
 3. Downloads the tarballs and writes `checksums.txt`.
 4. Uploads them to a GitHub Release. Notes are generated from merged PR titles.
-5. Renders `Formula/ski.rb` with `cli/scripts/brew-formula.ts` and pushes it to `osrim/homebrew-tap` with the `TAP_DEPLOY_KEY` secret.
+5. Renders `Formula/niksi.rb` with `cli/scripts/brew-formula.ts` and pushes it to `osrim/homebrew-tap` with the `TAP_DEPLOY_KEY` secret.
 
-Step 5 runs last. The asset must be public before the formula points at it. From then on `brew install osrim/tap/ski` and `brew upgrade` serve the new version.
+Step 5 runs last. The asset must be public before the formula points at it. From then on `brew install osrim/tap/niksi` and `brew upgrade` serve the new version.
 
 To check the build and the formula locally, use a fake `checksums.txt` with four different hashes. `brew style` only lints a formula inside a tap. Render into the local tap checkout, lint, then reset the tap:
 
 ```sh
-bun run build && ./dist/ski --version
-printf '%064d  ski-darwin-arm64.tar.gz\n%064d  ski-darwin-x64.tar.gz\n%064d  ski-linux-arm64.tar.gz\n%064d  ski-linux-x64.tar.gz\n' 1 2 3 4 > dist/checksums.txt
-bun scripts/brew-formula.ts 0.1.0 dist/checksums.txt > "$(brew --repo osrim/tap)/Formula/ski.rb"
-brew style osrim/tap/ski && git -C "$(brew --repo osrim/tap)" checkout Formula/ski.rb
+bun run build && ./dist/nik --version
+printf '%064d  niksi-darwin-arm64.tar.gz\n%064d  niksi-darwin-x64.tar.gz\n%064d  niksi-linux-arm64.tar.gz\n%064d  niksi-linux-x64.tar.gz\n' 1 2 3 4 > dist/checksums.txt
+bun scripts/brew-formula.ts 0.1.0 dist/checksums.txt > "$(brew --repo osrim/tap)/Formula/niksi.rb"
+brew style osrim/tap/niksi && git -C "$(brew --repo osrim/tap)" checkout Formula/niksi.rb
 ```
 
 ## Supported platforms

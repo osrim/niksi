@@ -1,4 +1,4 @@
-# niksi: skills CLI for coding agents
+# niksi: skills manager for coding agents
 
 [![release](https://img.shields.io/github/v/release/osrim/niksi)](https://github.com/osrim/niksi/releases)
 [![checks](https://github.com/osrim/niksi/actions/workflows/checks.yml/badge.svg)](https://github.com/osrim/niksi/actions/workflows/checks.yml)

@@ -97,6 +97,12 @@ test("the upgrade hint names brew only for a Cellar binary", () => {
   expect(upgradeHint(join(tmp, "plain", "niksi"))).toBe(download);
 });
 
+test("the upgrade hint names npm for a binary inside node_modules", () => {
+  expect(upgradeHint("/usr/local/lib/node_modules/@osrim/niksi-darwin-arm64/nik")).toBe(
+    "Run `npm install -g niksi` to update.",
+  );
+});
+
 test("the upgrade hint resolves a symlink into the Cellar", async () => {
   const cellar = join(tmp, "Cellar", "niksi", "1.2.0", "bin");
   await mkdir(cellar, { recursive: true });

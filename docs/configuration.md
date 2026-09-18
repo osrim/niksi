@@ -178,7 +178,7 @@ Color is also off when stdout is not a terminal or `TERM=dumb`.
 
 ## Update notice
 
-Every `nik` run that exits `0` prints a notice on stderr, after its own output, while the installed version is older than the latest GitHub release. This includes `nik`, `nik --version`, `nik list`, and `nik remove`. Help for a single command, such as `nik add --help`, prints no notice. The notice names `brew upgrade` when the binary is a Homebrew install and links to the latest release otherwise. It stops on the first run after you upgrade.
+Every `nik` run that exits `0` prints a notice on stderr, after its own output, while the installed version is older than the latest GitHub release. This includes `nik`, `nik --version`, `nik list`, and `nik remove`. Help for a single command, such as `nik add --help`, prints no notice. The notice names `brew upgrade` for a Homebrew install and `npm install -g niksi` for an npm install. Otherwise it links to the latest release. It stops on the first run after you upgrade.
 
 `niksi` asks GitHub for the latest release once a day and stores the check time and the version it found in the update-check cache. Runs between checks reuse the cached version. A failed request is silent and leaves the cache untouched, so the next run checks again. A cache file that does not parse, does not match the expected shape, holds the legacy bare timestamp, or records a check time in the future counts as no prior check, so the run asks GitHub again.
 

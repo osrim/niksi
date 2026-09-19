@@ -11,6 +11,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | `list` | `ls` | Show installed skills. |
 | `disable [...skills\|source]` | | Remove skills from disk and mark them disabled in `niksi-lock.json`. |
 | `enable [...skills\|source]` | | Restore disabled skills from `niksi-lock.json`. |
+| `prune` | | Delete unrecorded store entries. |
 
 `nik --help` and `nik <command> --help` print usage. `nik --version` prints the version, platform, and Bun version.
 
@@ -164,15 +165,35 @@ nik enable [...skills|source] [-g|-p] [-a] [-y] [--agent <id>]
 
 For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `niksi` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
 
+## `prune`
+
+```text
+nik prune [-y]
+```
+
+`prune` deletes every unrecorded entry in the store. An unrecorded entry is one of:
+
+- a store entry that neither the global lockfile nor the current project's lockfile records
+- a temporary directory that an interrupted download left behind
+- any other file or directory under the store
+
+`prune` also deletes a source directory that becomes empty. `prune` deletes a symlink as a link and never follows it.
+
+`prune` keeps every entry that the global lockfile or the current project's lockfile records, so `nik install` in both scopes still works without the network. `prune` deletes entries that only other projects record. The next `install` in such a project fetches them again.
+
+`prune` shows the plan grouped by source, with the size of each entry and the total, then asks. The default answer is no. `--yes` skips the question. `prune` prints how many entries it deleted and how much space it freed. It prints `Nothing to prune.` when the store is clean or does not exist.
+
+`prune` never touches installed skills, agent links, copies, or any lockfile. The store is one directory for every scope, so `-g` and `-p` are unknown options and exit `2`. A positional argument exits `2`. A lockfile that does not parse stops the command before it deletes anything. `prune` reports and skips an entry that it cannot delete, and the command exits `1`.
+
 ## Flags
 
 | flag | commands | effect |
 | --- | --- | --- |
-| `-g`, `--global` | all | Use global scope. |
-| `-p`, `--project` | all | Use project scope. |
+| `-g`, `--global` | all but `prune` | Use global scope. |
+| `-p`, `--project` | all but `prune` | Use project scope. |
 | `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
 | `-a`, `--all` | `add`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
-| `-y`, `--yes` | `add`, `install`, `update`, `remove`, `disable`, `enable` | Accept ordinary confirmations and defaults. It cannot approve critical findings. |
+| `-y`, `--yes` | `add`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings. |
 | `--dangerous-skip-critical-approval` | `add`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
 | `--copy` | `add` | Write directories instead of links. |
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |

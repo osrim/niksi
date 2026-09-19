@@ -54,6 +54,8 @@ Use these terms in code, docs, and output.
 | store | Download cache in `~/.local/share/niksi/store`. Installed skills do not depend on it. | cache, vault |
 | store entry | Cached directory in the store holding one skill at one integrity. Never a link target. | package dir, cache entry, snapshot |
 | materialize | Write skill files into a store entry and check the integrity. | download, cache, populate |
+| unrecorded entry | Store content that no lockfile `niksi` can see records: an entry, a temporary directory from an interrupted download, or any other file. | stale entry, orphan, garbage |
+| prune | Delete every unrecorded entry from the store. | clean, gc, purge, clear cache |
 | canonical copy | Real skill directory in the scope's `skills` directory (`.niksi/skills` or `~/.local/share/niksi/skills`) that links point to. One per scope. `niksi` owns it while a link entry names it. | master copy, primary |
 | link | Relative symlink from an agent's skills directory to the canonical copy. | shortcut, alias, pointer |
 | copy | Real skill directory that `add --copy` writes: an agent copy or a path copy. | clone, download |

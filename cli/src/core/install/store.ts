@@ -1,8 +1,9 @@
-import { existsSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { writeFiles, type SkillFile } from "../skill/files.ts";
+import { existsSync, type Dirent } from "node:fs";
+import { lstat, readdir, realpath, rename, rm, rmdir } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { readDirFiles, writeFiles, type SkillFile } from "../skill/files.ts";
 import { integrityHex, integrityOfDir } from "../skill/integrity.ts";
+import { isInside } from "./target.ts";
 import { childPath, storeDir } from "../paths.ts";
 
 const sourceKey = (source: string): string =>
@@ -58,4 +59,60 @@ export const materialize = async (
   if (restored) await rm(entry, { recursive: true, force: true });
   await rename(tmp, entry);
   return { integrity, entry, restored };
+};
+
+export interface PruneCandidate {
+  path: string;
+  bytes: number;
+}
+
+const sizeOf = async (path: string): Promise<number> => {
+  const stats = await lstat(path);
+  if (!stats.isDirectory()) return stats.size;
+  const files = await readDirFiles(path);
+  return files.reduce((total, file) => total + file.content.length, 0);
+};
+
+const candidate = async (path: string): Promise<PruneCandidate> => ({
+  path,
+  bytes: await sizeOf(path),
+});
+
+const listDir = (dir: string): Promise<Dirent[]> =>
+  readdir(dir, { withFileTypes: true }).catch((e: NodeJS.ErrnoException) => {
+    if (e.code !== "ENOENT") throw e;
+    return [];
+  });
+
+export const prunePlan = async (kept: Set<string>): Promise<PruneCandidate[]> => {
+  const root = storeDir();
+  const plan: PruneCandidate[] = [];
+  for (const source of await listDir(root)) {
+    const dir = join(root, source.name);
+    const children = source.isDirectory() ? await listDir(dir) : [];
+    if (children.length === 0) {
+      plan.push(await candidate(dir));
+      continue;
+    }
+    for (const child of children) {
+      const path = join(dir, child.name);
+      if (!kept.has(path)) plan.push(await candidate(path));
+    }
+  }
+  return plan;
+};
+
+export const deleteCandidate = async ({ path }: PruneCandidate): Promise<void> => {
+  const dir = dirname(path);
+  // A concurrent swap of a parent directory for a symlink must not redirect the delete out of the store.
+  const resolved = join(await realpath(dir), basename(path));
+  if (!isInside(resolved, await realpath(storeDir()))) {
+    throw new Error(`refusing to delete ${path}: it resolves outside the store`);
+  }
+  await rm(path, { recursive: true, force: true });
+  if (dir !== storeDir()) {
+    await rmdir(dir).catch((e: NodeJS.ErrnoException) => {
+      if (e.code !== "ENOENT" && e.code !== "ENOTEMPTY") throw e;
+    });
+  }
 };

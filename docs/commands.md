@@ -5,7 +5,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | command | alias | purpose |
 | --- | --- | --- |
 | `add <coordinate> [...skills]` | | Fetch, review, and add skills. |
-| `install` | `i` | Restore every skill in `niksi-lock.json`. |
+| `install` | `i` | Restore every enabled skill in `niksi-lock.json`. |
 | `update [...skills]` | `up` | Check upstream and update skills. |
 | `remove [...skills]` | `rm` | Remove installed skills. |
 | `list` | `ls` | Show installed skills. |
@@ -56,7 +56,7 @@ git@github.com:owner/repo.git     clone URL
 nik install [-g|-p] [-y] [--agent <id>]
 ```
 
-`install` restores every lockfile entry. It takes no positional arguments; passing one exits `2`.
+`install` restores every enabled lockfile entry. It takes no positional arguments; passing one exits `2`.
 
 `install` does not scan. `add` or `update` reviewed every entry, and `install` verifies each file against the recorded integrity before writing it. An entry whose content does not match is skipped and the command exits `1`.
 
@@ -133,7 +133,7 @@ Path copies show their project-relative destination. A disabled skill shows `dis
 }
 ```
 
-Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`. A disabled entry carries `disabled: true`. Its `agents` and `links` are empty.
+Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
 
 ## `disable`
 
@@ -220,7 +220,7 @@ install -m 755 nik /usr/local/bin/nik
 nik install --agent claude --yes
 ```
 
-`git` must be on `PATH`. `nik install` exits `0` when every entry in `niksi-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
+`git` must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
 
 `nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
 

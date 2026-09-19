@@ -11,6 +11,7 @@ import {
   placementOf,
   readLock,
   serializeLock,
+  splitDisabled,
   writeLock,
   type Lockfile,
 } from "./lockfile.ts";
@@ -472,4 +473,63 @@ test("readLock rejects path copies in global scope and symlink escapes in projec
     );
     await expect(readLock("project")).rejects.toThrow("resolves outside the project root");
   });
+});
+
+test("a disabled entry round-trips and serializes disabled last", async () => {
+  const lock: Lockfile = {
+    lockfileVersion: 1,
+    skills: {
+      linked: { ...entry, disabled: true },
+      copied: { ...entry, copy: true, copyPath: "custom-directory", disabled: true },
+    },
+  };
+  expect(parseLock(serializeLock(lock), "niksi-lock.json")).toEqual(lock);
+  const raw = JSON.parse(serializeLock(lock)).skills;
+  expect(Object.keys(raw.linked)).toEqual([
+    "source",
+    "branch",
+    "path",
+    "commit",
+    "integrity",
+    "track",
+    "disabled",
+  ]);
+  expect(Object.keys(raw.copied)).toEqual([
+    "source",
+    "branch",
+    "path",
+    "commit",
+    "integrity",
+    "track",
+    "copy",
+    "copyPath",
+    "disabled",
+  ]);
+  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  expect(await readFile(lockPath("global"), "utf8")).not.toContain("disabled");
+});
+
+test("disabled accepts only true, and a lockfile without it parses unchanged", () => {
+  const lock = (extra: string): string =>
+    `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
+  expect(() => parseLock(lock(',"disabled":false'), "f")).toThrow("f: a: ");
+  expect(() => parseLock(lock(',"disabled":"yes"'), "f")).toThrow("f: a: ");
+  expect(parseLock(lock(""), "f").skills["a"]).toEqual({
+    source: "r",
+    path: "",
+    integrity,
+    track: "auto",
+  });
+  expect(parseLock(lock(',"disabled":true'), "f").skills["a"]!.disabled).toBe(true);
+});
+
+test("splitDisabled separates enabled from disabled entries", () => {
+  const lock: Lockfile = {
+    lockfileVersion: 1,
+    skills: { alpha: entry, beta: { ...entry, disabled: true } },
+  };
+  const { enabled, disabled } = splitDisabled(lock);
+  expect(Object.keys(enabled.skills)).toEqual(["alpha"]);
+  expect(Object.keys(disabled.skills)).toEqual(["beta"]);
+  expect(splitDisabled(emptyLock())).toEqual({ enabled: emptyLock(), disabled: emptyLock() });
 });

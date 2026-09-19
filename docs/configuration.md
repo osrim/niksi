@@ -158,10 +158,11 @@ The store is a download cache. A lockfile entry installs without the network whe
 | `copy` | `true` when the skill was added with `--copy`. |
 | `agents` | Agents that received an agent copy. Link and path-copy entries do not record agents. |
 | `copyPath` | Normalized project-relative destination root for a path copy. |
+| `disabled` | `true` after `nik disable`. Absent means enabled. The entry keeps its placement. `install` and `update` skip it until `nik enable` clears it. |
 
-A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. Link entries have neither. Lockfile version 1 remains in use.
+A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. Link entries have neither. `disabled` does not depend on placement. It is the last key. Lockfile version 1 remains in use.
 
-Releases without path-copy support reject these entries because `copy: true` has no `agents` field.
+Releases without path-copy support reject these entries because `copy: true` has no `agents` field. Releases without disable support drop the `disabled` field and install the entry.
 
 ## Environment variables
 

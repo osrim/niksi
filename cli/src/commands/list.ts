@@ -35,7 +35,10 @@ interface ListRow {
   entry: LockEntry;
   location: Location;
   modified: boolean;
+  disabled: boolean;
 }
+
+const isMissing = (row: ListRow): boolean => !row.disabled && !locationPresent(row.location);
 
 export const run = async (options: ListOptions): Promise<void> => {
   if (options.json) return runJson(options);
@@ -67,10 +70,12 @@ const buildRows = async (lock: Lockfile, scope: Scope): Promise<ListRow[]> => {
     entry,
     location: locations.get(name)!,
     modified: modified.has(name),
+    disabled: entry.disabled === true,
   }));
 };
 
 const locationText = (row: ListRow): string => {
+  if (row.disabled) return dim("disabled");
   const where = locationDisplayPath(row.name, row.location);
   if (!locationPresent(row.location)) {
     return row.location.kind === "path-copy"
@@ -103,7 +108,7 @@ const printRows = (rows: ListRow[]): void => {
 };
 
 const reportMissing = (rows: ListRow[]): void => {
-  const missing = rows.filter((row) => !locationPresent(row.location));
+  const missing = rows.filter(isMissing);
   if (missing.length === 0) return;
   p.log.info(
     `${missing.length} missing: ${missing.map((row) => skillName(row.name)).join(", ")}\nRun \`nik install\`.`,
@@ -120,13 +125,15 @@ const reportModifiedRows = (rows: ListRow[], scope: Scope): void => {
 };
 
 const summaryLine = (rows: ListRow[], scope: Scope): string => {
-  const missing = rows.filter((row) => !locationPresent(row.location)).length;
+  const missing = rows.filter(isMissing).length;
+  const disabled = rows.filter((row) => row.disabled).length;
   const modified = rows.filter((row) => row.modified).length;
   const notes = [
     ...(missing > 0 ? [`${missing} missing`] : []),
+    ...(disabled > 0 ? [`${disabled} disabled`] : []),
     ...(modified > 0 ? [`${modified} modified`] : []),
   ];
-  const verb = missing > 0 ? "recorded" : "installed";
+  const verb = missing > 0 || disabled > 0 ? "recorded" : "installed";
   return notes.length > 0
     ? `${rows.length} skill(s) ${verb} (${scope}); ${notes.join(", ")}.`
     : `${rows.length} skill(s) installed (${scope}).`;
@@ -142,13 +149,14 @@ const runJson = async (options: ListOptions): Promise<void> => {
       {
         scope,
         lockfile: file,
-        skills: rows.map((row) =>
-          Object.assign({ name: row.name }, row.entry, {
+        skills: rows.map((row) => {
+          const agents = row.disabled ? [] : locationAgents(row.location);
+          return Object.assign({ name: row.name }, row.entry, {
             modified: row.modified,
-            agents: locationAgents(row.location),
-            links: locationAgents(row.location).map((agent) => skillPath(row.name, scope, agent)),
-          }),
-        ),
+            agents,
+            links: agents.map((agent) => skillPath(row.name, scope, agent)),
+          });
+        }),
       },
       null,
       2,

@@ -1,11 +1,15 @@
 import * as p from "@clack/prompts";
+import type { AgentId } from "../core/install/agents.ts";
+import { applySkill } from "../core/install/apply.ts";
+import { installDestination, type InstalledSkill } from "../core/install/destination.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
-import type { Source } from "../core/source/index.ts";
+import { sourceFor, type Source } from "../core/source/index.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { writeLock, type LoadedLockfile } from "../core/install/lockfile.ts";
+import { IntegrityError } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { failNoTTY, isInteractive, unwrap, withSpinner } from "./prompt.ts";
-import { logSkillError } from "./report.ts";
+import { logError, logSkillError } from "./report.ts";
 import { warnRestored } from "./status.ts";
 import { skillName } from "./style.ts";
 import { hideLinksFromGit } from "./destination.ts";
@@ -31,6 +35,41 @@ export const fetchSkillFiles = (
     },
     (fetched) => `Fetched ${fetched.length} skill(s) from ${source.display}`,
   );
+
+export const restoreSkill = async (
+  entry: InstalledSkill,
+  scope: Scope,
+  agents: AgentId[],
+): Promise<{ restored: boolean }> => {
+  const destination = await installDestination(entry, scope, agents);
+  const source = sourceFor(entry.source);
+  return applySkill(
+    {
+      name: entry.name,
+      source: entry.source,
+      path: entry.path,
+      revision: entry,
+      integrity: entry.integrity,
+      files: () => source.fetchFiles(entry.commit, entry.path),
+    },
+    destination,
+  );
+};
+
+export const reportRestoreError = (name: string, error: unknown): void => {
+  if (!(error instanceof IntegrityError)) {
+    logSkillError(name, error);
+    return;
+  }
+  logError(
+    [
+      `${skillName(name)}: source files do not match niksi-lock.json`,
+      `  expected  ${error.expected}`,
+      `  actual    ${error.actual}`,
+      "Run `nik add` to re-review the content.",
+    ].join("\n"),
+  );
+};
 
 interface ConfirmOptions {
   yes?: boolean | undefined;

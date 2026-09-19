@@ -94,6 +94,7 @@ nik install
 | `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
 | `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |
 | `nik list`                      | Show installed skills. `--json` for scripts.                           |
+| `nik disable`, `nik enable`     | Disable and enable recorded skills. No new review.                     |
 
 A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to pin a ref, a forge URL, a Git URL, or a local directory. See [docs/commands.md](docs/commands.md) for more information.
 

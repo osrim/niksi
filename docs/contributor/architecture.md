@@ -22,7 +22,8 @@ Imports point downward only. Commands may import `ui/` and `core/`. UI may impor
 cli/src/
   index.ts
   test-env.ts        environment capture and restore, tests only
-  commands/          add, install, update, remove, list
+  test-cli.ts        subprocess runner and skill fixture, tests only
+  commands/          add, install, update, remove, list, disable, enable
   ui/                prompts, gate, reports, help, status, destination choices, legacy migration notice
   core/
     config.ts        remembered scope and agent choices
@@ -40,16 +41,20 @@ cli/src/
 
 ## Write path
 
-Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFiles`, `confirm`, and `land`.
+Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFiles`, `confirm`, `restoreSkill`, and `land`.
 
 | command | uses |
 | --- | --- |
 | `add` | `fetchSkillFiles`, `confirm`, `land` |
 | `update` | `confirm`, `land` |
 | `remove` | `confirm`, `land` |
-| `install` | `land` |
+| `install` | `restoreSkill`, `land` |
+| `disable` | `confirm`, `land` |
+| `enable` | `restoreSkill`, `land` |
 
-`land` applies each item, reports failures, writes the supplied lockfile after the batch, and hides managed links from Git. A failed item does not stop the batch. The command exits `1` and the lockfile matches what is on disk. `add` and `remove` always supply a lockfile. `update` supplies one only when a revision moved or a file update was approved. `install` supplies none because it restores the recorded state without changing it.
+`restoreSkill` restores one lockfile entry. It reads the destination from the recorded placement, takes the files from the store or the source, checks the integrity, and writes. `land` applies each item, reports failures, writes the supplied lockfile after the batch, and hides managed links from Git. A failed item does not stop the batch. The command exits `1` and the lockfile matches what is on disk. `add`, `remove`, `disable`, and `enable` always supply a lockfile. `update` supplies one only when a revision moved or a file update was approved. `install` supplies none because it restores the recorded state without changing it.
+
+`core/install/lockfile.ts` splits a lockfile into enabled and disabled entries. Commands that select a batch read that split. `list` shows every entry and reads the `disabled` flag per row.
 
 `core/install/lockfile.ts` derives one `Placement` from each entry: link, agent copy, or path copy. `core/install/destination.ts` switches on that placement.
 
@@ -70,5 +75,6 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 - `add` reaches the gate for every new skill and for dependencies it offers to install.
 - `update` reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
+- `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

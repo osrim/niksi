@@ -10,13 +10,15 @@ import {
   type Location,
 } from "../core/install/destination.ts";
 import { nearest } from "../core/suggest.ts";
-import { isApproved, type Lockfile } from "../core/install/lockfile.ts";
+import { isApproved, type LockEntry, type Lockfile } from "../core/install/lockfile.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
-import type { Source } from "../core/source/index.ts";
+import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
+import { sourceMatches, type Source } from "../core/source/index.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
+import { usageError, USAGE_ERROR } from "../core/usage.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "./prompt.ts";
 import { describeOutdated, friendlySource, groupLabel } from "./status.ts";
 import { green, skillName, softOrange, summarize, unstruck } from "./style.ts";
@@ -192,9 +194,14 @@ interface AddSelection {
   options: { all?: boolean | undefined; copy: boolean; copyPath?: string | undefined };
 }
 
+interface Held {
+  why: string;
+  command: "nik remove" | "nik enable";
+}
+
 const approvedMissingAgentsByPath = async (
   selection: AddSelection,
-  held: (skill: DiscoveredSkill) => string | undefined,
+  held: (skill: DiscoveredSkill) => Held | undefined,
 ): Promise<Map<string, AgentId[]>> => {
   const { skills, lock, scope, agents, source, rev } = selection;
   const candidates = skills.filter((skill) => {
@@ -232,23 +239,30 @@ const extendRow = (skill: DiscoveredSkill, scope: Scope, missing: AgentId[]): Pi
 
 export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> => {
   const { skills, names, lock, scope, agents, source, options } = selection;
-  const held = (skill: DiscoveredSkill): string | undefined => {
+  const held = (skill: DiscoveredSkill): Held | undefined => {
     const entry = lock.skills[skill.name];
     if (entry === undefined) return undefined;
-    if (entry.source !== source.id) return `installed from ${friendlySource(entry.source)}`;
+    const command = "nik remove";
+    if (entry.source !== source.id) {
+      return { why: `installed from ${friendlySource(entry.source)}`, command };
+    }
+    if (entry.disabled) return { why: "disabled", command: "nik enable" };
     if ((entry.copy === true) !== options.copy) {
-      return `installed as a ${entry.copy ? "copy" : "link"}`;
+      return { why: `installed as a ${entry.copy ? "copy" : "link"}`, command };
     }
     if (entry.copyPath !== options.copyPath) {
-      return entry.copyPath
-        ? `installed as a path copy at ${entry.copyPath}`
-        : "installed as an agent copy";
+      return {
+        why: entry.copyPath
+          ? `installed as a path copy at ${entry.copyPath}`
+          : "installed as an agent copy",
+        command,
+      };
     }
     return undefined;
   };
-  const failHeld = (skill: DiscoveredSkill, why: string): never =>
+  const failHeld = (skill: DiscoveredSkill, { why, command }: Held): never =>
     fail(
-      `${skill.name} is already ${why}.\nRun \`nik remove ${skill.name}${scopeFlag(scope)}\` first.`,
+      `${skill.name} is already ${why}.\nRun \`${command} ${skill.name}${scopeFlag(scope)}\` first.`,
     );
   const lacking = await approvedMissingAgentsByPath(selection, held);
   const complete = (skill: DiscoveredSkill): boolean => lacking.get(skill.path)?.length === 0;
@@ -295,8 +309,8 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
 
   const rows = skills.map((skill): PickerRow => {
     if (lock.skills[skill.name] === undefined) return offerableRow(skill, scope, agents);
-    const why = held(skill);
-    if (why) return { skill, held: true, why: `${why}, use nik remove` };
+    const reason = held(skill);
+    if (reason) return { skill, held: true, why: `${reason.why}, use ${reason.command}` };
     const missing = lacking.get(skill.path);
     if (missing === undefined || missing.length === 0) return { skill, held: true };
     return extendRow(skill, scope, missing);
@@ -331,31 +345,109 @@ export const pickUpdates = async (updatable: OutdatedVerdict[]): Promise<string[
   );
 };
 
-export const pickToRemove = async (
-  installed: string[],
-  lock: Lockfile,
-  locations: Map<string, Location>,
-): Promise<string[]> => {
-  requireTTY("nik remove needs to know which skills", SELECTION_REMEDY);
+const stateLabel = (name: string, entry: LockEntry, location: Location): string => {
+  if (!locationPresent(location)) return entry.disabled ? "[disabled]" : "[missing]";
+  const path = locationDisplayPath(name, location);
+  return `[${location.kind === "path-copy" ? `${path} copy` : path}]`;
+};
+
+interface RecordedPicker {
+  command: string;
+  names: string[];
+  lock: Lockfile;
+  locations: Map<string, Location>;
+}
+
+export const pickRecorded = async ({
+  command,
+  names,
+  lock,
+  locations,
+}: RecordedPicker): Promise<string[]> => {
+  requireTTY(`nik ${command} needs to know which skills`, SELECTION_REMEDY);
   const groups = groupOptionsBySource(
-    installed,
+    names,
     (name) => friendlySource(lock.skills[name]!.source),
     (source, rows) => `${source} (${rows.length} skill(s))`,
     (name) => {
-      const location = locations.get(name)!;
-      const path = locationDisplayPath(name, location);
-      const where = location.kind === "path-copy" ? `${path} copy` : path;
+      const entry = lock.skills[name]!;
       return {
         value: name,
-        label: `${skillName(name)}: ${displayLabel(lock.skills[name]!)} ${locationPresent(location) ? `[${where}]` : "[missing]"}`,
+        label: `${skillName(name)}: ${displayLabel(entry)} ${stateLabel(name, entry, locations.get(name)!)}`,
       };
     },
   );
   return unwrap(
     await p.groupMultiselect<string>({
-      message: "Select skills to remove",
+      message: `Select skills to ${command}`,
       options: groups,
       required: false,
     }),
   );
+};
+
+const SOURCE_ONLY =
+  "Pass the skill name, or the source alone: owner/repo, a Git URL, or a local path.";
+
+const parseSourceOrFail = (raw: string): Coordinate => {
+  let parsed: Coordinate;
+  try {
+    parsed = parseCoordinate(raw);
+  } catch (e) {
+    if ((e as Error).name === USAGE_ERROR) throw e;
+    return fail((e as Error).message);
+  }
+  if (parsed.skill !== undefined || parsed.ref !== undefined || parsed.tree !== undefined) {
+    throw usageError(`${raw} names a skill or ref inside a source.\n${SOURCE_ONLY}`);
+  }
+  return parsed;
+};
+
+const expandSources = (args: string[], lock: Lockfile, recorded: string[]): string[] => {
+  const names: string[] = [];
+  const unknown: string[] = [];
+  for (const arg of args) {
+    if (!arg.includes("/")) {
+      if (!recorded.includes(arg)) unknown.push(arg);
+      names.push(arg);
+      continue;
+    }
+    const coordinate = parseSourceOrFail(arg);
+    const matched = recorded.filter((name) => sourceMatches(lock.skills[name]!.source, coordinate));
+    if (matched.length === 0) unknown.push(arg);
+    names.push(...matched);
+  }
+  if (unknown.length > 0) {
+    fail(`Not recorded: ${unknown.join(", ")}\nRecorded: ${recorded.map(skillName).join(", ")}`);
+  }
+  return [...new Set(names)];
+};
+
+const REQUESTED_STATE = { disable: "disabled", enable: "enabled" } as const;
+
+interface RecordedSelection {
+  command: keyof typeof REQUESTED_STATE;
+  lock: Lockfile;
+  locations: Map<string, Location>;
+  offered: string[];
+  all: boolean | undefined;
+}
+
+export const selectRecorded = async (
+  args: string[],
+  { command, lock, locations, offered, all }: RecordedSelection,
+): Promise<{ names: string[]; asked: boolean }> => {
+  const recorded = Object.keys(lock.skills).toSorted();
+  let requested = expandSources(args, lock, recorded);
+  if (requested.length === 0 && all) requested = offered;
+  if (requested.length === 0) {
+    if (offered.length === 0) return { names: [], asked: false };
+    return { names: await pickRecorded({ command, names: offered, lock, locations }), asked: true };
+  }
+  for (const name of requested) {
+    if (!offered.includes(name)) {
+      p.log.info(`${skillName(name)}: already ${REQUESTED_STATE[command]}`);
+    }
+  }
+  return { names: requested.filter((name) => offered.includes(name)), asked: false };
 };

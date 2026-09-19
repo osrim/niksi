@@ -16,6 +16,8 @@ const LOADERS = {
   update: () => import("./commands/update.ts"),
   remove: () => import("./commands/remove.ts"),
   list: () => import("./commands/list.ts"),
+  disable: () => import("./commands/disable.ts"),
+  enable: () => import("./commands/enable.ts"),
 };
 
 type CommandName = keyof typeof LOADERS;
@@ -81,6 +83,24 @@ const buildCli = (): CAC => {
     .option("-p, --project", "Use project scope")
     .option("--json", "Write JSON")
     .action(async (options) => (await LOADERS.list()).run(options));
+  cli
+    .command("disable [...skills]", "Disable installed skills and keep their lockfile entries")
+    .option("-g, --global", "Use the global scope")
+    .option("-p, --project", "Use project scope")
+    .option("-a, --all", "Select all enabled skills")
+    .option("-y, --yes", "Confirm disabling")
+    .action(async (skills, options) => (await LOADERS.disable()).run(skills, options));
+  cli
+    .command("enable [...skills]", "Restore disabled skills from niksi-lock.json")
+    .option("-g, --global", "Use the global scope")
+    .option("-p, --project", "Use project scope")
+    .option("-a, --all", "Select all disabled skills")
+    .option("-y, --yes", "Accept defaults")
+    .option(
+      "--agent <id>",
+      "Agents to link to: universal, claude, opencode, kiro, cline, qwen. Agent names such as cursor or codex are accepted. Repeatable",
+    )
+    .action(async (skills, options) => (await LOADERS.enable()).run(skills, options));
 
   cli.help((sections) => {
     if (matchedHelp) applyCommandHelp(sections, matchedHelp);

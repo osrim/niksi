@@ -67,7 +67,9 @@ Use these terms in code, docs, and output.
 | recorded | Present in the lockfile, whether or not a link or copy exists. | listed, locked |
 | installed | Recorded in the lockfile and present as a link or copy. | added, present, tracked |
 | missing | Recorded, but no link or copy is present at its recorded location. | not linked, not installed, absent |
-| held | Installed skill that the `add` picker shows but does not offer. | disabled, taken |
+| disabled | Recorded, and absent from disk on purpose. `install` and `update` skip it until `enable` restores it. | off, paused, muted, inactive |
+| enable | Restore a disabled skill from the lockfile with no new review. | re-enable, turn on, reinstall |
+| held | Installed skill that the `add` picker shows but does not offer. | taken |
 | extend | Add an installed skill to more agents without a new review. | relink, widen |
 | destination | Where `niksi` writes a skill: its scope, placement, and agents or destination root. | target |
 | location | Where an installed skill already is. It includes its placement and the agents or path-copy presence found on disk. | presence |

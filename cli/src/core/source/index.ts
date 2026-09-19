@@ -92,3 +92,9 @@ export const coordinateFor = (sourceId: string): string =>
   sourceId.startsWith(LOCAL_PREFIX)
     ? resolve(projectRoot(), sourceId.slice(LOCAL_PREFIX.length))
     : sourceId;
+
+export const sourceMatches = (sourceId: string, coordinate: Coordinate): boolean =>
+  coordinate.kind === "local"
+    ? sourceId.startsWith(LOCAL_PREFIX) &&
+      realOrGiven(coordinateFor(sourceId)) === realOrGiven(coordinate.repo)
+    : sourceId === coordinate.repo;

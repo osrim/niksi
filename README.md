@@ -1,53 +1,128 @@
-# niksi: skills manager for coding agents
+# niksi: install, review, and share agent skills
 
 [![release](https://img.shields.io/github/v/release/osrim/niksi)](https://github.com/osrim/niksi/releases)
 [![checks](https://github.com/osrim/niksi/actions/workflows/checks.yml/badge.svg)](https://github.com/osrim/niksi/actions/workflows/checks.yml)
 
-`niksi` installs, updates, and links community skills into your coding agent. `add` and `update` scan every file before writing it and record what you installed in `niksi-lock.json`. `install` verifies that record, so your team runs the same reviewed skills.
+`nik` lets you install skills from Git repositories and keeps them up to date. Each skill is stored once and symlinked into your favourite agents: Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode, Windsurf, Amp, Kiro, Cline, Qwen Code, and any agent that reads `.agents/skills`.
 
-The command is `nik`.
+> Niksi is the Finnish word for "trick"
 
-<img width="1200" height="642" alt="niksi-demo" src="https://github.com/user-attachments/assets/beac3a26-1c8a-479f-9e69-ee4e3409a6f2" />
+<img width="1200" height="820" alt="nik add mattpocock/skills tdd: pick the scope and agents, review the scan, add a dependency" src="https://github.com/user-attachments/assets/be850703-f8fc-4776-92da-11b95161c623" />
 
-## Features
+## What you get
 
-- **Pick what you install**: `nik add owner/repo` lists the skills in a repository and lets you choose.
-- **One install, every agent**: _Claude Code_, _Codex_, _Cursor_, _Gemini CLI_, _GitHub Copilot_, _OpenCode_, _Windsurf_, _Amp_, _Kiro_, _Cline_, _Qwen Code_, and every other agent that reads `.agents/skills`. Each skill is stored once and symlinked into every skills directory.
-- **Reviewed updates**: `nik update` compares each installed skill with its source and shows the diff before it changes anything.
-- **Dependencies**: skills that depend on other skills from the same source are detected, and `nik add` offers to add them too.
-- **Security scan**: `add` and `update` scan every file before it is written. A critical finding stops the install until you approve it. See [Security scan](docs/security-scan.md).
+- **Install only what you need:** `nik add owner/repo` lists the skills in a repository. Pick the ones you want and which agents can use them.
+- **Choose a scope:** install skills in a specific project or globally.
+- **See what you are installing:** before anything is written, `nik` lists every file, scans the contents, and tells you if something looks harmful.
+- **Keep skills up to date:** `nik update` fetches each source and shows you the diff. Approve it, or keep what you have.
+- **Pin what should never change:** `nik add owner/repo@v1.2.0`. Everything else follows the latest stable tag, or the default branch.
+- **Share skills with your team:** commit `niksi-lock.json`. It records the source, the commit, and a sha256 of the files. Your teammates get the exact files you reviewed by running `nik install`.
+- **Pull in dependencies:** when a skill mentions another skill from the same source, `nik` offers to add it in the same run.
+- **Use it in CI:** `nik install --yes` runs without a terminal and exits `0` only when every skill is on disk with its recorded integrity.
+- **No account, no registry, no telemetry.**
 
 ## Install
 
-[Homebrew](https://brew.sh), on macOS or Linux:
+The binary name for niksi is `nik`.
 
-```sh
-brew install osrim/tap/niksi
-```
-
-Or [npm](https://www.npmjs.com/package/niksi):
-
-```sh
-npm install -g niksi
-```
-
-Or run it without installing:
+Try it without installing:
 
 ```sh
 npx niksi add owner/repo
 ```
 
-Or download the binary for your platform from the [latest release](https://github.com/osrim/niksi/releases/latest) and put it on your `PATH`. `niksi` needs `git`. For CI, see [Commands](docs/commands.md#ci).
-
-## Quickstart
+Install with npm:
 
 ```sh
-nik add mattpocock/skills   # pick skills, review them, write niksi-lock.json
-nik install                 # restore every skill in niksi-lock.json on a fresh checkout
-nik update                  # check upstream and review what changed
+npm install -g niksi
 ```
 
-Commit `niksi-lock.json`. `nik install` checks each skill against the integrity recorded in `niksi-lock.json` before writing it, so teammates get the files you approved.
+Or with Homebrew, on macOS or Linux:
+
+```sh
+brew install osrim/tap/niksi
+```
+
+Or download a binary from the [latest release](https://github.com/osrim/niksi/releases/latest) and put it on your `PATH`.
+
+### Requirements
+
+- macOS or Linux. There is no Windows build yet.
+- `git` on your `PATH`.
+
+## Quick start
+
+Add one skill from a repository:
+
+```sh
+nik add mattpocock/skills tdd
+```
+
+The skill mentions another skill in the same source, so `nik` offers to install that one as well. Both are now recorded in `niksi-lock.json`:
+
+```console
+$ nik list -g
+◇  Installed skills (~/.config/niksi/niksi-lock.json)
+│
+│  mattpocock/skills
+│    codebase-design  v1.2.3  universal, claude, kiro
+│    tdd              v1.2.3  universal, claude, kiro
+│
+└  2 skill(s) installed (global).
+```
+
+Later, check the source for changes. `nik` fetches, compares, and shows you the diff. Approve it or leave things as they are:
+
+```sh
+nik update
+```
+
+Working on a team? Install skills in your projects and commit `niksi-lock.json`. Your teammates get the same skills with one command:
+
+```sh
+nik install
+```
+
+`install` checks every file against the sha256 in the lockfile.
+
+## Commands
+
+| command                         | what it does                                                           |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `nik add <coordinate> [skills]` | Fetch a source, pick skills, review and scan them, write the lockfile. |
+| `nik install`                   | Restore every skill in `niksi-lock.json`.                              |
+| `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
+| `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |
+| `nik list`                      | Show installed skills. `--json` for scripts.                           |
+
+A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to pin a ref, a forge URL, a Git URL, or a local directory. See [docs/commands.md](docs/commands.md) for more information.
+
+## The scan
+
+`add` and `update` scan each file before writing it. The rules catch `curl` piped to a shell, known exfiltration hosts, hooks in `SKILL.md` frontmatter, commands that run at load time, invisible Unicode, and reads of `~/.ssh` and `~/.aws`. Findings are `info`, `warn`, or `critical`. A critical finding stops the install until you approve it in a terminal.
+
+> [!IMPORTANT]
+> `niksi` runs static checks. It does not run the skill, follow URLs, or understand intent. **A malicious skill can pass clean and a good one can have false positives.** Read more in [docs/security-scan.md](docs/security-scan.md).
+
+## What niksi does not do
+
+- No registry, catalogue, or search.
+- No skill authoring or evaluation.
+- No sync of MCP servers, rules, or hooks.
+- No telemetry.
+
+## Compared with other installers
+
+Checked against each tool's documentation on 2026-09-19.
+
+|                          | niksi                                     | `npx skills`                        | `gh skill`                               |
+| ------------------------ | ----------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| lockfile                 | `niksi-lock.json` in the project          | in the home directory               | none, provenance in SKILL.md frontmatter |
+| content integrity        | sha256 of the files, checked on `install` | tree SHA, for update detection      | tree SHA, for update detection           |
+| pre-install scan         | local, offline, gates the write           | third-party web audits on skills.sh | none                                     |
+| restore from lockfile    | `nik install`                             | none                                | none                                     |
+| telemetry                | none                                      | on by default                       | none                                     |
+| search                   | none                                      | `find`                              | `search`                                 |
 
 ## Docs
 
@@ -57,7 +132,11 @@ Commit `niksi-lock.json`. `nik install` checks each skill against the integrity 
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports from Linux and from agents other than Claude Code help most right now.
+
+## Reporting a vulnerability
+
+Use [GitHub private vulnerability reporting](https://github.com/osrim/niksi/security/advisories/new), not a public issue. Details in [SECURITY.md](SECURITY.md).
 
 ## License
 

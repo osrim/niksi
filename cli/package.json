@@ -1,6 +1,6 @@
 {
 	"name": "niksi",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"private": true,
 	"description": "Install, review, and share agent skills",
 	"type": "module",

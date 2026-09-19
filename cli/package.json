@@ -2,7 +2,7 @@
 	"name": "niksi",
 	"version": "0.3.2",
 	"private": true,
-	"description": "niksi skills CLI: install, update, and link skills into coding agents",
+	"description": "Install, review, and share agent skills",
 	"type": "module",
 	"bin": {
 		"nik": "./src/index.ts"

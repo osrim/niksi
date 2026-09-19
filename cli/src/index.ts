@@ -18,6 +18,7 @@ const LOADERS = {
   list: () => import("./commands/list.ts"),
   disable: () => import("./commands/disable.ts"),
   enable: () => import("./commands/enable.ts"),
+  prune: () => import("./commands/prune.ts"),
 };
 
 type CommandName = keyof typeof LOADERS;
@@ -101,6 +102,10 @@ const buildCli = (): CAC => {
       "Agents to link to: universal, claude, opencode, kiro, cline, qwen. Agent names such as cursor or codex are accepted. Repeatable",
     )
     .action(async (skills, options) => (await LOADERS.enable()).run(skills, options));
+  cli
+    .command("prune", "Delete store entries that no lockfile records")
+    .option("-y, --yes", "Confirm deletion")
+    .action(async (options) => (await LOADERS.prune()).run(options));
 
   cli.help((sections) => {
     if (matchedHelp) applyCommandHelp(sections, matchedHelp);
@@ -161,6 +166,10 @@ try {
     console.error(
       `nik install takes no arguments.\nTo add ${cli.args[0]}, run \`nik add ${cli.args.join(" ")}\`.`,
     );
+    process.exit(2);
+  }
+  if (cli.matchedCommand.name === "prune" && cli.args.length > 0) {
+    console.error("nik prune takes no arguments.\nSee `nik prune --help`.");
     process.exit(2);
   }
 

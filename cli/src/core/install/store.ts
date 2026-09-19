@@ -1,7 +1,7 @@
-import { existsSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
+import { existsSync, type Dirent } from "node:fs";
+import { lstat, readdir, rename, rm, rmdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { writeFiles, type SkillFile } from "../skill/files.ts";
+import { readDirFiles, writeFiles, type SkillFile } from "../skill/files.ts";
 import { integrityHex, integrityOfDir } from "../skill/integrity.ts";
 import { childPath, storeDir } from "../paths.ts";
 
@@ -58,4 +58,51 @@ export const materialize = async (
   if (restored) await rm(entry, { recursive: true, force: true });
   await rename(tmp, entry);
   return { integrity, entry, restored };
+};
+
+export interface PruneCandidate {
+  path: string;
+  bytes: number;
+}
+
+const sizeOf = async (path: string): Promise<number> => {
+  const stats = await lstat(path);
+  if (!stats.isDirectory()) return stats.size;
+  const files = await readDirFiles(path);
+  return files.reduce((total, file) => total + file.content.length, 0);
+};
+
+const candidate = async (path: string): Promise<PruneCandidate> => ({
+  path,
+  bytes: await sizeOf(path),
+});
+
+const listDir = (dir: string): Promise<Dirent[]> =>
+  readdir(dir, { withFileTypes: true }).catch((e: NodeJS.ErrnoException) => {
+    if (e.code !== "ENOENT") throw e;
+    return [];
+  });
+
+export const prunePlan = async (kept: Set<string>): Promise<PruneCandidate[]> => {
+  const root = storeDir();
+  const plan: PruneCandidate[] = [];
+  for (const source of await listDir(root)) {
+    const dir = join(root, source.name);
+    const children = source.isDirectory() ? await listDir(dir) : [];
+    if (children.length === 0) {
+      plan.push(await candidate(dir));
+      continue;
+    }
+    for (const child of children) {
+      const path = join(dir, child.name);
+      if (!kept.has(path)) plan.push(await candidate(path));
+    }
+  }
+  return plan;
+};
+
+export const deleteCandidate = async ({ path }: PruneCandidate): Promise<void> => {
+  await rm(path, { recursive: true, force: true });
+  const dir = dirname(path);
+  if (dir !== storeDir()) await rmdir(dir).catch(() => {});
 };

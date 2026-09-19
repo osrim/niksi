@@ -11,7 +11,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | `list` | `ls` | Show installed skills. |
 | `disable [...skills\|source]` | | Remove skills from disk and mark them disabled in `niksi-lock.json`. |
 | `enable [...skills\|source]` | | Restore disabled skills from `niksi-lock.json`. |
-| `prune` | | Delete store entries that no lockfile records. |
+| `prune` | | Delete unrecorded store entries. |
 
 `nik --help` and `nik <command> --help` print usage. `nik --version` prints the version, platform, and Bun version.
 

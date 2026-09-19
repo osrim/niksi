@@ -1,8 +1,9 @@
 import { existsSync, type Dirent } from "node:fs";
-import { lstat, readdir, rename, rm, rmdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { lstat, readdir, realpath, rename, rm, rmdir } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { readDirFiles, writeFiles, type SkillFile } from "../skill/files.ts";
 import { integrityHex, integrityOfDir } from "../skill/integrity.ts";
+import { isInside } from "./target.ts";
 import { childPath, storeDir } from "../paths.ts";
 
 const sourceKey = (source: string): string =>
@@ -102,7 +103,16 @@ export const prunePlan = async (kept: Set<string>): Promise<PruneCandidate[]> =>
 };
 
 export const deleteCandidate = async ({ path }: PruneCandidate): Promise<void> => {
-  await rm(path, { recursive: true, force: true });
   const dir = dirname(path);
-  if (dir !== storeDir()) await rmdir(dir).catch(() => {});
+  // A concurrent swap of a parent directory for a symlink must not redirect the delete out of the store.
+  const resolved = join(await realpath(dir), basename(path));
+  if (!isInside(resolved, await realpath(storeDir()))) {
+    throw new Error(`refusing to delete ${path}: it resolves outside the store`);
+  }
+  await rm(path, { recursive: true, force: true });
+  if (dir !== storeDir()) {
+    await rmdir(dir).catch((e: NodeJS.ErrnoException) => {
+      if (e.code !== "ENOENT" && e.code !== "ENOTEMPTY") throw e;
+    });
+  }
 };

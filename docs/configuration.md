@@ -121,7 +121,7 @@ Do not copy the file. Leaving both paths populated makes the legacy file inactiv
 
 Every path variable, including `HOME` and `CLAUDE_HOME`, must be an absolute path. `~` is not expanded.
 
-The store is a download cache. A lockfile entry installs without the network when the store holds its content, and installed skills do not depend on it. `nik prune` deletes the entries that no lockfile records. See [commands.md](commands.md#prune).
+The store is a download cache. A lockfile entry installs without the network when the store holds its content, and installed skills do not depend on it. `nik prune` deletes unrecorded store entries. It keeps every entry that the global lockfile or the current project's lockfile records. See [commands.md](commands.md#prune).
 
 ## Lockfile
 

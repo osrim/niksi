@@ -115,3 +115,16 @@ test("a symlink inside the store is unlinked and its target is untouched", async
   expect(existsSync(join(outside, "keep.txt"))).toBe(true);
   expect(existsSync(kept)).toBe(true);
 });
+
+test("delete refuses a candidate whose parent resolves outside the store", async () => {
+  const outside = join(tmp, `outside-${Math.random().toString(36).slice(2)}`);
+  await mkdir(outside, { recursive: true });
+  await writeFile(join(outside, "victim.txt"), "keep me");
+  await mkdir(storeDir(), { recursive: true });
+  // A source directory swapped for a symlink out of the store, racing the plan.
+  await symlink(outside, join(storeDir(), "github.com_evil"));
+  const candidate = { path: join(storeDir(), "github.com_evil", "victim.txt"), bytes: 0 };
+
+  await expect(deleteCandidate(candidate)).rejects.toThrow();
+  expect(existsSync(join(outside, "victim.txt"))).toBe(true);
+});

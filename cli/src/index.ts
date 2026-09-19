@@ -103,7 +103,7 @@ const buildCli = (): CAC => {
     )
     .action(async (skills, options) => (await LOADERS.enable()).run(skills, options));
   cli
-    .command("prune", "Delete store entries that no lockfile records")
+    .command("prune", "Delete unrecorded store entries")
     .option("-y, --yes", "Confirm deletion")
     .action(async (options) => (await LOADERS.prune()).run(options));
 

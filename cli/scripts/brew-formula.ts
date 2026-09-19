@@ -34,7 +34,7 @@ ${source(release, os, "x64")}
 export const renderFormula = (version: string, checksums: string): string => {
   const release = { version, checksums };
   return `class Niksi < Formula
-  desc "Skill manager for coding agents"
+  desc "Install, review, and share agent skills"
   homepage "https://github.com/osrim/niksi"
   version "${version}"
   license "MIT"

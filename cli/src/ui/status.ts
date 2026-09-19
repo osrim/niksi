@@ -29,6 +29,13 @@ export const reportModified = (names: string[], remedy: string): void => {
   );
 };
 
+export const reportDisabled = (names: string[], scope: Scope): void => {
+  if (names.length === 0) return;
+  p.log.info(
+    `${names.length} disabled: ${names.map(skillName).join(", ")}\nRun \`nik enable${scopeFlag(scope)}\`.`,
+  );
+};
+
 export const warnRestored = (name: string): void => {
   warn(`${skillName(name)}: restored local edits from the source`);
 };

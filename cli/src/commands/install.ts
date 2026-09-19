@@ -1,25 +1,20 @@
 import * as p from "@clack/prompts";
-import { applySkill } from "../core/install/apply.ts";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { placementOf, readLock } from "../core/install/lockfile.ts";
+import { placementOf, readLock, splitDisabled } from "../core/install/lockfile.ts";
 import {
   installedSkills,
-  installDestination,
   modifiedSkills,
   recordedLocations,
   type InstalledSkill,
 } from "../core/install/destination.ts";
 import { shortId } from "../core/source/revision.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
-import { sourceFor } from "../core/source/index.ts";
-import { IntegrityError } from "../core/install/store.ts";
-import { land } from "../ui/flow.ts";
+import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
-import { logError, logSkillError } from "../ui/report.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
-import { reportModified } from "../ui/status.ts";
+import { reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 import { chooseAgents, warnScopeCollisions } from "../ui/destination.ts";
 
@@ -37,10 +32,12 @@ export const run = async (options: InstallOptions): Promise<void> => {
   p.intro("nik install");
   const scope = resolveScope(options, p.log.warn) ?? "project";
   await migrateIfLegacy(scope);
-  const lock = await readLock(scope);
-  const skills = installedSkills(lock);
+  const { enabled, disabled } = splitDisabled(await readLock(scope));
+  const skills = installedSkills(enabled);
+  const disabledNames = Object.keys(disabled.skills).toSorted();
+  reportDisabled(disabledNames, scope);
   if (skills.length === 0) {
-    p.log.info(`${scope} lockfile is empty. Run \`nik add\`.`);
+    if (disabledNames.length === 0) p.log.info(`${scope} lockfile is empty. Run \`nik add\`.`);
     p.outro("Nothing to install.");
     return;
   }
@@ -76,31 +73,13 @@ export const run = async (options: InstallOptions): Promise<void> => {
           "modified, skipped\nCopy the edits or run `nik install -y` to discard them.",
         );
       }
-      const destination = await installDestination(entry, scope, agents);
-      const source = sourceFor(entry.source);
-      const { restored } = await applySkill(
-        {
-          name,
-          source: entry.source,
-          path: entry.path,
-          revision: entry,
-          integrity: entry.integrity,
-          files: () => source.fetchFiles(entry.commit, entry.path),
-        },
-        destination,
-      );
+      const { restored } = await restoreSkill(entry, scope, agents);
       return {
         restored,
         success: `${restored || modified.has(name) ? "restored" : "installed"} @ ${shortId(entry)}`,
       };
     },
-    onError: (entry, error) => {
-      if (error instanceof IntegrityError) {
-        reportMismatch(entry.name, error);
-      } else {
-        logSkillError(entry.name, error);
-      }
-    },
+    onError: (entry, error) => reportRestoreError(entry.name, error),
     spinner: (entry) =>
       modified.has(entry.name) && !restore ? null : `Installing ${skillName(entry.name)}`,
     scope,
@@ -119,15 +98,4 @@ const confirmOptional = async (message: string, yes?: boolean): Promise<boolean>
   if (yes) return true;
   if (!isInteractive()) return false;
   return unwrap(await p.confirm({ message, initialValue: false }));
-};
-
-const reportMismatch = (name: string, error: IntegrityError): void => {
-  logError(
-    [
-      `${skillName(name)}: source files do not match niksi-lock.json`,
-      `  expected  ${error.expected}`,
-      `  actual    ${error.actual}`,
-      "Run `nik add` to re-review the content.",
-    ].join("\n"),
-  );
 };

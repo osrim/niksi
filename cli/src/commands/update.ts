@@ -1,6 +1,11 @@
 import * as p from "@clack/prompts";
 import { applySkill, type Destination } from "../core/install/apply.ts";
-import { loadLock, type LoadedLockfile, type Lockfile } from "../core/install/lockfile.ts";
+import {
+  loadLock,
+  splitDisabled,
+  type LoadedLockfile,
+  type Lockfile,
+} from "../core/install/lockfile.ts";
 import {
   installedPath,
   installedSkills,
@@ -25,7 +30,13 @@ import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
 import { logSourceCaution, warn } from "../ui/report.ts";
-import { emptyScopeMessage, reportModified, reportVerdicts, revisionRange } from "../ui/status.ts";
+import {
+  emptyScopeMessage,
+  reportDisabled,
+  reportModified,
+  reportVerdicts,
+  revisionRange,
+} from "../ui/status.ts";
 import { dim, skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
@@ -51,9 +62,22 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
-  const skills = installedSkills(loaded.lock);
-  if (skills.length === 0) {
+  const { enabled, disabled } = splitDisabled(loaded.lock);
+  const skills = installedSkills(enabled);
+  const disabledNames = Object.keys(disabled.skills).toSorted();
+  if (skills.length === 0 && disabledNames.length === 0) {
     p.outro(await emptyScopeMessage(scope));
+    return;
+  }
+  const namedDisabled = names.filter((name) => disabledNames.includes(name));
+  if (namedDisabled.length > 0) {
+    fail(
+      `${namedDisabled.map((name) => `${skillName(name)}: disabled`).join("\n")}\nRun \`nik enable ${namedDisabled.join(" ")}${scopeFlag(scope)}\` first.`,
+    );
+  }
+  reportDisabled(disabledNames, scope);
+  if (skills.length === 0) {
+    p.outro("Nothing to update.");
     return;
   }
 

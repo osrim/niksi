@@ -18,7 +18,7 @@
 - **Pin what should never change:** `nik add owner/repo@v1.2.0`. Everything else follows the latest stable tag, or the default branch.
 - **Share skills with your team:** commit `niksi-lock.json`. It records the source, the commit, and a sha256 of the files. Your teammates get the exact files you reviewed by running `nik install`.
 - **Pull in dependencies:** when a skill mentions another skill from the same source, `nik` offers to add it in the same run.
-- **Use it in CI:** `nik install --yes` runs without a terminal and exits `0` only when every skill is on disk with its recorded integrity.
+- **Use it in CI:** `nik install --yes` runs without a terminal and exits `0` only when every enabled skill is on disk with its recorded integrity.
 - **No account, no registry, no telemetry.**
 
 ## Install
@@ -90,10 +90,11 @@ nik install
 | command                         | what it does                                                           |
 | ------------------------------- | ---------------------------------------------------------------------- |
 | `nik add <coordinate> [skills]` | Fetch a source, pick skills, review and scan them, write the lockfile. |
-| `nik install`                   | Restore every skill in `niksi-lock.json`.                              |
+| `nik install`                   | Restore every enabled skill in `niksi-lock.json`.                      |
 | `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
 | `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |
 | `nik list`                      | Show installed skills. `--json` for scripts.                           |
+| `nik disable`, `nik enable`     | Disable and enable recorded skills. No new review.                     |
 
 A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to pin a ref, a forge URL, a Git URL, or a local directory. See [docs/commands.md](docs/commands.md) for more information.
 

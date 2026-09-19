@@ -10,7 +10,7 @@ import {
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { pickToRemove } from "../ui/pick.ts";
+import { pickRecorded } from "../ui/pick.ts";
 import { fail, intro, outro, promptWarn } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage } from "../ui/status.ts";
@@ -47,7 +47,12 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
   let selection = names;
   if (selection.length === 0 && options.all) selection = installed;
   if (selection.length === 0) {
-    selection = await pickToRemove(installed, loaded.lock, locations);
+    selection = await pickRecorded({
+      command: "remove",
+      names: installed,
+      lock: loaded.lock,
+      locations,
+    });
   }
   if (selection.length === 0) {
     outro("Nothing selected.");

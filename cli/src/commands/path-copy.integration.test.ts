@@ -3,9 +3,11 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { cliRunner, makeSkill, type RunCli, type RunResult } from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
+let runCli: RunCli;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
 const cli = join(import.meta.dir, "..", "index.ts");
 
@@ -13,40 +15,13 @@ beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-path-cli-test-")));
   process.env.HOME = tmp;
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
+  runCli = cliRunner(tmp);
 });
 
 afterAll(async () => {
   restoreEnv();
   await rm(tmp, { recursive: true, force: true });
 });
-
-interface RunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-const runCli = async (cwd: string, ...args: string[]): Promise<RunResult> => {
-  const child = Bun.spawn([process.execPath, cli, ...args], {
-    cwd,
-    env: {
-      ...process.env,
-      HOME: tmp,
-      NIKSI_HOME: join(tmp, "niksi-home"),
-      CI: "1",
-      NO_COLOR: "1",
-      TERM: "dumb",
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-  return { exitCode, stdout, stderr };
-};
 
 const runInteractiveCli = async (cwd: string, ...args: string[]): Promise<RunResult> => {
   const decoder = new TextDecoder();
@@ -79,12 +54,6 @@ const runInteractiveCli = async (cwd: string, ...args: string[]): Promise<RunRes
   child.terminal?.close();
   output += decoder.decode();
   return { exitCode, stdout: output, stderr: "" };
-};
-
-const makeSkill = async (root: string, name: string, body = `# ${name}\n`): Promise<void> => {
-  const dir = join(root, name);
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: test\n---\n${body}`);
 };
 
 test("add --copy --path writes every skill below the destination root and records no agents", async () => {

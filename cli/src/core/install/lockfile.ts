@@ -18,6 +18,7 @@ export interface LockEntry {
   copy?: true;
   agents?: AgentId[];
   copyPath?: string;
+  disabled?: true;
 }
 
 export interface Lockfile {
@@ -43,6 +44,15 @@ export const placementOf = (entry: LockEntry): Placement => {
 };
 
 export const emptyLock = (): Lockfile => ({ lockfileVersion: 1, skills: {} });
+
+export const splitDisabled = (lock: Lockfile): { enabled: Lockfile; disabled: Lockfile } => {
+  const enabled = emptyLock();
+  const disabled = emptyLock();
+  for (const [name, entry] of Object.entries(lock.skills)) {
+    (entry.disabled ? disabled : enabled).skills[name] = entry;
+  }
+  return { enabled, disabled };
+};
 
 export const isApproved = (
   lock: Lockfile,
@@ -70,6 +80,7 @@ interface SerializedEntry {
   copy?: true | undefined;
   agents?: AgentId[] | undefined;
   copyPath?: string | undefined;
+  disabled?: true | undefined;
 }
 
 export const serializeLock = (lock: Lockfile): string => {
@@ -88,6 +99,7 @@ export const serializeLock = (lock: Lockfile): string => {
       copy: entry.copy,
       agents: entry.agents,
       copyPath: entry.copyPath,
+      disabled: entry.disabled,
     };
   }
   return `${JSON.stringify({ lockfileVersion: 1, skills }, null, 2)}\n`;
@@ -125,6 +137,7 @@ const EntrySchema = z
         { error: "Use a normalized project-relative destination root for copyPath" },
       )
       .optional(),
+    disabled: z.literal(true, { error: "disabled must be true or absent" }).optional(),
   })
   .refine(
     (entry) =>
@@ -180,6 +193,7 @@ export const parseLock = (text: string, file: string): Lockfile => {
       ...(entry.copy === undefined ? {} : { copy: entry.copy }),
       ...(entry.agents === undefined ? {} : { agents: entry.agents }),
       ...(entry.copyPath === undefined ? {} : { copyPath: entry.copyPath }),
+      ...(entry.disabled === undefined ? {} : { disabled: entry.disabled }),
     };
   }
   return { lockfileVersion: 1, skills };

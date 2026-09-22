@@ -17,10 +17,10 @@ import { scopeFlag } from "../core/install/scope.ts";
 import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
 import { sourceMatches, type Source } from "../core/source/index.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
-import type { OutdatedVerdict } from "../core/source/upstream.ts";
+import type { UpdatableVerdict } from "../core/source/upstream.ts";
 import { usageError, USAGE_ERROR } from "../core/usage.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "./prompt.ts";
-import { describeOutdated, friendlySource, groupLabel } from "./status.ts";
+import { describeUpdate, friendlySource, groupLabel } from "./status.ts";
 import { green, skillName, softOrange, summarize, unstruck } from "./style.ts";
 
 const COORDINATE_REMEDY = "Pass skill names, owner/repo/skill, or --all.";
@@ -325,7 +325,7 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
   return split(await pickFrom("Select skills to add", source.id, rows), true);
 };
 
-export const pickUpdates = async (updatable: OutdatedVerdict[]): Promise<string[]> => {
+export const pickUpdates = async (updatable: UpdatableVerdict[]): Promise<string[]> => {
   requireTTY("nik update needs to know which skills", SELECTION_REMEDY);
   const groups = groupOptionsBySource(
     updatable,
@@ -333,7 +333,7 @@ export const pickUpdates = async (updatable: OutdatedVerdict[]): Promise<string[
     groupLabel,
     (verdict) => ({
       value: verdict.skill.name,
-      label: `${skillName(verdict.skill.name)}: ${describeOutdated(verdict)}`,
+      label: `${skillName(verdict.skill.name)}: ${describeUpdate(verdict)}`,
     }),
   );
   return unwrap(

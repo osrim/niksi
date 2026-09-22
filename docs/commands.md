@@ -77,9 +77,10 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 
 `update` checks every installed skill against its source, then shows and scans changed files before writing.
 
-- Without names or `--all`, it opens a picker of outdated skills.
+- Without names or `--all`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
-- A skill whose files did not change at a new revision updates without review.
+- Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
+- Candidates not selected are reported as still having an update available.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
 - Missing dependencies are reported, not installed.
 - Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.

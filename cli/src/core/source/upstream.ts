@@ -37,6 +37,8 @@ export interface OutdatedVerdict extends Verdict {
   kind: "outdated";
 }
 
+export type UpdatableVerdict = MovedVerdict | OutdatedVerdict;
+
 export interface UpToDateVerdict extends Verdict {
   kind: "up-to-date";
 }
@@ -106,23 +108,23 @@ const rewrittenRef = async (
 };
 
 interface UpdateSelection {
-  selected: OutdatedVerdict[];
+  selected: UpdatableVerdict[];
   skipped: string[];
   needsPrompt: boolean;
 }
 
 export const selectUpdates = (
-  outdated: OutdatedVerdict[],
+  candidates: UpdatableVerdict[],
   names: string[],
   all: boolean,
 ): UpdateSelection => {
   if (names.length > 0) {
-    const selected = outdated.filter((verdict) => names.includes(verdict.skill.name));
+    const selected = candidates.filter((verdict) => names.includes(verdict.skill.name));
     const skipped = names.filter(
       (name) => !selected.some((verdict) => verdict.skill.name === name),
     );
     return { selected, skipped, needsPrompt: false };
   }
-  if (all) return { selected: outdated, skipped: [], needsPrompt: false };
+  if (all) return { selected: candidates, skipped: [], needsPrompt: false };
   return { selected: [], skipped: [], needsPrompt: true };
 };

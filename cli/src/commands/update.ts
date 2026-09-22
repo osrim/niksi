@@ -20,7 +20,7 @@ import {
   computeVerdicts,
   selectUpdates,
   type MovedVerdict,
-  type OutdatedVerdict,
+  type UpdatableVerdict,
 } from "../core/source/upstream.ts";
 import { reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
@@ -102,45 +102,54 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
     () => "Checked upstream sources",
   );
   const { moved, outdated } = reportVerdicts(verdicts, names, scope);
+  const candidates: UpdatableVerdict[] = [...moved, ...outdated];
 
   const destinationOf = (skill: InstalledSkill): Promise<Destination> =>
     destinationFor(skill, scope, loaded.lock);
 
-  if (outdated.length === 0) {
-    return landUpdates(moved, [], destinationOf, loaded, "Nothing to update.");
+  if (candidates.length === 0) {
+    p.outro("Nothing to update.");
+    return;
   }
 
-  const movedNames = new Set(moved.map((verdict) => verdict.skill.name));
-  const selection = selectUpdates(outdated, names, options.all ?? false);
-  for (const name of selection.skipped) {
-    if (!movedNames.has(name)) p.log.info(`${skillName(name)}: up to date`);
-  }
+  const selection = selectUpdates(candidates, names, options.all ?? false);
+  for (const name of selection.skipped) p.log.info(`${skillName(name)}: up to date`);
 
   let selected = selection.selected;
   if (selection.needsPrompt) {
-    const picked = await pickUpdates(outdated);
-    selected = selectUpdates(outdated, picked, false).selected;
+    const picked = await pickUpdates(candidates);
+    selected = selectUpdates(candidates, picked, false).selected;
+  }
+  const selectedNames = new Set(selected.map((verdict) => verdict.skill.name));
+  for (const verdict of candidates) {
+    if (!selectedNames.has(verdict.skill.name)) {
+      p.log.info(`${skillName(verdict.skill.name)}: update available, not selected`);
+    }
   }
   if (selected.length === 0) {
-    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
+    p.outro("Nothing selected.");
+    return;
   }
 
-  logSourceCaution();
-  const approved = await previewAndReview(selected, scope, options);
-  if (approved.length === 0) {
-    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
+  if (selected.some((verdict) => verdict.kind === "outdated")) logSourceCaution();
+  const prepared = await previewAndReview(selected, scope, options);
+  if (prepared.length === 0) {
+    p.outro("Nothing selected.");
+    return;
   }
+  const approved = prepared.flatMap((item) => (item.kind === "update" ? [item.updated] : []));
   await reportUpdateDeps(approved, loaded.lock, scope);
 
   const proceed = await confirm(
-    `Update ${approved.map((item) => skillName(item.verdict.skill.name)).join(", ")} (${scope})?`,
+    `Update ${prepared.map((item) => skillName(updateName(item))).join(", ")} (${scope})?`,
     { yes: options.yes, command: "update" },
   );
   if (!proceed) {
-    return landUpdates(moved, [], destinationOf, loaded, "Nothing selected.");
+    p.outro("Nothing selected.");
+    return;
   }
 
-  await landUpdates(moved, approved, destinationOf, loaded, "Nothing selected.");
+  await landUpdates(prepared, destinationOf, loaded);
 };
 
 type DestinationOf = (skill: InstalledSkill) => Promise<Destination>;
@@ -161,25 +170,17 @@ type UpdateAction =
   | { kind: "moved"; verdict: MovedVerdict }
   | { kind: "update"; updated: UpdatedFiles };
 
+const updateName = (item: UpdateAction): string =>
+  item.kind === "moved" ? item.verdict.skill.name : item.updated.verdict.skill.name;
+
 const landUpdates = async (
-  moved: MovedVerdict[],
-  approved: UpdatedFiles[],
+  items: UpdateAction[],
   destinationOf: DestinationOf,
   loaded: LoadedLockfile,
-  nothing: string,
 ): Promise<void> => {
-  const items: UpdateAction[] = [
-    ...moved.map((verdict) => ({ kind: "moved" as const, verdict })),
-    ...approved.map((updated) => ({ kind: "update" as const, updated })),
-  ];
-  if (items.length === 0) {
-    p.outro(nothing);
-    return;
-  }
   await land({
     items,
-    name: (item) =>
-      item.kind === "moved" ? item.verdict.skill.name : item.updated.verdict.skill.name,
+    name: updateName,
     apply: (item) =>
       item.kind === "moved"
         ? recordMoved(item.verdict, destinationOf)
@@ -217,14 +218,19 @@ const recordMoved = async (
 };
 
 const previewAndReview = async (
-  selected: OutdatedVerdict[],
+  selected: UpdatableVerdict[],
   scope: Scope,
   options: ReviewOptions,
-): Promise<UpdatedFiles[]> => {
-  const approved: UpdatedFiles[] = [];
+): Promise<UpdateAction[]> => {
+  const pending: UpdatedFiles[] = [];
   for (const verdict of selected) {
     const { skill } = verdict;
     const to = verdict.upstream.commit;
+    const ids = to ? `: ${shortId(skill)} → ${shortId(verdict.upstream)}` : "";
+    if (verdict.kind === "moved") {
+      p.note("no file changes", `${skillName(skill.name)}${ids}`);
+      continue;
+    }
     const { changes, files } = await withSpinner(
       `Reading ${skillName(skill.name)}`,
       async () => ({
@@ -233,16 +239,26 @@ const previewAndReview = async (
       }),
       (read) => `${skillName(skill.name)}: read ${read.files.length} file(s)`,
     );
-    const ids = to ? `: ${shortId(skill)} → ${shortId(verdict.upstream)}` : "";
     p.note(truncate(changes.patch), `${skillName(skill.name)}${ids}`);
-
-    approved.push({ verdict, files });
+    pending.push({ verdict, files });
+  }
+  if (pending.length === 0) {
+    return selected.flatMap((verdict) =>
+      verdict.kind === "moved" ? [{ kind: "moved", verdict }] : [],
+    );
   }
   const review = await reviewSkills(
-    approved.map(({ verdict, files }) => ({ name: verdict.skill.name, files, verdict })),
+    pending.map(({ verdict, files }) => ({ name: verdict.skill.name, files, verdict })),
     options,
   );
-  return review.approved.map(({ verdict, files }) => ({ verdict, files }));
+  const approved = new Map(
+    review.approved.map(({ verdict, files }) => [verdict.skill.name, { verdict, files }]),
+  );
+  return selected.flatMap((verdict): UpdateAction[] => {
+    if (verdict.kind === "moved") return [{ kind: "moved", verdict }];
+    const updated = approved.get(verdict.skill.name);
+    return updated ? [{ kind: "update", updated }] : [];
+  });
 };
 
 const applyUpdate = async (

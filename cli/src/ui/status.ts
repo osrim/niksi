@@ -6,6 +6,7 @@ import { scopeFlag } from "../core/install/scope.ts";
 import {
   type MovedVerdict,
   type OutdatedVerdict,
+  type UpdatableVerdict,
   type UpdateVerdict,
 } from "../core/source/upstream.ts";
 import { logError, warn } from "./report.ts";
@@ -86,12 +87,13 @@ export const reportVerdicts = (
 const describeAhead = (verdict: OutdatedVerdict): string =>
   verdict.ahead > 0 ? `${verdict.ahead} new commit(s)` : "content changed";
 
-export const describeOutdated = (verdict: OutdatedVerdict): string => {
+export const describeUpdate = (verdict: UpdatableVerdict): string => {
+  if (verdict.kind === "moved") return "no file changes";
   const range = revisionRange(verdict);
   return range ? `${describeAhead(verdict)} (${range})` : describeAhead(verdict);
 };
 
-export const revisionRange = (verdict: OutdatedVerdict): string => {
+export const revisionRange = (verdict: UpdatableVerdict): string => {
   const to = displayLabel(verdict.upstream);
   return to ? `${displayLabel(verdict.skill)} → ${to}` : "";
 };
@@ -102,7 +104,7 @@ export const friendlySource = (source: string): string =>
     .replace(/^github\.com[:/]/u, "")
     .replace(/\.git$/u, "");
 
-export const groupLabel = (source: string, items: OutdatedVerdict[]): string => {
+export const groupLabel = (source: string, items: UpdatableVerdict[]): string => {
   const name = bold(friendlySource(source));
   const oldTags = new Set(items.map((verdict) => displayLabel(verdict.skill)));
   const newTags = new Set(items.map((verdict) => displayLabel(verdict.upstream)));

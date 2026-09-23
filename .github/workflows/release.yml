@@ -141,7 +141,7 @@ jobs:
             gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
             exit 0
           fi
-          args=(--generate-notes)
+          args=()
           intro="[Homebrew](https://brew.sh), on macOS or Linux:
 
           \`\`\`sh
@@ -165,8 +165,11 @@ jobs:
             args+=(--prerelease)
             intro="Prereleases are not in Homebrew. Download"
           esac
-          # Prepended to the generated notes. Mirrors the README install section, pinned to this tag.
+          changelog=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body)
+          # Appended to the generated notes. Mirrors the README install section, pinned to this tag.
           notes=$(cat <<EOF
+          $changelog
+
           ## Install
 
           $intro the archive for your platform below and put \`nik\` on your \`PATH\`. \`niksi\` needs \`git\`.

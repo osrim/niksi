@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath'); case \"$f\" in *.ts|*.tsx) ;; *) exit 0 ;; esac; root=$(git -C \"$(dirname \"$f\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; [ -f \"$root/cli/package.json\" ] || exit 0; out=$(cd \"$root/cli\" && bun run typecheck 2>&1) || { printf '%s\\n' \"$out\" | tail -20 >&2; exit 2; }",
+            "timeout": 60,
+            "statusMessage": "Typechecking"
+          }
+        ]
+      }
+    ]
+  }
+}

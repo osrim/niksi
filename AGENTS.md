@@ -5,7 +5,7 @@ Start with [README.md](README.md).
 Read the relevant reference before changing code:
 
 - [CONTEXT.md](CONTEXT.md) for terms
-- [docs/contributor/standards.md](docs/contributor/standards.md) for quality rules
+- [docs/contributor/standards.md](docs/contributor/standards.md) for quality rules and the required checks. Run them from `cli/` with `bun run`.
 - [docs/commands.md](docs/commands.md), [docs/configuration.md](docs/configuration.md), and [docs/security-scan.md](docs/security-scan.md) for the user-facing contract
 - [docs/contributor/terminal-style.md](docs/contributor/terminal-style.md) for terminal output
 - [docs/contributor/architecture.md](docs/contributor/architecture.md) for module boundaries

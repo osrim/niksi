@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { readDirFiles, type SkillFile } from "../skill/files.ts";
 import { discoverIn, type DiscoveredSkill } from "./discover.ts";
-import { git, splitDiff } from "./git.ts";
+import { git, splitDiff, STAT_ARG } from "./git.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import type { Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
@@ -88,7 +88,7 @@ export class LocalSource implements Source {
     const diffed = await git([
       "diff",
       "--no-index",
-      "--stat",
+      STAT_ARG,
       "--patch",
       "--src-prefix=installed/",
       "--dst-prefix=current/",

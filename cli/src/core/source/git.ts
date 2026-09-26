@@ -208,6 +208,9 @@ export const isBranch = async (clone: string, ref: string): Promise<boolean> => 
   return result.code === 0;
 };
 
+// The stat shows in a note, which wraps its content 6 columns short of the 80-column default.
+export const STAT_ARG = "--stat=74";
+
 export const diffSubtree = async (
   clone: string,
   oldRev: string,
@@ -215,7 +218,7 @@ export const diffSubtree = async (
   path: string,
 ): Promise<string> => {
   const revspec = (rev: string): string => (path ? `${rev}:${path}` : `${rev}^{tree}`);
-  const result = await git(["diff", "--stat", "--patch", revspec(oldRev), revspec(newRev)], clone);
+  const result = await git(["diff", STAT_ARG, "--patch", revspec(oldRev), revspec(newRev)], clone);
   return result.code === 0 ? result.buf.toString("utf8") : "";
 };
 

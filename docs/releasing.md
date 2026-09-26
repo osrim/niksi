@@ -39,7 +39,7 @@ The `release` job runs on `ubuntu-latest` after all matrix jobs pass. It holds t
 
 1. Checks that `cli/package.json` matches the tag.
 2. Downloads the tarballs and writes `checksums.txt`.
-3. Uploads them to a GitHub Release. Notes are generated from merged PR titles.
+3. Uploads them to a GitHub Release. `cli/scripts/release-notes.ts` groups the generated notes by PR title type: `feat`, `fix`, and other.
 4. Renders `Formula/niksi.rb` with `cli/scripts/brew-formula.ts` and pushes it to `osrim/homebrew-tap` with the `TAP_DEPLOY_KEY` secret.
 5. Renders the npm packages with `cli/scripts/npm-packages.ts`, unpacks one binary into each platform package, and stages them with `npm stage publish`.
 

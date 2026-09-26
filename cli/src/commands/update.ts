@@ -23,10 +23,11 @@ import {
   type UpdatableVerdict,
 } from "../core/source/upstream.ts";
 import { reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
-import { confirm, land } from "../ui/flow.ts";
-import { reviewSkills, type ReviewOptions } from "../ui/gate.ts";
+import { land } from "../ui/flow.ts";
+import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
+import { colorStat, escapeControl } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
 import { logSourceCaution, warn } from "../ui/report.ts";
@@ -53,8 +54,6 @@ export const help: CommandHelp = {
 interface UpdateOptions extends ScopeOptions, ReviewOptions {
   all?: boolean;
 }
-
-const DIFF_PREVIEW_LINES = 120;
 
 export const run = async (names: string[], options: UpdateOptions): Promise<void> => {
   p.intro("nik update");
@@ -140,8 +139,9 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   const approved = prepared.flatMap((item) => (item.kind === "update" ? [item.updated] : []));
   await reportUpdateDeps(approved, loaded.lock, scope);
 
-  const proceed = await confirm(
+  const proceed = await confirmWrite(
     `Update ${prepared.map((item) => skillName(updateName(item))).join(", ")} (${scope})?`,
+    approved.map(({ verdict, files, diff }) => ({ name: verdict.skill.name, files, diff })),
     { yes: options.yes, command: "update" },
   );
   if (!proceed) {
@@ -231,16 +231,16 @@ const previewAndReview = async (
       p.note("no file changes", `${skillName(skill.name)}${ids}`);
       continue;
     }
-    const { changes, files } = await withSpinner(
+    const { diff, files } = await withSpinner(
       `Reading ${skillName(skill.name)}`,
       async () => ({
-        changes: await verdict.source.changes(skill, to, await installedPath(skill, scope)),
+        diff: await verdict.source.changes(skill, to, await installedPath(skill, scope)),
         files: await verdict.source.fetchFiles(to, skill.path),
       }),
       (read) => `${skillName(skill.name)}: read ${read.files.length} file(s)`,
     );
-    p.note(truncate(changes.patch), `${skillName(skill.name)}${ids}`);
-    pending.push({ verdict, files });
+    p.note(colorStat(escapeControl(diff.stat)), `${skillName(skill.name)}${ids}`);
+    pending.push({ verdict, files, diff });
   }
   if (pending.length === 0) {
     return selected.flatMap((verdict) =>
@@ -248,11 +248,14 @@ const previewAndReview = async (
     );
   }
   const review = await reviewSkills(
-    pending.map(({ verdict, files }) => ({ name: verdict.skill.name, files, verdict })),
+    pending.map(({ verdict, files, diff }) => ({ name: verdict.skill.name, files, diff, verdict })),
     options,
   );
   const approved = new Map(
-    review.approved.map(({ verdict, files }) => [verdict.skill.name, { verdict, files }]),
+    review.approved.map(({ verdict, files, diff }) => [
+      verdict.skill.name,
+      { verdict, files, diff },
+    ]),
   );
   return selected.flatMap((verdict): UpdateAction[] => {
     if (verdict.kind === "moved") return [{ kind: "moved", verdict }];
@@ -280,11 +283,4 @@ const applyUpdate = async (
     revisionRange(verdict) ||
     `${displayLabel(skill)} → ${displayLabel({ ...verdict.upstream, integrity })}`;
   return { restored, success: `updated ${range}` };
-};
-
-const truncate = (diff: string): string => {
-  const lines = diff.split("\n");
-  if (lines.length <= DIFF_PREVIEW_LINES) return diff.trimEnd();
-  const hidden = lines.length - DIFF_PREVIEW_LINES;
-  return `${lines.slice(0, DIFF_PREVIEW_LINES).join("\n")}\n… (${hidden} more lines)`;
 };

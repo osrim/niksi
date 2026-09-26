@@ -17,7 +17,7 @@ const userPath = (...segments: string[]): string => join(userHome(), ...segments
 const xdgConfigDir = (name: string): string =>
   join(envPath("XDG_CONFIG_HOME") ?? userPath(".config"), name);
 
-const onPath = (binary: string): boolean =>
+export const onPath = (binary: string): boolean =>
   (process.env.PATH ?? "")
     .split(delimiter)
     .some((dir) => dir !== "" && existsSync(join(dir, binary)));

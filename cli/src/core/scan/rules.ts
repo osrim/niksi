@@ -1,6 +1,6 @@
 import { isAbsolute, normalize, join, dirname, basename, extname } from "node:path";
 import { LinkifyIt } from "linkify-it";
-import { isSymlink, MODE_EXEC } from "../skill/files.ts";
+import { isSymlink, isText, MODE_EXEC } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
@@ -43,8 +43,6 @@ const finding = (
   fields: Omit<Finding, "rule" | "help">,
   help: string = RULES[rule].help,
 ): Finding => ({ rule, help, ...fields });
-
-const isText = (buf: Buffer): boolean => !buf.subarray(0, 1024).includes(0);
 
 const ARCHIVE_EXTS = new Set([".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar"]);
 

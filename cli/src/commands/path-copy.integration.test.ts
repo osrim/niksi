@@ -207,7 +207,8 @@ test("update detects edits and replaces the recorded path copy", async () => {
   const updated = await runCli(project, "update", "demo", "--yes");
   expect(updated.exitCode).toBe(0);
   expect(updated.stdout).not.toContain("installed content is missing");
-  expect(updated.stdout).toContain("local edit");
+  expect(updated.stdout).toContain("published => update-source}/demo/SKILL.md");
+  expect(updated.stdout).toContain("1 file changed, 5 insertions(+), 1 deletion(-)");
   expect(await readFile(installed, "utf8")).toContain("version two");
 });
 

@@ -20,6 +20,8 @@ Without a terminal, `install` keeps modified skills and installs the other entri
 
 Each skill gets at most one review question.
 
+A review question and the write confirmation of `add` and `update` are a select with `Yes`, `No`, and `Read files…`. `Read files…` opens the pager and then asks the same question again, so reading adds no question. Its hint is `press q to return`. The defaults stay `Yes` for warn and write, and `No` for critical. A question with nothing to read stays a yes/no confirm. The session contents are in [security-scan.md](../security-scan.md#reading-files).
+
 Cancel exits `130` with `Cancelled.` Completed writes remain completed.
 
 ## Defaults

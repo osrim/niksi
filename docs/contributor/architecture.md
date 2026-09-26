@@ -23,8 +23,9 @@ cli/src/
   index.ts
   test-env.ts        environment capture and restore, tests only
   test-cli.ts        subprocess runner and skill fixture, tests only
+  test-color.ts      fresh-process probe for color output, tests only
   commands/          add, install, update, remove, list, disable, enable, prune
-  ui/                prompts, gate, reports, help, status, destination choices, legacy migration notice
+  ui/                prompts, gate, pager, reports, help, status, destination choices, legacy migration notice
   core/
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
@@ -46,7 +47,7 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 | command | uses |
 | --- | --- |
 | `add` | `fetchSkillFiles`, `confirm`, `land` |
-| `update` | `confirm`, `land` |
+| `update` | `land` |
 | `remove` | `confirm`, `land` |
 | `install` | `restoreSkill`, `land` |
 | `disable` | `confirm`, `land` |
@@ -70,6 +71,8 @@ A path copy does not create a canonical copy or agent link. The store is a cache
 ## Review gate
 
 New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes` and `dangerousSkipCriticalApproval`. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. Only `blocked`, a critical finding without a terminal or the dangerous flag, sets exit code `3`.
+
+`add` and `update` ask their write confirmation through `confirmWrite` in `ui/gate.ts`, not `confirm`. The gate questions and `confirmWrite` offer `Read files…`, which passes the reviewed skills to `ui/pager.ts`. The pager module builds the session text from pure helpers and pipes it to the pager.
 
 `dangerousSkipCriticalApproval` skips critical approval after findings are printed. It leaves warn finding review controlled by `yes`. Commands pass these options through every review path, including dependencies offered by `add`. The options apply only to the current invocation; placement and persistence code do not use the dangerous flag.
 

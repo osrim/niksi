@@ -14,6 +14,8 @@ type Paint = (text: string) => string;
 
 const ansi = new Ansis(colorLevel());
 
+export const colorOn = ansi.level > 0;
+
 export const orange: Paint = ansi.fg(208);
 
 export const softOrange: Paint = ansi.fg(215);

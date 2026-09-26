@@ -6,6 +6,7 @@ import {
   git,
   lsTreeEntries,
   readBlobs,
+  splitDiff,
   subtreeOid,
 } from "./git.ts";
 import { MODE_GITLINK, isSkillContent, type SkillFile } from "../skill/files.ts";
@@ -123,6 +124,6 @@ export class GitSource implements Source {
   async changes(from: InstalledSkill, to: string | undefined, _before: string): Promise<Changes> {
     const clone = await this.clone();
     const commit = commitOf(from);
-    return { patch: await diffSubtree(clone, commit, requireCommit(to), from.path) };
+    return splitDiff(await diffSubtree(clone, commit, requireCommit(to), from.path));
   }
 }

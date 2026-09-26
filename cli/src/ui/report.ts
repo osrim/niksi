@@ -22,13 +22,10 @@ export const logSkillError = (name: string, cause: unknown): void =>
 
 export const warn = (message: string): void => p.log.warn(headline(orange)(message));
 
-export const renderFiles = (files: SkillFile[]): string =>
-  files
-    .map(
-      (file) =>
-        `${file.path} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`,
-    )
-    .join("\n");
+export const fileLabel = (file: SkillFile): string =>
+  `${file.path} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
+
+export const renderFiles = (files: SkillFile[]): string => files.map(fileLabel).join("\n");
 
 const LOG_BY_SEVERITY: Record<Severity, (message: string) => void> = {
   info: p.log.info,

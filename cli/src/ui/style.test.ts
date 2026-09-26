@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { probe } from "../test-color.ts";
 
 const ESC = "\u001B";
 
@@ -22,23 +23,6 @@ const TWICE = `
   enforceColorPolicy();
   process.stdout.write(first === process.stdout.write ? "same" : "stacked");
 `;
-
-const probe = async (env: Record<string, string>, body: string): Promise<string[]> => {
-  const code = `const DIR = ${JSON.stringify(import.meta.dir)};\n${body}`;
-
-  const base: Record<string, string | undefined> = { ...process.env, TERM: "xterm-256color" };
-  for (const key of ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "CI"]) delete base[key];
-
-  const child = Bun.spawn(["bun", "-e", code], {
-    cwd: import.meta.dir,
-    env: { ...base, ...env },
-    stdout: "pipe",
-    stderr: "inherit",
-  });
-  const out = await new Response(child.stdout).text();
-  expect(await child.exited).toBe(0);
-  return out.split("\n");
-};
 
 describe("enforceColorPolicy", () => {
   test("strips clack's own colour when colour is off", async () => {

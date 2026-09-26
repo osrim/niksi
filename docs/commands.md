@@ -41,7 +41,7 @@ git@github.com:owner/repo.git     clone URL
 - `--all` selects every skill in the source.
 - Named skills must exist in the source and have distinct names.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
-- `add` shows and scans every file before writing. See [security-scan.md](security-scan.md).
+- `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).
 - `add` finds mentions of other skills from the same source and offers to review them too.
 - `--copy` writes a real directory instead of a link. To switch a skill between link and copy, remove it and add it again.
 - In project scope, a local directory outside the project root, or a symlink to one, is recorded by a path that other machines cannot resolve. `add` warns and asks before it records it. `-y` answers yes. Use `--copy` to put the files in the project, or `-g` to install for this machine only.
@@ -80,6 +80,7 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 - Without names or `--all`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
 - Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
+- A changed skill shows a diff stat. The full diff is in `Read files…` at the review questions. See [security-scan.md](security-scan.md#reading-files).
 - Candidates not selected are reported as still having an update available.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
 - Missing dependencies are reported, not installed.

@@ -219,6 +219,12 @@ export const diffSubtree = async (
   return result.code === 0 ? result.buf.toString("utf8") : "";
 };
 
+export const splitDiff = (text: string): { stat: string; patch: string } => {
+  const start = text.search(/^diff --git /mu);
+  if (start < 0) return { stat: text.trimEnd(), patch: "" };
+  return { stat: text.slice(0, start).trimEnd(), patch: text.slice(start) };
+};
+
 const parseBatchBlobs = (result: GitResult, oids: string[]): Array<Buffer | undefined> => {
   if (result.code !== 0) throw new Error(`cannot read blobs${gitReason(result)}`);
 

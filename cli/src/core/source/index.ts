@@ -20,6 +20,7 @@ export interface Upstream {
 }
 
 export interface Changes {
+  stat: string;
   patch: string;
 }
 

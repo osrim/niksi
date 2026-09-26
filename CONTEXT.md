@@ -90,7 +90,7 @@ Use these terms in code, docs, and output.
 | finding | Scan result with `info`, `warn`, or `critical` severity. | issue, violation, alert |
 | critical finding | Result that needs human approval unless the invocation skips critical approval. | error, failure |
 | warn finding | Result that pauses for review unless `-y` is set. | warning, minor finding |
-| review | One skill's pass through the gate: file list, scan, findings, and at most one question. | audit, verify, validate |
+| review | One skill's pass through the gate: file list, scan, findings, and at most one question. The question can offer `Read files…`, which opens the files in a pager. Reading is not a question. | audit, verify, validate |
 | gate | UI that shows findings and asks for approval. | prompt, confirmation, checkpoint |
 | approval | Human approval for one source, path, integrity, and scope. | trust, waiver, allowlist entry |
 | declined | The user answered no at the gate. The skill is skipped. | rejected, refused |

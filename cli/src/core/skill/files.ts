@@ -21,6 +21,7 @@ export const MODE_EXEC = "100755";
 export const MODE_SYMLINK = "120000";
 export const MODE_GITLINK = "160000";
 export const isSymlink = (mode: string): boolean => mode === MODE_SYMLINK;
+export const isText = (buf: Buffer): boolean => !buf.subarray(0, 1024).includes(0);
 
 // Use code-unit order so integrity values do not depend on the system locale.
 export const byPath = (a: { path: string }, b: { path: string }): number =>

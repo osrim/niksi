@@ -5,7 +5,7 @@ import type { SkillFile } from "../core/skill/files.ts";
 import type { Lockfile } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
-import { coordinateFor, type Source } from "../core/source/index.ts";
+import { coordinateFor, type Changes, type Source } from "../core/source/index.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { fetchSkillFiles, type SkillFiles } from "./flow.ts";
 import { reviewSkills, type ReviewOptions } from "./gate.ts";
@@ -110,6 +110,7 @@ export const resolveDeps = async (
 export interface UpdatedFiles {
   verdict: OutdatedVerdict;
   files: SkillFile[];
+  diff: Changes;
 }
 
 const discoveryKey = (verdict: OutdatedVerdict): string =>

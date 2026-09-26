@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Finding } from "../core/scan/index.ts";
-import { stopsOn } from "./gate.ts";
+import { MODE_FILE, type SkillFile } from "../core/skill/files.ts";
+import { renderFrontmatter, stopsOn } from "./gate.ts";
 
 const finding = (severity: Finding["severity"], rule: Finding["rule"]): Finding => ({
   severity,
@@ -74,5 +75,47 @@ describe("stopsOn", () => {
     );
     expect(stopsOn([finding("info", "external-url")], options)).toBeNull();
     expect(stopsOn([], options)).toBeNull();
+  });
+});
+
+const skillMd = (text: string): SkillFile => ({
+  path: "SKILL.md",
+  content: Buffer.from(text),
+  mode: MODE_FILE,
+});
+
+describe("renderFrontmatter", () => {
+  test("shows description and allowed-tools from SKILL.md", () => {
+    expect(
+      renderFrontmatter([
+        skillMd(
+          "---\nname: x\ndescription: Fetch weather\nallowed-tools: Bash(curl:*), Read\n---\n",
+        ),
+      ]),
+    ).toEqual(["description: Fetch weather", "allowed-tools: Bash(curl:*), Read"]);
+  });
+
+  test("joins an allowed-tools list", () => {
+    expect(renderFrontmatter([skillMd("---\nallowed-tools:\n  - Read\n  - Grep\n---\n")])).toEqual([
+      "allowed-tools: Read, Grep",
+    ]);
+  });
+
+  test("skips a missing key", () => {
+    expect(renderFrontmatter([skillMd("---\nname: x\ndescription: only this\n---\n")])).toEqual([
+      "description: only this",
+    ]);
+  });
+
+  test("shows nothing without frontmatter, SKILL.md, or valid YAML", () => {
+    expect(renderFrontmatter([skillMd("# no frontmatter\n")])).toEqual([]);
+    expect(renderFrontmatter([])).toEqual([]);
+    expect(renderFrontmatter([skillMd("---\ndescription: [unclosed\n---\n")])).toEqual([]);
+  });
+
+  test("escapes control characters in a value", () => {
+    expect(renderFrontmatter([skillMd('---\ndescription: "a\\eb"\n---\n')])).toEqual([
+      "description: a^[b",
+    ]);
   });
 });

@@ -18,6 +18,7 @@ import {
   lsTreeEntries,
   resolveRef,
   readBlobs,
+  splitDiff,
   sshAlternate,
   subtreeOid,
 } from "./git.ts";
@@ -222,6 +223,20 @@ test("diff operations report fixture changes at the repo and subtree levels", as
   expect(diff).toContain("-first");
   expect(diff).toContain("+second");
   expect(diff).toContain("notes.txt");
+});
+
+test("splitDiff separates the stat from the patch at the first diff header", () => {
+  const stat = " SKILL.md | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)";
+  const patch = "diff --git a/SKILL.md b/SKILL.md\n@@ -1 +1 @@\n-first\n+second\n";
+  expect(splitDiff(`${stat}\n\n${patch}`)).toEqual({ stat, patch });
+});
+
+test("splitDiff keeps text without a diff header as the stat", () => {
+  expect(splitDiff("(installed content is missing; showing no diff)")).toEqual({
+    stat: "(installed content is missing; showing no diff)",
+    patch: "",
+  });
+  expect(splitDiff("")).toEqual({ stat: "", patch: "" });
 });
 
 test("missing branches and invalid trees use the documented failure values", async () => {

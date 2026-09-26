@@ -26,7 +26,7 @@ import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
 import { usageError, USAGE_ERROR } from "../core/usage.ts";
 import { resolveDeps, type DepsContext } from "../ui/deps.ts";
 import { confirm, fetchSkillFiles, land, type SkillFiles } from "../ui/flow.ts";
-import { reviewSkills, type ReviewOptions } from "../ui/gate.ts";
+import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
@@ -150,10 +150,11 @@ export const run = async (
   }
 
   const landing = [...approved, ...picked.extend].map((item) => item.skill.name);
-  const proceed = await confirm(`${mode.confirm} ${landing.map(skillName).join(", ")}?`, {
-    yes: options.yes,
-    command: "add",
-  });
+  const proceed = await confirmWrite(
+    `${mode.confirm} ${landing.map(skillName).join(", ")}?`,
+    approved.map(({ skill, files }) => ({ name: skill.name, files })),
+    { yes: options.yes, command: "add" },
+  );
   if (!proceed) {
     p.outro("Nothing selected.");
     return;

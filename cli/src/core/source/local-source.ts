@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { readDirFiles, type SkillFile } from "../skill/files.ts";
 import { discoverIn, type DiscoveredSkill } from "./discover.ts";
-import { git } from "./git.ts";
+import { git, splitDiff } from "./git.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import type { Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
@@ -83,7 +83,7 @@ export class LocalSource implements Source {
   async changes(from: InstalledSkill, _to: string | undefined, before: string): Promise<Changes> {
     const after = this.subtree(from.path);
     if (!existsSync(before)) {
-      return { patch: "(installed content is missing; showing no diff)" };
+      return { stat: "(installed content is missing; showing no diff)", patch: "" };
     }
     const diffed = await git([
       "diff",
@@ -95,6 +95,6 @@ export class LocalSource implements Source {
       before,
       after,
     ]);
-    return { patch: diffed.code <= 1 ? diffed.buf.toString("utf8") : "" };
+    return splitDiff(diffed.code <= 1 ? diffed.buf.toString("utf8") : "");
   }
 }

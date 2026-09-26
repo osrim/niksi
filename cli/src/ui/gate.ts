@@ -107,7 +107,7 @@ const ask = async (
         options: [
           { value: "yes", label: "Yes" },
           { value: "no", label: "No" },
-          { value: "read", label: "Read files…" },
+          { value: "read", label: "Read files…", hint: "press q to return" },
         ],
       }),
     );

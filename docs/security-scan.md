@@ -24,7 +24,7 @@ A warn or critical question and the final write confirmation offer `Read filesâ€
 
 For each skill, the session shows the full diff during `update`, then `SKILL.md`, then the other files by path. Each file starts with its path and size, and its lines are numbered. A symlink shows its target. A binary file shows its size.
 
-Control characters in files and diffs show as caret markers, for example `^[` for ESC, so a file cannot hide text with escape codes. Files are syntax-colored when `bat` is on `PATH`. The session goes to `$PAGER`, else `less`. When `LESS` is unset, `niksi` sets `LESS=FRX`. Press `q` to leave the pager and return to the question. If no pager starts, `niksi` prints the session inline.
+Control characters in files and diffs show as caret markers, for example `^[` for ESC, so a file cannot hide text with escape codes. Files are syntax-colored when `bat` is on `PATH`. The session goes to `$PAGER`, else `less`. When `LESS` is unset, `niksi` sets `LESS=FRX`. Press `q` to leave the pager and return to the question. If the pager does not start or exits nonzero, `niksi` prints the session inline.
 
 `--yes` skips the warn question and the write confirmation, so it offers no `Read filesâ€¦`. A critical question still offers it. A run without a terminal asks no question and never starts a pager.
 

@@ -96,8 +96,6 @@ const bat: Highlight = (path, text) => {
     : numberLines(path, text);
 };
 
-const NOT_STARTED = new Set([126, 127]);
-
 const page = async (text: string): Promise<boolean> => {
   const { command, env } = pagerCommand(process.env);
   try {
@@ -107,7 +105,7 @@ const page = async (text: string): Promise<boolean> => {
       stderr: "inherit",
       env: { ...process.env, ...env },
     });
-    return !NOT_STARTED.has(await child.exited);
+    return (await child.exited) === 0;
   } catch {
     return false;
   }

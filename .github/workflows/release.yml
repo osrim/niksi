@@ -141,40 +141,22 @@ jobs:
             gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
             exit 0
           fi
-          args=(--generate-notes)
-          intro="[Homebrew](https://brew.sh), on macOS or Linux:
-
-          \`\`\`sh
-          brew install osrim/tap/niksi
-          \`\`\`
-
-          Or [npm](https://www.npmjs.com/package/niksi):
-
-          \`\`\`sh
-          npm install -g niksi
-          \`\`\`
-
-          Or run it without installing:
-
-          \`\`\`sh
-          npx niksi add owner/repo
-          \`\`\`
-
-          Or download"
+          args=()
+          install="See [Install](https://github.com/osrim/niksi/blob/$TAG/README.md#install) in the README."
           case "$TAG" in *-*)
             args+=(--prerelease)
-            intro="Prereleases are not in Homebrew. Download"
+            install="Prereleases are not in Homebrew. Download the archive for your platform below and put \`nik\` on your \`PATH\`."
           esac
-          # Prepended to the generated notes. Mirrors the README install section, pinned to this tag.
+          changelog=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body | bun scripts/release-notes.ts)
           notes=$(cat <<EOF
+          $changelog
+
           ## Install
 
-          $intro the archive for your platform below and put \`nik\` on your \`PATH\`. \`niksi\` needs \`git\`.
-
-          > For CI, see [Commands](https://github.com/osrim/niksi/blob/$TAG/docs/commands.md#ci).
+          $install For CI, see [Commands](https://github.com/osrim/niksi/blob/$TAG/docs/commands.md#ci).
           EOF
           )
-          gh release create "$TAG" dist/*.tar.gz dist/checksums.txt "${args[@]}" --notes "$notes"
+          gh release create "$TAG" dist/*.tar.gz dist/checksums.txt "${args[@]}" --title "$TAG" --notes "$notes"
 
       # Last: the asset must be public before the formula points at it.
       - name: Update the Homebrew tap

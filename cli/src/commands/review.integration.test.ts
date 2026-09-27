@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import curlPipeShell from "../core/scan/fixtures/curl-pipe-shell.ts";
 import { cliRunner, makeSkill, type RunCli } from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
@@ -105,4 +106,40 @@ test("a NUL in SKILL.md cannot hide a critical command from a non-interactive ad
   expect(added.stdout).toContain("binary");
   expect(added.stdout).toContain("curl-pipe-shell");
   expect(existsSync(join(project, "out", "hidden"))).toBe(false);
+});
+
+test("a critical fixture blocks a linked add and a changed-content update unless the dangerous flag is set", async () => {
+  const project = join(tmp, "fixture-project");
+  const source = join(tmp, "fixture-source");
+  await mkdir(join(project, ".git"), { recursive: true });
+  const critical = curlPipeShell.find((c) => c.name === "wget piped to sh in a script")!;
+  await makeSkill(source, "risky", "version one\n");
+  await mkdir(join(source, "risky", dirname(critical.path)));
+  await writeFile(join(source, "risky", critical.path), critical.content);
+  const add = (...flags: string[]) =>
+    runCli(project, "add", source, "--project", "--agent", "claude", "--all", "--yes", ...flags);
+  const installed = join(project, ".niksi", "skills", "risky");
+
+  const blocked = await add();
+  expect(blocked.exitCode).toBe(3);
+  expect(blocked.stdout).toContain("curl-pipe-shell");
+  expect(existsSync(installed)).toBe(false);
+
+  const added = await add("--dangerous-skip-critical-approval");
+  expect(added.exitCode).toBe(0);
+  expect(added.stdout).toContain("curl-pipe-shell");
+  expect(existsSync(join(installed, critical.path))).toBe(true);
+
+  await makeSkill(source, "risky", "version two\n");
+  const update = (...flags: string[]) => runCli(project, "update", "--all", "--yes", ...flags);
+
+  const blockedUpdate = await update();
+  expect(blockedUpdate.exitCode).toBe(3);
+  expect(blockedUpdate.stdout).toContain("curl-pipe-shell");
+  expect(await readFile(join(installed, "SKILL.md"), "utf8")).toContain("version one");
+
+  const updated = await update("--dangerous-skip-critical-approval");
+  expect(updated.exitCode).toBe(0);
+  expect(updated.stdout).toContain("curl-pipe-shell");
+  expect(await readFile(join(installed, "SKILL.md"), "utf8")).toContain("version two");
 });

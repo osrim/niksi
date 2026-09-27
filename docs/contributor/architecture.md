@@ -34,7 +34,7 @@ cli/src/
     usage.ts         usage error type
     source/          coordinates, Git and local sources, revisions, upstream
     skill/           files, frontmatter, integrity, dependency mentions
-    scan/            scan rules and findings
+    scan/            scan rules, findings, and per-rule fixtures
     install/         scope, agents, store, target checks, links, path copies, destination, lockfile, ski layout migration
 ```
 

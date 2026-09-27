@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 import prettyBytes from "pretty-bytes";
 import { onPath } from "../core/install/agents.ts";
-import { byPath, isSymlink, isText, type SkillFile } from "../core/skill/files.ts";
+import { byPath, decodeText, isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Changes } from "../core/source/index.ts";
 import { fileLabel } from "./report.ts";
 import { blue, bold, colorOn, dim, green, red } from "./style.ts";
@@ -50,10 +50,11 @@ export const colorStat = (stat: string): string =>
 const renderFile = (file: SkillFile, highlight: Highlight): string => {
   const path = escapeControl(file.path);
   const header = bold(escapeControl(fileLabel(file)));
+  const text = decodeText(file)?.text;
   const body = isSymlink(file.mode)
     ? dim(`→ ${escapeControl(file.content.toString("utf8"))}`)
-    : isText(file.content)
-      ? highlight(path, escapeControl(file.content.toString("utf8")))
+    : text !== undefined
+      ? highlight(path, escapeControl(text))
       : dim(`binary, ${prettyBytes(file.content.length)}`);
   return body === "" ? header : `${header}\n${body}`;
 };

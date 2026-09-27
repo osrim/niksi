@@ -6,7 +6,7 @@ import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { codeFences, fencedLines, lineAt } from "../skill/text.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
 
-const RULES = {
+export const RULES = {
   "curl-pipe-shell": { help: "pipes a download into a shell" },
   "base64-exec": { help: "decodes and runs base64" },
   "exfil-domain": { help: "known exfiltration endpoint" },

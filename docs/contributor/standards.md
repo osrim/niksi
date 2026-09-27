@@ -55,11 +55,15 @@ The local scan may gain rules and widen existing ones. Every new or widened rule
 
 - It runs offline and is deterministic.
 - It adds no runtime dependency.
-- It ships with at least one fixture that fires and one benign fixture that stays silent.
+- It ships with at least one fire case and one silent case in `cli/src/core/scan/fixtures/<rule>.ts`.
 - `critical` needs strong evidence: code runs, data leaves the machine, content is hidden, or a documented combination of signals.
 - A rule that reads prose starts at `warn`. It reaches `critical` only through a documented combination, hidden content, or the frontmatter `description`.
 - An unfamiliar host alone is never a finding.
 - A rule may port a technique from another scanner, but copies rule text or data only under a license that allows it. Write niksi's own regex for a technique from a Semgrep rule.
+
+A silent case states the highest severity it may produce. A case marked `known` pins a wrong result at today's severity. The change that fixes it updates the case and removes the mark. Probes that no rule catches yet go in `fixtures/unclaimed.ts`. The rule that catches a probe moves it into that rule's own fixture file.
+
+No rule may report `critical` on the benign corpus in `cli/testdata/benign-skills/`.
 
 External audit services are an extra gate input, never a replacement for these rules.
 

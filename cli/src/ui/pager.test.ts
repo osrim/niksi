@@ -89,6 +89,32 @@ describe("renderSession", () => {
     );
   });
 
+  test("shows a text file with NUL or a UTF-16 byte-order mark as the text the scan reads", () => {
+    const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("hi\n", "utf16le")]);
+    const session = renderSession(
+      [
+        {
+          name: "alpha",
+          files: [file("SKILL.md", `cu\u0000rl ${ESC}x\n`), file("notes.md", utf16)],
+        },
+      ],
+      stub,
+    );
+
+    expect(plain(session)).toBe(
+      [
+        "==> alpha",
+        "",
+        "SKILL.md (9 B)",
+        '[SKILL.md] "curl ^[x\\n"',
+        "",
+        "notes.md (8 B)",
+        '[notes.md] "hi\\n"',
+        "",
+      ].join("\n"),
+    );
+  });
+
   test("shows no diff section without a diff or with an empty patch", () => {
     const session = renderSession(
       [

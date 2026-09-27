@@ -27,10 +27,18 @@ export const codeFences = (text: string): Fence[] =>
       : [];
   });
 
-export const stripFencedCode = (text: string): string => {
-  const lines = text.split("\n");
+export const fencedLines = (text: string): Set<number> => {
+  const lines = new Set<number>();
   for (const fence of codeFences(text)) {
-    for (let line = fence.startLine; line < fence.endLineExclusive; line += 1) lines[line] = "";
+    for (let line = fence.startLine; line < fence.endLineExclusive; line += 1) lines.add(line);
   }
-  return lines.join("\n");
+  return lines;
+};
+
+export const stripFencedCode = (text: string): string => {
+  const fenced = fencedLines(text);
+  return text
+    .split("\n")
+    .map((line, index) => (fenced.has(index) ? "" : line))
+    .join("\n");
 };

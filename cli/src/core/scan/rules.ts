@@ -1,9 +1,9 @@
 import { isAbsolute, normalize, join, dirname, basename, extname } from "node:path";
 import { LinkifyIt } from "linkify-it";
-import { isSymlink, isText, MODE_EXEC } from "../skill/files.ts";
+import { decodeText, isSymlink, MODE_EXEC, type SkillFile } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
-import { codeFences, lineAt } from "../skill/text.ts";
+import { codeFences, fencedLines, lineAt } from "../skill/text.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
 
 const RULES = {
@@ -86,10 +86,21 @@ const fileFlags: Scanner = ({ files }) => {
       findings.push(
         finding("archive", { severity: "warn", file: file.path, detail: "archive file" }),
       );
-    } else if (!isText(file.content)) {
-      findings.push(
-        finding("binary", { severity: "warn", file: file.path, detail: "binary file" }),
-      );
+    } else {
+      const decoded = decodeText(file);
+      if (!decoded) {
+        findings.push(
+          finding("binary", { severity: "warn", file: file.path, detail: "binary file" }),
+        );
+      } else if (decoded.nuls > 0) {
+        findings.push(
+          finding("binary", {
+            severity: "critical",
+            file: file.path,
+            detail: `text file with ${decoded.nuls} NUL byte(s)`,
+          }),
+        );
+      }
     }
     if (AGENT_CONFIG_FILES.has(basename(file.path))) {
       findings.push(
@@ -115,10 +126,11 @@ const INVISIBLE_RANGES = [
 const invisibleUnicode: Scanner = ({ files }) => {
   const findings: Finding[] = [];
   for (const file of files) {
-    if (!isText(file.content)) continue;
+    const text = decodeText(file)?.text;
+    if (text === undefined) continue;
     const hits: string[] = [];
     let index = 0;
-    for (const ch of file.content.toString("utf8")) {
+    for (const ch of text) {
       const codepoint = ch.codePointAt(0)!;
       // A leading U+FEFF is a byte-order mark.
       if (!(codepoint === 0xfeff && index === 0)) {
@@ -337,11 +349,12 @@ const isEntry = (path: string): boolean => path === "SKILL.md";
 const frontmatterPrivileges: Scanner = ({ files }) => {
   const findings: Finding[] = [];
   for (const file of files) {
-    if (!isMarkdown(file.path) || !isText(file.content)) continue;
+    const text = isMarkdown(file.path) ? decodeText(file)?.text : undefined;
+    if (text === undefined) continue;
     const entry = isEntry(file.path);
     let frontmatter: Record<string, unknown>;
     try {
-      frontmatter = parseFrontmatter(file.content.toString("utf8"));
+      frontmatter = parseFrontmatter(text);
     } catch (e) {
       // Only SKILL.md grants permissions when an agent loads the skill.
       findings.push(
@@ -369,9 +382,9 @@ const INLINE_EXEC = /(?:^|\s)!`([^`\n]+)`/gu;
 const loadTimeExecution: Scanner = ({ files }) => {
   const findings: Finding[] = [];
   for (const file of files) {
-    if (!isMarkdown(file.path) || !isText(file.content)) continue;
+    const text = isMarkdown(file.path) ? decodeText(file)?.text : undefined;
+    if (text === undefined) continue;
     const severity: Severity = isEntry(file.path) ? "critical" : "info";
-    const text = file.content.toString("utf8");
     const report = (line: number, detail: string): void => {
       findings.push(finding("load-time-exec", { severity, file: file.path, line, detail }));
     };
@@ -405,90 +418,178 @@ const PATTERN_RULES: PatternRule[] = [
   {
     rule: "curl-pipe-shell",
     severity: "critical",
-    pattern: /\b(curl|wget)\b[^\n|]*\|\s*(ba|z|da)?sh\b/u,
+    pattern: /\b(curl|wget)\b[^\n|]*\|\s*(ba|z|da)?sh\b/gu,
   },
   {
     rule: "base64-exec",
     severity: "critical",
-    pattern: /base64\s+(-d|-D|--decode)[^\n]*\|\s*(ba|z)?sh\b|eval[^\n]*base64/u,
+    pattern: /base64\s+(-d|-D|--decode)[^\n]*\|\s*(ba|z)?sh\b|eval[^\n]*base64/gu,
   },
   {
     rule: "exfil-domain",
     severity: "critical",
     pattern:
-      /webhook\.site|requestbin|pipedream\.net|ngrok(-free)?\.(io|app|dev)|discord(app)?\.com\/api\/webhooks|api\.telegram\.org\/bot|hooks\.slack\.com/u,
+      /webhook\.site|requestbin|pipedream\.net|ngrok(-free)?\.(io|app|dev)|discord(app)?\.com\/api\/webhooks|api\.telegram\.org\/bot|hooks\.slack\.com/gu,
   },
   {
     rule: "claude-settings",
     severity: "critical",
-    pattern: /\.claude\/settings(\.local)?\.json|permissions\.allow/u,
+    pattern: /\.claude\/settings(\.local)?\.json|permissions\.allow/gu,
   },
-  { rule: "skip-permissions", severity: "critical", pattern: /--dangerously-skip-permissions/u },
+  { rule: "skip-permissions", severity: "critical", pattern: /--dangerously-skip-permissions/gu },
   {
     rule: "credential-paths",
     severity: "critical",
-    pattern: /~\/\.ssh\b|\bid_rsa\b|~\/\.aws\b/u,
+    pattern: /~\/\.ssh\b|\bid_rsa\b|~\/\.aws\b/gu,
   },
   {
     rule: "env-secrets",
     severity: "warn",
-    pattern: /process\.env\b|os\.environ\b|(^|[^\w.])\.env\b/u,
+    pattern: /process\.env\b|os\.environ\b|(^|[^\w.])\.env\b/gu,
   },
   {
     rule: "prompt-injection",
     severity: "warn",
     pattern:
-      /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/iu,
+      /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/giu,
   },
-  { rule: "destructive", severity: "warn", pattern: /\brm\s+-(rf|fr)\b/u },
+  { rule: "destructive", severity: "warn", pattern: /\brm\s+-(rf|fr)\b/gu },
 ];
 
-const suspiciousPatterns: Scanner = ({ files }) => {
-  const findings: Finding[] = [];
-  for (const file of files) {
-    if (!isText(file.content)) continue;
-    const text = file.content.toString("utf8");
-    for (const { rule, severity, pattern } of PATTERN_RULES) {
-      const match = text.match(pattern);
-      if (!match) continue;
-      findings.push(
-        finding(rule, {
-          severity,
-          file: file.path,
-          line: lineAt(text, match.index!),
-          detail: match[0].trim(),
-        }),
-      );
-    }
-  }
-  return findings;
+const STRENGTH: Severity[] = ["info", "warn", "critical"];
+
+const stronger = (a: Severity, b: Severity): boolean => STRENGTH.indexOf(a) > STRENGTH.indexOf(b);
+
+const lineBefore = (text: string, index: number): string =>
+  text.slice(text.lastIndexOf("\n", index - 1) + 1, index);
+
+const PROHIBITION =
+  /\b(never|do not|don't|must not|should not|avoid|refuses? (requests? )?to)\s+((ever\s+)?(run|execute|use|call|invoke|type|paste|pipe|ignore|pass)(ing)?\s+(\w+\s+with\s+)?)?[`'"]?$/iu;
+
+// Only Markdown prose explains a command; code and scripts run it.
+const prohibitionTest = (file: SkillFile, text: string): ((index: number) => boolean) => {
+  if (!isMarkdown(file.path)) return () => false;
+  const fenced = fencedLines(text);
+  return (index) =>
+    !fenced.has(lineAt(text, index) - 1) && PROHIBITION.test(lineBefore(text, index));
 };
 
-// Fuzzy matching can report filenames with country-code extensions as hosts.
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false });
+const patternFinding = (
+  { rule, severity, pattern }: PatternRule,
+  file: SkillFile,
+  text: string,
+  afterProhibition: (index: number) => boolean,
+): Finding | undefined => {
+  const matches = [...text.matchAll(pattern)];
+  let best: { match: RegExpExecArray; severity: Severity; quiet: boolean } | undefined;
+  for (const match of matches) {
+    const quiet = afterProhibition(match.index);
+    const current = quiet ? "info" : severity;
+    if (!best || stronger(current, best.severity)) best = { match, severity: current, quiet };
+  }
+  if (!best) return undefined;
+  const detail = [
+    best.match[0].trim(),
+    ...(best.quiet ? ["(in a warning)"] : []),
+    ...(matches.length > 1 ? [`(${matches.length} matches)`] : []),
+  ].join(" ");
+  return finding(rule, {
+    severity: best.severity,
+    file: file.path,
+    line: lineAt(text, best.match.index),
+    detail,
+  });
+};
+
+const suspiciousPatterns: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = decodeText(file)?.text;
+    if (text === undefined) return [];
+    const afterProhibition = prohibitionTest(file, text);
+    return PATTERN_RULES.flatMap(
+      (rule) => patternFinding(rule, file, text, afterProhibition) ?? [],
+    );
+  });
+
+// Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
+const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
+
+const LOCK_FILES = new Set([
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "Cargo.lock",
+  "poetry.lock",
+  "uv.lock",
+]);
+
+const isLocalOrReserved = (hostname: string): boolean =>
+  hostname === "localhost" ||
+  hostname === "[::1]" ||
+  /^(127|10)\.\d+\.\d+\.\d+$/u.test(hostname) ||
+  /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/u.test(hostname) ||
+  /^192\.168\.\d+\.\d+$/u.test(hostname) ||
+  /(^|\.)example\.[^.]+$/u.test(hostname) ||
+  /\.(invalid|test)$/u.test(hostname);
+
+const FETCH = /\b(curl|wget|fetch)\b/u;
+
+interface Link {
+  host: string;
+  file: string;
+  line: number;
+  url: string;
+}
+
+const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] => {
+  const namesBundledFile = (name: string): boolean => {
+    const path = name.split(/[?#]/u)[0]!.toLowerCase();
+    return (
+      bundled.has(normalize(join(dirname(file.path.toLowerCase()), path))) ||
+      bundled.has(normalize(path))
+    );
+  };
+  return (linkify.match(text) ?? []).flatMap((link) => {
+    let url: URL;
+    try {
+      url = new URL(link.url);
+    } catch {
+      return [];
+    }
+    if (isLocalOrReserved(url.hostname)) return [];
+    const schemeless = link.schema === "";
+    if (schemeless && namesBundledFile(link.text) && !FETCH.test(lineBefore(text, link.index))) {
+      return [];
+    }
+    return [{ host: url.host, file: file.path, line: lineAt(text, link.index), url: link.text }];
+  });
+};
 
 const urlInventory: Scanner = ({ files }) => {
-  const urlsByHost = new Map<string, Set<string>>();
+  const bundled = new Set(files.map((file) => file.path.toLowerCase()));
+  const links = new Map<string, Link>();
   for (const file of files) {
-    if (isSymlink(file.mode) || !isText(file.content)) continue;
-    for (const link of linkify.match(file.content.toString("utf8")) ?? []) {
-      try {
-        const host = new URL(link.url).host;
-        urlsByHost.set(host, (urlsByHost.get(host) ?? new Set()).add(link.text));
-      } catch {
-        continue;
-      }
+    if (isSymlink(file.mode) || LOCK_FILES.has(basename(file.path))) continue;
+    const text = decodeText(file)?.text;
+    if (text === undefined) continue;
+    for (const link of fileLinks(file, text, bundled)) {
+      const key = `${link.file}\0${link.url}`;
+      if (!links.has(key)) links.set(key, link);
     }
   }
-  const hostCount = urlsByHost.size;
-  const linkCount = [...urlsByHost.values()].reduce((sum, urls) => sum + urls.size, 0);
-  const help = `${hostCount} external host${hostCount === 1 ? "" : "s"}, ${linkCount} link${linkCount === 1 ? "" : "s"}`;
-  return [...urlsByHost.entries()]
-    .toSorted((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))
-    .flatMap(([host, urls]) =>
-      [...urls]
-        .toSorted()
-        .map((url) => finding("external-url", { severity: "info", file: host, detail: url }, help)),
+  const byHost = Map.groupBy(links.values(), (link) => link.host);
+  const hostCount = byHost.size;
+  const help = `${hostCount} external host${hostCount === 1 ? "" : "s"}, ${links.size} link${links.size === 1 ? "" : "s"}`;
+  return [...byHost.entries()]
+    .toSorted((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .flatMap(([, hostLinks]) =>
+      hostLinks
+        .toSorted((a, b) => a.url.localeCompare(b.url) || a.file.localeCompare(b.file))
+        .map(({ file, line, url }) =>
+          finding("external-url", { severity: "info", file, line, detail: url }, help),
+        ),
     );
 };
 

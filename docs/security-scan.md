@@ -22,7 +22,7 @@ The file list shows the `description` and `allowed-tools` values from the `SKILL
 
 A warn or critical question and the final write confirmation offer `Read files…`. It opens one pager session, then asks the same question again. From a warn or critical question, the session holds that skill. From the write confirmation, it holds every reviewed skill in the batch, in batch order.
 
-For each skill, the session shows the full diff during `update`, then `SKILL.md`, then the other files by path. Each file starts with its path and size, and its lines are numbered. A symlink shows its target. A binary file shows its size.
+For each skill, the session shows the full diff during `update`, then `SKILL.md`, then the other files by path. Each file starts with its path and size, and its lines are numbered. A symlink shows its target. A binary file shows its size. A text file shows the text the scan reads: without NUL bytes, and decoded from UTF-16 or UTF-32 when it starts with a byte-order mark.
 
 Control characters in files and diffs show as caret markers, for example `^[` for ESC, so a file cannot hide text with escape codes. Files are syntax-colored when `bat` is on `PATH`. The session goes to `$PAGER`, else `less`. When `LESS` is unset, `niksi` sets `LESS=FRX`. Press `q` to leave the pager and return to the question. If the pager does not start or exits nonzero, `niksi` prints the session inline.
 
@@ -32,12 +32,15 @@ Control characters in files and diffs show as caret markers, for example `^[` fo
 
 Every file in the skill directory except `.git` and `node_modules`, including files the agent never reads.
 
+A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, `.json`, `.yaml`, `.yml`, or `.toml`, or when it starts with `#!`. The scan reads a text file past its NUL bytes. A file with another extension is binary when its first 1,024 bytes contain a NUL.
+
 ### Files
 
 | finding | severity |
 | --- | --- |
 | Symlink that points outside the skill directory | `critical` |
 | Symlink inside the skill directory | `warn` |
+| Text file that contains a NUL byte | `critical` |
 | Executable, binary, or archive file | `warn` |
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters: Unicode tags, zero-width characters, bidi overrides and isolates | `critical` |
@@ -75,9 +78,17 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | Prompt-injection phrases such as "ignore previous instructions" | `warn` |
 | `rm -rf` | `warn` |
 
+Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside fenced code is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Fenced code and other files keep the full severity.
+
 ### URLs
 
-Every URL is listed as `info`, grouped by host.
+Every URL is listed as `info` with its file and line, grouped by host.
+
+- The name of a file that the skill ships, such as `architecture.md`, is not a URL. After `curl`, `wget`, or `fetch` on the same line, it is.
+- Lock files are not scanned for URLs: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `poetry.lock`, `uv.lock`.
+- Local and test hosts are not listed: `localhost`, loopback and private IPv4 addresses, `example.*`, `*.invalid`, and `*.test`.
+
+Every finding masks secret values as `********`: URL passwords, query values for keys such as `token`, `api_key`, `secret`, and `sig`, and Telegram bot tokens.
 
 ## Limits
 

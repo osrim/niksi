@@ -49,6 +49,20 @@ bun run test
 
 CI runs the same checks. PR titles use a conventional commit type and a lowercase subject.
 
+## Scan rules
+
+The local scan may gain rules and widen existing ones. Every new or widened rule under `cli/src/core/scan/` meets this bar:
+
+- It runs offline and is deterministic.
+- It adds no runtime dependency.
+- It ships with at least one fixture that fires and one benign fixture that stays silent.
+- `critical` needs strong evidence: code runs, data leaves the machine, content is hidden, or a documented combination of signals.
+- A rule that reads prose starts at `warn`. It reaches `critical` only through a documented combination, hidden content, or the frontmatter `description`.
+- An unfamiliar host alone is never a finding.
+- A rule may port a technique from another scanner, but copies rule text or data only under a license that allows it. Write niksi's own regex for a technique from a Semgrep rule.
+
+External audit services are an extra gate input, never a replacement for these rules.
+
 ## Supply chain
 
 - Bun is pinned by `.bun-version`.

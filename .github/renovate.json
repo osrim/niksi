@@ -7,6 +7,17 @@
     ":maintainLockFilesDisabled",
     ":semanticCommitTypeAll(chore)"
   ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "cli/testdata/**"
+  ],
   "osvVulnerabilityAlerts": true,
   "platformAutomerge": false,
   "labels": ["dependencies"],

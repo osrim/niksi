@@ -43,6 +43,9 @@ const entry = {
   track: "auto" as const,
 };
 
+const lockWithEntryA = (extra: string): string =>
+  `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
+
 const local = {
   source: "local:./skills/mine",
   path: "",
@@ -407,31 +410,30 @@ test("parse errors: unsafe skill names and inconsistent copy configuration", () 
 });
 
 test("parseLock requires one normalized project-relative destination for a path copy", () => {
-  const lock = (extra: string): string =>
-    `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
-
-  expect(() => parseLock(lock(',"copy":true,"copyPath":"../market"'), "f")).toThrow(
-    "Use a normalized project-relative destination root for copyPath",
-  );
-  expect(() => parseLock(lock(',"copy":true,"copyPath":"skills/../market"'), "f")).toThrow(
-    "Use a normalized project-relative destination root for copyPath",
-  );
-  expect(() => parseLock(lock(',"copy":true,"copyPath":"/tmp/market"'), "f")).toThrow(
-    "Use a normalized project-relative destination root for copyPath",
-  );
-  expect(() => parseLock(lock(',"copy":true,"copyPath":"C:/market"'), "f")).toThrow(
-    "Use a normalized project-relative destination root for copyPath",
-  );
-  expect(() => parseLock(lock(',"copy":true,"copyPath":"skills\\\\market"'), "f")).toThrow(
+  expect(() => parseLock(lockWithEntryA(',"copy":true,"copyPath":"../market"'), "f")).toThrow(
     "Use a normalized project-relative destination root for copyPath",
   );
   expect(() =>
-    parseLock(lock(',"copy":true,"agents":["claude"],"copyPath":"market"'), "f"),
+    parseLock(lockWithEntryA(',"copy":true,"copyPath":"skills/../market"'), "f"),
+  ).toThrow("Use a normalized project-relative destination root for copyPath");
+  expect(() => parseLock(lockWithEntryA(',"copy":true,"copyPath":"/tmp/market"'), "f")).toThrow(
+    "Use a normalized project-relative destination root for copyPath",
+  );
+  expect(() => parseLock(lockWithEntryA(',"copy":true,"copyPath":"C:/market"'), "f")).toThrow(
+    "Use a normalized project-relative destination root for copyPath",
+  );
+  expect(() =>
+    parseLock(lockWithEntryA(',"copy":true,"copyPath":"skills\\\\market"'), "f"),
+  ).toThrow("Use a normalized project-relative destination root for copyPath");
+  expect(() =>
+    parseLock(lockWithEntryA(',"copy":true,"agents":["claude"],"copyPath":"market"'), "f"),
   ).toThrow("Set exactly one of agents or copyPath when copy is true");
-  expect(() => parseLock(lock(',"copyPath":"market"'), "f")).toThrow(
+  expect(() => parseLock(lockWithEntryA(',"copyPath":"market"'), "f")).toThrow(
     "Set copy to true when an entry contains agents or copyPath",
   );
-  expect(parseLock(lock(',"copy":true,"copyPath":"."'), "f").skills["a"]!.copyPath).toBe(".");
+  expect(parseLock(lockWithEntryA(',"copy":true,"copyPath":"."'), "f").skills["a"]!.copyPath).toBe(
+    ".",
+  );
 });
 
 test("placementOf reads exactly one placement from an entry", () => {
@@ -510,17 +512,15 @@ test("a disabled entry round-trips and serializes disabled last", async () => {
 });
 
 test("disabled accepts only true, and a lockfile without it parses unchanged", () => {
-  const lock = (extra: string): string =>
-    `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
-  expect(() => parseLock(lock(',"disabled":false'), "f")).toThrow("f: a: ");
-  expect(() => parseLock(lock(',"disabled":"yes"'), "f")).toThrow("f: a: ");
-  expect(parseLock(lock(""), "f").skills["a"]).toEqual({
+  expect(() => parseLock(lockWithEntryA(',"disabled":false'), "f")).toThrow("f: a: ");
+  expect(() => parseLock(lockWithEntryA(',"disabled":"yes"'), "f")).toThrow("f: a: ");
+  expect(parseLock(lockWithEntryA(""), "f").skills["a"]).toEqual({
     source: "r",
     path: "",
     integrity,
     track: "auto",
   });
-  expect(parseLock(lock(',"disabled":true'), "f").skills["a"]!.disabled).toBe(true);
+  expect(parseLock(lockWithEntryA(',"disabled":true'), "f").skills["a"]!.disabled).toBe(true);
 });
 
 test("splitDisabled separates enabled from disabled entries", () => {

@@ -32,8 +32,8 @@ const writeCache = async (latest: string): Promise<void> => {
 
 const inGitCheckout = (): boolean => find.up(".git", { cwd: import.meta.dir }) !== undefined;
 
-const silenced = (json: boolean): boolean =>
-  json ||
+const silenced = (quiet: boolean): boolean =>
+  quiet ||
   !process.stdout.isTTY ||
   Boolean(process.env.CI) ||
   Boolean(process.env.NO_UPDATE_NOTIFIER) ||
@@ -66,9 +66,9 @@ export const upgradeHint = (binary: string): string => {
 
 export const startUpdateCheck = async (
   currentVersion: string,
-  json: boolean,
+  quiet: boolean,
 ): Promise<string | null> => {
-  if (silenced(json)) return null;
+  if (silenced(quiet)) return null;
   const cached = await readCache();
   let latest = cached?.latest ?? null;
   const age = cached ? Date.now() - cached.checkedAt : Infinity;

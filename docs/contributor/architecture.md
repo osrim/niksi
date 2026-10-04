@@ -25,7 +25,7 @@ cli/src/
   test-cli.ts        CLI runners and fixtures, tests only
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
-  commands/          add, install, update, remove, list, disable, enable, prune
+  commands/          add, install, update, remove, list, audit, disable, enable, prune
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
     config.ts        remembered scope and agent choices
@@ -100,5 +100,6 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 - `update` reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
+- `audit` never reaches the gate. It calls `runScanners` on the installed files and prints the findings with `logFindings`. It asks nothing and writes nothing.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

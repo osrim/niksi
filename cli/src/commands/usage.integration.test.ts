@@ -51,6 +51,7 @@ test("--help lists every command", async () => {
     "update",
     "remove",
     "list",
+    "audit",
     "disable",
     "enable",
     "prune",

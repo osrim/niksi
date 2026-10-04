@@ -14,6 +14,7 @@
 - **Install only what you need:** `nik add owner/repo` lists the skills in a repository. Pick the ones you want and which agents can use them.
 - **Choose a scope:** install skills in a specific project or globally.
 - **See what you are installing:** before anything is written, `nik` lists every file, scans the contents, and tells you if something looks harmful.
+- **Scan installed skills again:** `nik audit` runs the current rules over the skills on disk, offline. Run it after you upgrade niksi.
 - **Keep skills up to date:** `nik update` fetches each source and shows you the diff. Approve it, or keep what you have.
 - **Pin what should never change:** `nik add owner/repo@v1.2.0`. Everything else follows the latest stable tag, or the default branch.
 - **Share skills with your team:** commit `niksi-lock.json`. It records the source, the commit, and a sha256 of the files. Your teammates get the exact files you reviewed by running `nik install`.
@@ -94,6 +95,7 @@ nik install
 | `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
 | `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |
 | `nik list`                      | Show installed skills. `--json` for scripts.                           |
+| `nik audit`                     | Scan installed skills with the current rules.                          |
 | `nik disable`, `nik enable`     | Disable and enable recorded skills. No new review.                     |
 | `nik prune`                     | Delete unrecorded store entries.                                       |
 
@@ -101,7 +103,7 @@ A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to
 
 ## The scan
 
-`add` and `update` scan each file before writing it. The rules catch `curl` piped to a shell, known exfiltration hosts, hooks in `SKILL.md` frontmatter, commands that run at load time, invisible Unicode, and reads of `~/.ssh` and `~/.aws`. Findings are `info`, `warn`, or `critical`. A critical finding stops the install until you approve it in a terminal.
+`add` and `update` scan each file before writing it. The rules catch `curl` piped to a shell, known exfiltration hosts, hooks in `SKILL.md` frontmatter, commands that run at load time, invisible Unicode, and reads of `~/.ssh` and `~/.aws`. Findings are `info`, `warn`, or `critical`. A critical finding stops the install until you approve it in a terminal. `nik audit` scans installed skills again with the current rules.
 
 > [!IMPORTANT]
 > `niksi` runs static checks. It does not run the skill, follow URLs, or understand intent. **A malicious skill can pass clean and a good one can have false positives.** Read more in [docs/security-scan.md](docs/security-scan.md).

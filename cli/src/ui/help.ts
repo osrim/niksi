@@ -29,9 +29,9 @@ export const applyCommandHelp = (sections: HelpSection[], help: CommandHelp): vo
 
 const EXIT_CODES = [
   "0    success",
-  "1    error",
+  "1    error, or warn findings in audit",
   "2    usage error",
-  "3    critical findings need review",
+  "3    critical findings need review, or found by audit",
   "130  cancelled",
 ].join("\n");
 

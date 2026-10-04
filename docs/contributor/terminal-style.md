@@ -4,7 +4,7 @@ For contributors. Rules for what `niksi` prints and asks. User-facing behavior o
 
 ## Streams
 
-Human output goes to stdout inside a Clack frame. Runtime warnings, errors, and the update notice go to stderr. Security findings stay on stdout because they are part of the review. `list --json` writes only JSON to stdout.
+Human output goes to stdout inside a Clack frame. Runtime warnings, errors, and the update notice go to stderr. Security findings stay on stdout because they are part of the review. `list --json` and `audit --json` write only JSON to stdout.
 
 ## Prompts
 

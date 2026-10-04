@@ -10,7 +10,7 @@ export const RULES = {
   "curl-pipe-shell": { help: "pipes a download into a shell" },
   "base64-exec": { help: "decodes and runs base64" },
   "exfil-domain": { help: "known exfiltration endpoint" },
-  "claude-settings": { help: "edits agent permissions" },
+  "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
   "credential-paths": { help: "reads credentials (~/.ssh, ~/.aws)" },
   "env-secrets": { help: "reads env vars or .env" },
@@ -55,6 +55,38 @@ const AGENT_CONFIG_FILES = new Set([
   "opencode.jsonc",
 ]);
 
+// "?" matches any byte: a WebP stores its size at bytes 4 to 7.
+const MEDIA_MAGIC: Record<string, string[]> = {
+  ".png": ["\x89PNG\r\n\x1a\n"],
+  ".jpg": ["\xff\xd8\xff"],
+  ".jpeg": ["\xff\xd8\xff"],
+  ".gif": ["GIF87a", "GIF89a"],
+  ".webp": ["RIFF????WEBP"],
+  ".pdf": ["%PDF-"],
+  ".woff": ["wOFF"],
+  ".woff2": ["wOF2"],
+  ".ico": ["\0\0\x01\0"],
+};
+
+const isMedia = (file: SkillFile): boolean => {
+  const head = file.content.subarray(0, 12).toString("latin1");
+  return (MEDIA_MAGIC[extname(file.path).toLowerCase()] ?? []).some((magic) =>
+    [...magic].every((byte, i) => byte === "?" || head[i] === byte),
+  );
+};
+
+const binaryFinding = (file: SkillFile): Finding =>
+  isMedia(file)
+    ? finding("binary", {
+        severity: "info",
+        file: file.path,
+        detail: `media file (${extname(file.path).toLowerCase()})`,
+      })
+    : finding("binary", { severity: "warn", file: file.path, detail: "binary file" });
+
+const isScript = (file: SkillFile): boolean =>
+  file.content.subarray(0, 2).toString("latin1") === "#!";
+
 const fileFlags: Scanner = ({ files }) => {
   const findings: Finding[] = [];
   for (const file of files) {
@@ -74,11 +106,13 @@ const fileFlags: Scanner = ({ files }) => {
       continue;
     }
     if (file.mode === MODE_EXEC) {
+      // The scan reads a script's text, so only an opaque executable needs a look.
+      const script = isScript(file);
       findings.push(
         finding("executable", {
-          severity: "warn",
+          severity: script ? "info" : "warn",
           file: file.path,
-          detail: "executable file",
+          detail: script ? "executable script" : "executable file",
         }),
       );
     }
@@ -89,9 +123,7 @@ const fileFlags: Scanner = ({ files }) => {
     } else {
       const decoded = decodeText(file);
       if (!decoded) {
-        findings.push(
-          finding("binary", { severity: "warn", file: file.path, detail: "binary file" }),
-        );
+        findings.push(binaryFinding(file));
       } else if (decoded.nuls > 0) {
         findings.push(
           finding("binary", {
@@ -408,11 +440,87 @@ const loadTimeExecution: Scanner = ({ files }) => {
   return findings;
 };
 
+// Undefined drops the match: it is not what the rule looks for.
+type Judge = (match: RegExpExecArray, file: SkillFile, text: string) => Severity | undefined;
+
 interface PatternRule {
   rule: Rule;
-  severity: Severity;
+  severity: Severity | Judge;
   pattern: RegExp;
 }
+
+const lineBefore = (text: string, index: number): string =>
+  text.slice(text.lastIndexOf("\n", index - 1) + 1, index);
+
+const lineAround = (text: string, index: number): string => {
+  const end = text.indexOf("\n", index);
+  return lineBefore(text, index) + text.slice(index, end === -1 ? text.length : end);
+};
+
+const CREDENTIAL_NAME = String.raw`\w*(?:key|token|secret|pass|auth|cred)\w*`;
+const CREDENTIAL_READ = String.raw`process\.env(?:\.|\[\s*["'\x60])${CREDENTIAL_NAME}|os\.(?:environ\.get\(|environ\[|getenv\()\s*["']${CREDENTIAL_NAME}`;
+const ENV_DUMP = String.raw`JSON\.stringify\(\s*process\.env\s*\)|dict\(\s*os\.environ\s*\)|os\.environ\.(?:copy|items)\(\s*\)`;
+const DOTENV_PATH = String.raw`(?<=["'/])\.env\b(?!\.(?:example|sample|template|dist)\b)`;
+
+const EXEC_SINK = String.raw`(?<![.\w])(?:eval|exec)\s*\(`;
+const NETWORK_OR_EXEC = new RegExp(
+  String.raw`\bfetch\(|\brequests\.|\baxios[.(]|\bhttps?\.request\(|\bcurl\b|\bwget\b|${EXEC_SINK}|\bchild_process\b|\bsubprocess\.|\bos\.system\(`,
+  "u",
+);
+
+const envSeverity: Judge = (_match, _file, text) => (NETWORK_OR_EXEC.test(text) ? "warn" : "info");
+
+const BASE64_DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|Buffer\.from\([^\n]*?["']base64["']|base64[ \t]+(?:-d|-D|--decode)\b`;
+const BASE64_SINK = String.raw`${EXEC_SINK}|(?<![.\w])eval[ \t]+["'$\x60]|\|[ \t]*(?:ba|z|da)?sh\b`;
+
+const EXFIL_HOST = String.raw`(?<![\w.-])(?:[\w-]+\.)*(?:(?:webhook\.site|requestbin\.com|pipedream\.net|ngrok(?:-free)?\.(?:io|app|dev))(?![\w-]|\.[\w-])|discord(?:app)?\.com\/api\/webhooks\/|api\.telegram\.org\/bot|hooks\.slack\.com\/services\/)`;
+
+const SENDS_LOCAL_DATA = [
+  new RegExp(String.raw`${CREDENTIAL_READ}|\$\{?${CREDENTIAL_NAME}`, "iu"),
+  new RegExp(
+    String.raw`${ENV_DUMP}|(?<![\w-])(?:env|printenv)[ \t]*\||\$\([ \t]*(?:env|printenv)[ \t]*\)`,
+    "u",
+  ),
+  /\$\([ \t]*cat[ \t]|(?<!\S)(?:-F|-T|--upload-file)(?!\S)|(?:=|(?<!\S)(?:-d|--data(?:-\w+)?)[ \t]+["']?)@[\w~./-]/u,
+];
+
+const exfilSeverity: Judge = (match, _file, text) =>
+  SENDS_LOCAL_DATA.some((pattern) => pattern.test(lineAround(text, match.index)))
+    ? "critical"
+    : "warn";
+
+const SETTINGS_REDIRECT = /(?:\S[ \t]+>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?[^\s"'<>|;&]*$/u;
+const OPENS_WITH_WRITE = /^\P{L}*(?:add|write|edit|modify|append|set|update|change)\b/iu;
+
+const settingsSeverity: Judge = (match, file, text) => {
+  if (match[0] === "permissions.allow") return "critical";
+  const before = lineBefore(text, match.index);
+  if (SETTINGS_REDIRECT.test(before)) return "critical";
+  const sentence = before.split(/[.!?]\s+/u).at(-1)!;
+  return isEntry(file.path) && OPENS_WITH_WRITE.test(sentence) ? "critical" : "warn";
+};
+
+// The idea of SC2114 and SC2115. No ShellCheck code is copied: ShellCheck is GPL-3.0.
+const IMPORTANT_PATHS = new Set(
+  "/ ~ $HOME ${HOME} /bin /boot /dev /etc /home /lib /lib64 /media /mnt /usr /usr/bin /usr/local /var /Users /System /Library".split(
+    " ",
+  ),
+);
+const UNGUARDED_VAR_DIR = /^\$\{?\w+\}?\/\*?$/u;
+
+const isImportantTarget = (token: string): boolean => {
+  const target = token.replaceAll(/["']/gu, "").replace(/(?<=.)[.,:]+$/u, "");
+  return (
+    UNGUARDED_VAR_DIR.test(target) || IMPORTANT_PATHS.has(target.replace(/\/\*?$/u, "") || "/")
+  );
+};
+
+const deleteSeverity: Judge = ({ groups }) => {
+  const { sudo, flags = "", targets = "" } = groups ?? {};
+  if (!/(?:^|\s)(?:-[a-zA-Z]*[rR]|--recursive\b)/u.test(flags)) return undefined;
+  const important = targets.split(/\s+/u).filter(Boolean).some(isImportantTarget);
+  return sudo || important ? "critical" : "info";
+};
 
 const PATTERN_RULES: PatternRule[] = [
   {
@@ -423,17 +531,15 @@ const PATTERN_RULES: PatternRule[] = [
   {
     rule: "base64-exec",
     severity: "critical",
-    pattern: /base64\s+(-d|-D|--decode)[^\n]*\|\s*(ba|z)?sh\b|eval[^\n]*base64/gu,
+    pattern: new RegExp(
+      `(?:${BASE64_DECODER})[^\\n]*?(?:${BASE64_SINK})|(?:${BASE64_SINK})[^\\n]*?(?:${BASE64_DECODER})`,
+      "gu",
+    ),
   },
-  {
-    rule: "exfil-domain",
-    severity: "critical",
-    pattern:
-      /webhook\.site|requestbin|pipedream\.net|ngrok(-free)?\.(io|app|dev)|discord(app)?\.com\/api\/webhooks|api\.telegram\.org\/bot|hooks\.slack\.com/gu,
-  },
+  { rule: "exfil-domain", severity: exfilSeverity, pattern: new RegExp(EXFIL_HOST, "giu") },
   {
     rule: "claude-settings",
-    severity: "critical",
+    severity: settingsSeverity,
     pattern: /\.claude\/settings(\.local)?\.json|permissions\.allow/gu,
   },
   { rule: "skip-permissions", severity: "critical", pattern: /--dangerously-skip-permissions/gu },
@@ -444,8 +550,8 @@ const PATTERN_RULES: PatternRule[] = [
   },
   {
     rule: "env-secrets",
-    severity: "warn",
-    pattern: /process\.env\b|os\.environ\b|(^|[^\w.])\.env\b/gu,
+    severity: envSeverity,
+    pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
   },
   {
     rule: "prompt-injection",
@@ -453,15 +559,17 @@ const PATTERN_RULES: PatternRule[] = [
     pattern:
       /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/giu,
   },
-  { rule: "destructive", severity: "warn", pattern: /\brm\s+-(rf|fr)\b/gu },
+  {
+    rule: "destructive",
+    severity: deleteSeverity,
+    pattern:
+      /\b(?<sudo>sudo(?:[ \t]+-\S*(?:[ \t]+[^\s-]\S*)??)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
+  },
 ];
 
 const STRENGTH: Severity[] = ["info", "warn", "critical"];
 
 const stronger = (a: Severity, b: Severity): boolean => STRENGTH.indexOf(a) > STRENGTH.indexOf(b);
-
-const lineBefore = (text: string, index: number): string =>
-  text.slice(text.lastIndexOf("\n", index - 1) + 1, index);
 
 const PROHIBITION =
   /\b(never|do not|don't|must not|should not|avoid|refuses? (requests? )?to)\s+((ever\s+)?(run|execute|use|call|invoke|type|paste|pipe|ignore|pass)(ing)?\s+(\w+\s+with\s+)?)?[`'"]?$/iu;
@@ -480,18 +588,22 @@ const patternFinding = (
   text: string,
   afterProhibition: (index: number) => boolean,
 ): Finding | undefined => {
-  const matches = [...text.matchAll(pattern)];
+  const judge = typeof severity === "function" ? severity : () => severity;
+  let count = 0;
   let best: { match: RegExpExecArray; severity: Severity; quiet: boolean } | undefined;
-  for (const match of matches) {
+  for (const match of text.matchAll(pattern)) {
+    const judged = judge(match, file, text);
+    if (!judged) continue;
+    count++;
     const quiet = afterProhibition(match.index);
-    const current = quiet ? "info" : severity;
+    const current = quiet ? "info" : judged;
     if (!best || stronger(current, best.severity)) best = { match, severity: current, quiet };
   }
   if (!best) return undefined;
   const detail = [
     best.match[0].trim(),
     ...(best.quiet ? ["(in a warning)"] : []),
-    ...(matches.length > 1 ? [`(${matches.length} matches)`] : []),
+    ...(count > 1 ? [`(${count} matches)`] : []),
   ].join(" ");
   return finding(rule, {
     severity: best.severity,

@@ -157,6 +157,14 @@ const landCopies = async (
   return output.text();
 };
 
+// Restores write access first so a failed assertion cannot block the temporary directory cleanup.
+const unlockLeftover = async (parent: string, name: string): Promise<string | undefined> => {
+  const leftover = (await readdir(parent)).find((entry) => entry.startsWith(`.${name}.`));
+  if (leftover === undefined) return undefined;
+  await chmod(join(parent, leftover, "old", "locked"), 0o755);
+  return join(parent, leftover);
+};
+
 describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () => {
   let root: string;
 
@@ -218,11 +226,11 @@ describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () =>
       loaded,
     ).finally(() => chmod(universal, 0o755));
 
+    const leftover = await unlockLeftover(parent, "doubled");
+
     expect(process.exitCode).toBe(1);
-    const leftover = (await readdir(parent)).find((entry) => entry.startsWith(".doubled."));
     expect(leftover).toBeDefined();
-    expect(printed).toContain(join(parent, leftover!));
-    await chmod(join(parent, leftover!, "old", "locked"), 0o755);
+    expect(printed).toContain(leftover!);
   });
 
   test("a directory left after a replacement is reported and the entry is recorded", async () => {
@@ -236,15 +244,13 @@ describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () =>
       [{ name: "fine", text: "v2\n", agents: ["claude"], managed: ["claude"] }],
       loaded,
     );
+    const leftover = await unlockLeftover(join(root, ".claude", "skills"), "fine");
 
     expect(process.exitCode).toBe(0);
     expect((await readLock("project")).skills["fine"]!.integrity).toBe(
       integrityOf(version("v2\n")),
     );
-    const parent = join(root, ".claude", "skills");
-    const leftover = (await readdir(parent)).find((entry) => entry.startsWith("."));
     expect(leftover).toBeDefined();
-    expect(printed).toContain(join(parent, leftover!));
-    await chmod(join(parent, leftover!, "old", "locked"), 0o755);
+    expect(printed).toContain(leftover!);
   });
 });

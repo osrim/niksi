@@ -3,8 +3,16 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { $ } from "bun";
-import { cliRunner, makeSkill, type RunCli, type RunResult } from "../test-cli.ts";
+import {
+  cliRunner,
+  commitAll,
+  initRepo,
+  makeSkill,
+  tagHead,
+  terminalRunner,
+  type RunCli,
+  type RunTerminal,
+} from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 interface LockSkill {
@@ -23,14 +31,15 @@ interface UpdateFixture {
 
 let tmp: string;
 let runCli: RunCli;
+let runTerminal: RunTerminal;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
-const cli = join(import.meta.dir, "..", "index.ts");
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-update-cli-test-")));
   process.env.HOME = tmp;
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
   runCli = cliRunner(tmp);
+  runTerminal = terminalRunner(tmp);
 });
 
 afterAll(async () => {
@@ -41,20 +50,15 @@ afterAll(async () => {
 const readSkills = async (lockPath: string): Promise<LockSkills> =>
   JSON.parse(await readFile(lockPath, "utf8")).skills;
 
-const commit = async (repo: string, message: string): Promise<string> => {
-  await $`git -C ${repo} add -A`.quiet();
-  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=test@example.com -c user.name=test commit -q -m ${message}`.quiet();
-  return (await $`git -C ${repo} rev-parse HEAD`.text()).trim();
-};
-
-const tag = async (repo: string, name: string): Promise<void> => {
-  await $`git -C ${repo} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag ${name}`.quiet();
-};
+const PATH_COPY = ["--copy", "--path", "published"];
+const LINK = ["-p", "--agent", "claude"];
 
 const setupUpdate = async (
   name: string,
   skills: string[],
   changed: string[],
+  placement = PATH_COPY,
+  ref = "",
 ): Promise<UpdateFixture> => {
   const project = join(tmp, `${name}-project`);
   const repo = join(tmp, `${name}-source`);
@@ -62,60 +66,21 @@ const setupUpdate = async (
   await mkdir(repo, { recursive: true });
   for (const skill of skills) await makeSkill(repo, skill, "version one\n");
   await writeFile(join(repo, "README.md"), "version one\n");
-  await $`git -C ${repo} init -q -b main --template=`.quiet();
-  await commit(repo, "version one");
-  await tag(repo, "v1.0.0");
+  await initRepo(repo);
+  await commitAll(repo, "version one");
+  await tagHead(repo, "v1.0.0");
 
-  const source = pathToFileURL(repo).href;
-  const added = await runCli(
-    project,
-    "add",
-    source,
-    "--all",
-    "--copy",
-    "--path",
-    "published",
-    "--yes",
-  );
+  const source = `${pathToFileURL(repo).href}${ref}`;
+  const added = await runCli(project, "add", source, "--all", ...placement, "--yes");
   expect(added.exitCode).toBe(0);
   const lockPath = join(project, "niksi-lock.json");
   const before = await readSkills(lockPath);
 
   for (const skill of changed) await makeSkill(repo, skill, "version two\n");
   await writeFile(join(repo, "README.md"), "version two\n");
-  const upstreamCommit = await commit(repo, "version two");
-  await tag(repo, "v1.1.0");
+  const upstreamCommit = await commitAll(repo, "version two");
+  await tagHead(repo, "v1.1.0");
   return { project, lockPath, before, upstreamCommit };
-};
-
-const declineUpdate = async (cwd: string, name: string): Promise<RunResult> => {
-  const decoder = new TextDecoder();
-  let output = "";
-  let answered = false;
-  const child = Bun.spawn([process.execPath, cli, "update", name], {
-    cwd,
-    env: {
-      ...process.env,
-      HOME: tmp,
-      NIKSI_HOME: join(tmp, "niksi-home"),
-      CI: "1",
-      NO_COLOR: "1",
-      TERM: "dumb",
-    },
-    terminal: {
-      data(terminal, data) {
-        output += decoder.decode(data, { stream: true });
-        if (!answered && output.includes(`Update ${name} (project)?`)) {
-          answered = true;
-          terminal.write("n\r");
-        }
-      },
-    },
-  });
-  const exitCode = await child.exited;
-  child.terminal?.close();
-  output += decoder.decode();
-  return { exitCode, stdout: output, stderr: "" };
 };
 
 test("naming one skill leaves every other candidate unchanged", async () => {
@@ -136,7 +101,12 @@ test("declining confirmation leaves a moved entry at its recorded revision", asy
   const fixture = await setupUpdate("declined", ["moved"], []);
   const before = await readFile(fixture.lockPath, "utf8");
 
-  const result = await declineUpdate(fixture.project, "moved");
+  const result = await runTerminal(
+    fixture.project,
+    [{ on: "Update moved (project)?", send: "n\r" }],
+    "update",
+    "moved",
+  );
 
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("no file changes");
@@ -155,6 +125,34 @@ test("--all updates moved and outdated skills and counts both", async () => {
   expect(after.changed?.commit).toBe(fixture.upstreamCommit);
   expect(result.stdout).toContain("no file changes");
   expect(result.stdout).toContain("Updated 2 skill(s).");
+});
+
+test("a pinned skill updates only when named", async () => {
+  const fixture = await setupUpdate("pinned", ["pinned"], ["pinned"], LINK, "@v1.0.0");
+  const before = await readFile(fixture.lockPath, "utf8");
+  const installed = join(fixture.project, ".claude", "skills", "pinned", "SKILL.md");
+
+  const skipped = await runCli(fixture.project, "update", "--all", "--yes");
+  expect(skipped.exitCode).toBe(0);
+  expect(await readFile(fixture.lockPath, "utf8")).toBe(before);
+  expect(await readFile(installed, "utf8")).toContain("version one");
+
+  const named = await runCli(fixture.project, "update", "pinned", "--yes");
+  expect(named.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).pinned?.commit).toBe(fixture.upstreamCommit);
+  expect(await readFile(installed, "utf8")).toContain("version two");
+});
+
+test("updating a modified link skill discards the edits", async () => {
+  const fixture = await setupUpdate("modified-link", ["edited"], ["edited"], LINK);
+  const canonical = join(fixture.project, ".niksi", "skills", "edited", "SKILL.md");
+  await writeFile(canonical, "local edit\n");
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(canonical, "utf8")).toContain("version two");
+  expect((await readSkills(fixture.lockPath)).edited?.commit).toBe(fixture.upstreamCommit);
 });
 
 test("a moved-only run without selection does not write the lockfile", async () => {

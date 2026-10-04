@@ -22,7 +22,8 @@ Imports point downward only. Commands may import `ui/` and `core/`. UI may impor
 cli/src/
   index.ts
   test-env.ts        environment capture and restore, tests only
-  test-cli.ts        subprocess runner and skill fixture, tests only
+  test-cli.ts        CLI runners and fixtures, tests only
+  test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
   commands/          add, install, update, remove, list, disable, enable, prune
   ui/                prompts, gate, pager, reports, help, status, destination choices, legacy migration notice

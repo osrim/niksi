@@ -26,15 +26,20 @@ Always prefer self-documented code over comments. Comment only when the code can
 
 ## Tests
 
-Tests import core and UI functions into one Bun process. Subprocess tests live in `commands/<topic>.integration.test.ts` and use `Bun.spawn` only when the process boundary is the behavior under test.
+Unit tests (`bun run test:unit`) import one `core/` or `ui/` module into the Bun process. Each such module has a sibling `<module>.test.ts`, except `test-*.ts` helpers. Commands have no unit tests. Spawn a process only when the process boundary is under test, as `test-color.ts` does.
 
-Otherwise, check command registration, argument wiring, and exit codes by hand. Add a `-y` harness case when a manual check becomes unreliable.
+Integration tests (`bun run test:integration`) spawn the CLI from `commands/<topic>.integration.test.ts`, one file per user flow. Use `cliRunner` for pipes and `terminalRunner` for a PTY from `test-cli.ts`. Both isolate the home, config, and data directories and turn color off. Answer a prompt when its text appears, never after a sleep. Sources are temporary directories and Git repositories, never the network.
 
-- Add unit tests for changed `core/` behavior. Network modules require tests.
+`bun run test` runs both.
+
+- Add unit tests for changed `core/` and `ui/` behavior. Network modules require tests.
+- Add an integration case for a changed command flow, flag, or non-interactive error.
+- Every exit code in [commands.md](../commands.md#exit-codes) except `130` has an integration case.
+- Integration tests assert the exit code, files on disk, the lockfile, and the `list --json` shape. Match stderr only for exit `2`.
 - Assert against literals, worked examples, fixtures, or documented contracts. Do not copy implementation logic into assertions.
-- Use temporary directories and restore environment changes with `test-env.ts`.
+- Use temporary directories. Restore environment changes with `test-env.ts`. Capture output and fake a terminal with `test-output.ts`.
 - Cover branches and failure paths. Do not chase a coverage number.
-- Manually test changed command paths, non-interactive errors, and exit codes.
+- Keep `bun run test` under 30 seconds. Share one temporary directory and fixture repository per file.
 
 ## Required checks
 

@@ -14,7 +14,9 @@
 		"lint:fix": "oxlint --fix src scripts",
 		"fmt": "oxfmt src scripts",
 		"fmt:check": "oxfmt --check src scripts",
-		"test": "bun test --timeout 30000",
+		"test": "bun run test:unit && bun run test:integration",
+		"test:unit": "bun test --timeout 30000 --path-ignore-patterns='**/*.integration.test.ts'",
+		"test:integration": "bun test --timeout 30000 integration.test",
 		"release": "bumpp"
 	},
 	"dependencies": {

@@ -16,6 +16,7 @@ const LOADERS = {
   update: () => import("./commands/update.ts"),
   remove: () => import("./commands/remove.ts"),
   list: () => import("./commands/list.ts"),
+  audit: () => import("./commands/audit.ts"),
   disable: () => import("./commands/disable.ts"),
   enable: () => import("./commands/enable.ts"),
   prune: () => import("./commands/prune.ts"),
@@ -85,6 +86,12 @@ const buildCli = (): CAC => {
     .option("--json", "Write JSON")
     .action(async (options) => (await LOADERS.list()).run(options));
   cli
+    .command("audit", "Scan installed skills with the current rules")
+    .option("-g, --global", "Use the global scope")
+    .option("-p, --project", "Use project scope")
+    .option("--json", "Write JSON")
+    .action(async (options) => (await LOADERS.audit()).run(options));
+  cli
     .command("disable [...skills]", "Disable installed skills and keep their lockfile entries")
     .option("-g, --global", "Use the global scope")
     .option("-p, --project", "Use project scope")
@@ -132,7 +139,10 @@ try {
   const argv = process.argv;
   const cli = buildCli();
   cli.parse(argv, { run: false });
-  const notice = startUpdateCheck(pkg.version, Boolean(cli.options.json));
+  const notice = startUpdateCheck(
+    pkg.version,
+    Boolean(cli.options.json) || cli.matchedCommand?.name === "audit",
+  );
 
   if (cli.options.version) {
     console.info(`nik/${pkg.version} ${process.platform}-${process.arch} bun-v${Bun.version}`);
@@ -168,8 +178,9 @@ try {
     );
     process.exit(2);
   }
-  if (cli.matchedCommand.name === "prune" && cli.args.length > 0) {
-    console.error("nik prune takes no arguments.\nSee `nik prune --help`.");
+  const { name } = cli.matchedCommand;
+  if ((name === "prune" || name === "audit") && cli.args.length > 0) {
+    console.error(`nik ${name} takes no arguments.\nSee \`nik ${name} --help\`.`);
     process.exit(2);
   }
 

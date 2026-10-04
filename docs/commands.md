@@ -9,6 +9,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | `update [...skills]` | `up` | Check upstream and update skills. |
 | `remove [...skills]` | `rm` | Remove installed skills. |
 | `list` | `ls` | Show installed skills. |
+| `audit` | | Scan installed skills with the current rules. |
 | `disable [...skills\|source]` | | Remove skills from disk and mark them disabled in `niksi-lock.json`. |
 | `enable [...skills\|source]` | | Restore disabled skills from `niksi-lock.json`. |
 | `prune` | | Delete unrecorded store entries. |
@@ -138,6 +139,54 @@ Path copies show their project-relative destination. A disabled skill shows `dis
 
 Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
 
+## `audit`
+
+```text
+nik audit [-g|-p] [--json]
+```
+
+`audit` scans every installed skill with the current rules. `add` and `update` scan a skill once, when they write it. Run `audit` after you upgrade `niksi` to check skills you approved under older rules.
+
+- `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads the first copy present in a recorded agent's skills directory. A path copy reads its destination.
+- `audit` does not use the network and does not write. It skips the update notice and its release check. When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
+- It prints the findings of each skill with their severities. It asks nothing, so a critical finding never needs a terminal.
+- It skips disabled and missing skills and names them. Run `nik install` to restore a missing skill, then audit again.
+- It does not report modified skills. `list` does.
+- It takes no positional arguments; passing one exits `2`.
+- A skill that cannot be read is reported on stderr and left out of the scan. The batch continues.
+- It exits `3` when a skill has a critical finding, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings do not change the exit code.
+
+`--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each scanned skill. `missing` and `disabled` hold the names of the skills `audit` did not scan.
+
+```json
+{
+  "scope": "project",
+  "lockfile": "/work/repo/niksi-lock.json",
+  "skills": [
+    {
+      "name": "pdf",
+      "source": "https://github.com/anthropics/skills",
+      "path": "skills/pdf",
+      "integrity": "sha256-...",
+      "findings": [
+        {
+          "severity": "warn",
+          "rule": "prompt-injection",
+          "help": "asks the agent to hide actions",
+          "file": "SKILL.md",
+          "line": 7,
+          "detail": "Ignore previous instructions"
+        }
+      ]
+    }
+  ],
+  "missing": [],
+  "disabled": []
+}
+```
+
+`file` and `line` are absent when a finding has no location. Rule names are in [security-scan.md](security-scan.md).
+
 ## `disable`
 
 ```text
@@ -199,7 +248,7 @@ nik prune [-y]
 | `--dangerous-skip-critical-approval` | `add`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
 | `--copy` | `add` | Write directories instead of links. |
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
-| `--json` | `list` | Write JSON only. |
+| `--json` | `list`, `audit` | Write JSON only. |
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
@@ -260,7 +309,7 @@ git diff --exit-code niksi-lock.json ./custom-directory
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. |
+| `1` | A skill failed. The rest of the batch still ran. In `audit`, also a warn finding. |
 | `2` | Invalid usage, or a prompt had no terminal and no flag. |
-| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. |
+| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill. |
 | `130` | Cancelled. |

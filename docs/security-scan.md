@@ -1,6 +1,14 @@
 # Security scan
 
-`add`, and `update` when skill files changed, show every file and every finding before writing. `install` does not scan; see [commands.md](commands.md#install). Flags and exit codes are also in [commands.md](commands.md).
+Three commands scan:
+
+| command | scans | when |
+| --- | --- | --- |
+| `add` | every new skill and offered dependency | before writing |
+| `update` | skills whose files changed | before writing |
+| `audit` | every installed, enabled skill | on demand, with no writes |
+
+`add` and `update` show every file and every finding before writing. `audit` prints findings only and asks nothing. `install` and `enable` do not scan; see [commands.md](commands.md#install). Flags and exit codes are also in [commands.md](commands.md).
 
 ## Severities
 
@@ -15,6 +23,8 @@ A skill you decline is skipped. The other skills in the batch still install.
 `add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered or recorded in the lockfile.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review.
+
+Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings. See [commands.md](commands.md#audit).
 
 ## Reading files
 

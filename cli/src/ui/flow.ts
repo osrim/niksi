@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import type { AgentId } from "../core/install/agents.ts";
-import { applySkill, type Applied } from "../core/install/apply.ts";
+import { applySkill, PlacementError, type Applied } from "../core/install/apply.ts";
 import { installDestination, type InstalledSkill } from "../core/install/destination.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { sourceFor, type Source } from "../core/source/index.ts";
@@ -131,6 +131,9 @@ export const land = async <T>({
     } catch (e) {
       if (onError) onError(item, e);
       else logSkillError(name(item), e);
+      if (e instanceof PlacementError) {
+        for (const leftover of e.leftovers) warnLeftover(name(item), leftover);
+      }
       failed++;
     }
   }

@@ -78,7 +78,7 @@ Canonical copies, agent copies, and path copies are written by `replaceDir` in `
 - A failure while the files are written leaves the old directory untouched.
 - A failure while the new directory is moved into place moves the old one back. If that also fails, the error names the work directory that holds the old files.
 - A failed new install leaves no directory at the target.
-- When the work directory cannot be removed after a replacement, the replacement still counts. `applySkill` returns the path, and `land` reports it as a warning.
+- When the work directory cannot be removed after a replacement, the replacement still counts. `applySkill` returns the path, and `land` reports it as a warning. When a later placement of the same skill fails, `applySkill` throws a `PlacementError` that carries the paths, and `land` still reports them.
 
 The guarantee covers one directory. `applySkill` records the new integrity only after every placement of the skill is written. When a later placement fails, earlier placements keep the new files and the lockfile entry keeps the old integrity. `land` continues with the next item and writes the lockfile. Links, the store, and the lockfile are not part of this guarantee. Neither are crash recovery and concurrent writers.
 

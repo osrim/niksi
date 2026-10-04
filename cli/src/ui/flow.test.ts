@@ -201,6 +201,30 @@ describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () =>
     );
   });
 
+  test("a directory left before a later placement failed is still reported", async () => {
+    const loaded = await loadLock("project");
+    const both: AgentId[] = ["claude", "universal"];
+    await landCopies([{ name: "doubled", text: "v1\n", agents: both, managed: [] }], loaded);
+    const parent = join(root, ".claude", "skills");
+    const locked = join(parent, "doubled", "locked");
+    await mkdir(locked);
+    await writeFile(join(locked, "notes.md"), "mine\n");
+    await chmod(locked, 0o555);
+    const universal = join(root, ".agents", "skills");
+    await chmod(universal, 0o555);
+
+    const printed = await landCopies(
+      [{ name: "doubled", text: "v2\n", agents: both, managed: both }],
+      loaded,
+    ).finally(() => chmod(universal, 0o755));
+
+    expect(process.exitCode).toBe(1);
+    const leftover = (await readdir(parent)).find((entry) => entry.startsWith(".doubled."));
+    expect(leftover).toBeDefined();
+    expect(printed).toContain(join(parent, leftover!));
+    await chmod(join(parent, leftover!, "old", "locked"), 0o755);
+  });
+
   test("a directory left after a replacement is reported and the entry is recorded", async () => {
     const loaded = await loadLock("project");
     const locked = join(root, ".claude", "skills", "fine", "locked");

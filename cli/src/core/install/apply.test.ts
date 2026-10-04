@@ -16,7 +16,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
-import { applySkill } from "./apply.ts";
+import { applySkill, PlacementError } from "./apply.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import type { AgentId } from "./agents.ts";
 import { canonicalPath, copyState, linkedAgents, removeCopy, skillPath } from "./link.ts";
@@ -554,5 +554,33 @@ test.skipIf(asRoot)(
     expect(await readFile(join(target, "SKILL.md"), "utf8")).toBe("v3\n");
     expect(await readFile(join(leftovers[0]!, "old", "locked", "notes.md"), "utf8")).toBe("mine\n");
     await chmod(join(leftovers[0]!, "old", "locked"), 0o755);
+  },
+);
+
+test.skipIf(asRoot)(
+  "a later placement failure still returns the directories an earlier one left",
+  async () => {
+    const plan = { ...copyPlan("v1\n"), name: "twice" };
+    const agents: AgentId[] = ["claude", "opencode"];
+    const both = { kind: "agent-copy", scope: "global", agents } as const;
+    await applySkill(plan, { ...both, managed: [] });
+    const locked = join(skillPath("twice", "global", "claude"), "locked");
+    await mkdir(locked);
+    await writeFile(join(locked, "notes.md"), "mine\n");
+    await chmod(locked, 0o555);
+    const opencodeDir = dirname(skillPath("twice", "global", "opencode"));
+    await chmod(opencodeDir, 0o555);
+
+    const error = await applySkill(
+      { ...plan, files: () => Promise.resolve(version("v2\n")) },
+      { ...both, managed: ["claude", "opencode"] },
+    )
+      .catch((e: unknown) => e)
+      .finally(() => chmod(opencodeDir, 0o755));
+
+    expect(error).toBeInstanceOf(PlacementError);
+    const [leftover] = (error as PlacementError).leftovers;
+    expect(await readFile(join(leftover!, "old", "locked", "notes.md"), "utf8")).toBe("mine\n");
+    await chmod(join(leftover!, "old", "locked"), 0o755);
   },
 );

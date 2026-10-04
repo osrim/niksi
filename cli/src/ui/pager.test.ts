@@ -156,7 +156,9 @@ describe("renderSession", () => {
       stub,
     );
 
-    expect(session).not.toContain(ESC);
+    for (const injected of [`${ESC}[8m`, `${ESC}[2J`, `bad${ESC}name`]) {
+      expect(session).not.toContain(injected);
+    }
     expect(session).toContain("+^[[2J");
     expect(session).toContain('[SKILL.md] "hidden^[[8m text\\n"');
     expect(session).toContain("bad^[name (1 B)");

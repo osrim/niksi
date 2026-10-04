@@ -3,7 +3,14 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
-import { deleteCandidate, materialize, prunePlan } from "./store.ts";
+import {
+  deleteCandidate,
+  entryMatches,
+  IntegrityError,
+  materialize,
+  prunePlan,
+  storeEntryPath,
+} from "./store.ts";
 import { storeDir } from "../paths.ts";
 import type { SkillFile } from "../skill/files.ts";
 import { captureEnv } from "../../test-env.ts";
@@ -127,4 +134,50 @@ test("delete refuses a candidate whose parent resolves outside the store", async
 
   await expect(deleteCandidate(candidate)).rejects.toThrow();
   expect(existsSync(join(outside, "victim.txt"))).toBe(true);
+});
+
+test("an entry path is the source key, the skill name, and 12 hex digits of the integrity", () => {
+  const integrity = `sha256-${Buffer.from("0123456789abcdef", "hex").toString("base64")}`;
+  expect(storeEntryPath(SOURCE, "demo", integrity)).toBe(
+    join(storeDir(), "github.com_o_r", "demo@0123456789ab"),
+  );
+  expect(storeEntryPath("local:./skills/demo", "demo", integrity)).toBe(
+    join(storeDir(), "local_._skills_demo", "demo@0123456789ab"),
+  );
+  expect(() => storeEntryPath(SOURCE, "../demo", integrity)).toThrow(
+    'invalid skill name "../demo"',
+  );
+});
+
+test("materialize stores files once and reuses a matching entry", async () => {
+  const first = await materialize(SOURCE, "demo", files("v1"));
+  expect(first.entry).toBe(storeEntryPath(SOURCE, "demo", first.integrity));
+  expect(first.restored).toBe(false);
+  expect(await entryMatches(first.entry, first.integrity)).toBe(true);
+
+  const again = await materialize(SOURCE, "demo", files("v1"), first.integrity);
+  expect(again).toEqual(first);
+  expect((await lstat(join(again.entry, "scripts", "run.sh"))).mode & 0o111).not.toBe(0);
+});
+
+test("materialize restores an entry whose files were edited", async () => {
+  const { entry, integrity } = await materialize(SOURCE, "demo", files("v1"));
+  await writeFile(join(entry, "SKILL.md"), "edited");
+  expect(await entryMatches(entry, integrity)).toBe(false);
+
+  const restored = await materialize(SOURCE, "demo", files("v1"));
+
+  expect(restored).toEqual({ entry, integrity, restored: true });
+  expect(await entryMatches(entry, integrity)).toBe(true);
+});
+
+test("materialize rejects files that do not match the expected integrity and keeps nothing", async () => {
+  const expected = (await materialize(OTHER, "demo", files("v1"))).integrity;
+
+  const mismatch = materialize(SOURCE, "demo", files("v2"), expected);
+
+  await expect(mismatch).rejects.toBeInstanceOf(IntegrityError);
+  await expect(mismatch).rejects.toMatchObject({ expected });
+  expect(existsSync(storeEntryPath(SOURCE, "demo", expected))).toBe(false);
+  expect(await readdir(join(storeDir(), "github.com_o_r"))).toEqual([]);
 });

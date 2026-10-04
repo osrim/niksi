@@ -55,6 +55,12 @@ export default [
   },
   { name: "a text file", path: "notes.txt", content: "plain text\n", silent: "none" },
   {
+    name: "a PDF without NUL bytes is scanned as text",
+    path: "docs/guide.pdf",
+    content: "%PDF-1.7\nplain\n",
+    silent: "none",
+  },
+  {
     name: "an archive is not also a binary",
     path: "payload.zip",
     content: new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00]),

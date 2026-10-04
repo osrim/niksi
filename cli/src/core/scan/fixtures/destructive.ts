@@ -32,6 +32,24 @@ export default [
     fire: [{ severity: "critical", line: 1 }],
   },
   {
+    name: "sudo as another user",
+    path: "scripts/clean.sh",
+    content: "sudo -u root rm -rf build\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "sudo with an end of options",
+    path: "scripts/clean.sh",
+    content: "sudo -- rm -rf build\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "sudo in an earlier command",
+    path: "scripts/clean.sh",
+    content: "sudo apt-get update && rm -rf build\n",
+    silent: "info",
+  },
+  {
     name: "deletes under a variable that may be empty",
     path: "scripts/clean.sh",
     content: '#!/bin/sh\nrm -rf "$STEAMROOT/"*\n',

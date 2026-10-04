@@ -43,7 +43,7 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Text file that contains a NUL byte | `critical` |
 | Executable that does not start with `#!`, binary, or archive file | `warn` |
 | Executable that starts with `#!`. The scan reads its text. | `info` |
-| PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, or ICO file whose first bytes match its extension | `info` |
+| Binary PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, or ICO file whose first bytes match its extension | `info` |
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters: Unicode tags, zero-width characters, bidi overrides and isolates | `critical` |
 

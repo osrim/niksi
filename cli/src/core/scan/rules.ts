@@ -563,7 +563,7 @@ const PATTERN_RULES: PatternRule[] = [
     rule: "destructive",
     severity: deleteSeverity,
     pattern:
-      /\b(?<sudo>sudo(?:[ \t]+-\w+)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
+      /\b(?<sudo>sudo(?:[ \t]+-\S*(?:[ \t]+[^\s-]\S*)??)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
   },
 ];
 

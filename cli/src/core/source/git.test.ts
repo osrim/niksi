@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
 import { $ } from "bun";
-import { chmod, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK } from "../skill/files.ts";
@@ -22,15 +22,19 @@ import {
   sshAlternate,
   subtreeOid,
 } from "./git.ts";
+import { captureEnv } from "../../test-env.ts";
 
+let template: string;
 let tmp: string;
 let remote: string;
 let work: string;
 let firstSha: string;
-let previousCache: string | undefined;
-let previousGitConfig: string | undefined;
-let previousGitConfigCount: string | undefined;
-let previousGitNoSystem: string | undefined;
+const restoreEnv = captureEnv(
+  "XDG_CACHE_HOME",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_NOSYSTEM",
+);
 
 const commit = async (message: string): Promise<string> => {
   await $`git -C ${work} add -A`.quiet();
@@ -46,19 +50,19 @@ const addSecondCommit = async (): Promise<string> => {
   return sha;
 };
 
-beforeEach(async () => {
-  tmp = await mkdtemp(join(tmpdir(), "niksi-git-test-"));
-  previousCache = process.env.XDG_CACHE_HOME;
-  previousGitConfig = process.env.GIT_CONFIG_GLOBAL;
-  previousGitConfigCount = process.env.GIT_CONFIG_COUNT;
-  previousGitNoSystem = process.env.GIT_CONFIG_NOSYSTEM;
-  process.env.XDG_CACHE_HOME = join(tmp, "cache");
-  process.env.GIT_CONFIG_GLOBAL = join(tmp, "empty-gitconfig");
+const useGitConfig = async (dir: string): Promise<void> => {
+  process.env.GIT_CONFIG_GLOBAL = join(dir, "empty-gitconfig");
+  await writeFile(process.env.GIT_CONFIG_GLOBAL, "");
+};
+
+// Building the fixture costs a dozen git calls, so build it once and copy it into each test.
+beforeAll(async () => {
+  template = await mkdtemp(join(tmpdir(), "niksi-git-template-"));
   process.env.GIT_CONFIG_COUNT = "0";
   process.env.GIT_CONFIG_NOSYSTEM = "1";
-  await writeFile(process.env.GIT_CONFIG_GLOBAL, "");
-  remote = join(tmp, "remote.git");
-  work = join(tmp, "work");
+  await useGitConfig(template);
+  remote = join(template, "remote.git");
+  work = join(template, "work");
 
   await $`git init -q --bare --object-format=sha1 --initial-branch=main ${remote}`.quiet();
   await $`git init -q --object-format=sha1 --initial-branch=main ${work}`.quiet();
@@ -69,7 +73,7 @@ beforeEach(async () => {
   await writeFile(join(work, "skills", "demo", "SKILL.md"), "first\n");
   await symlink("README.md", join(work, "readme-link"));
   firstSha = await commit("first");
-  await $`git -C ${work} remote add origin ${remote}`.quiet();
+  await $`git -C ${work} remote add origin ../remote.git`.quiet();
   await $`git -C ${work} push -q -u origin main`.quiet();
   await $`git -C ${work} branch topic`.quiet();
   await $`git -C ${work} push -q origin topic`.quiet();
@@ -78,15 +82,21 @@ beforeEach(async () => {
   await $`git -C ${work} push -q origin --tags`.quiet();
 }, 30_000);
 
+afterAll(async () => {
+  restoreEnv();
+  await rm(template, { recursive: true, force: true });
+});
+
+beforeEach(async () => {
+  tmp = await mkdtemp(join(tmpdir(), "niksi-git-test-"));
+  await cp(template, tmp, { recursive: true, verbatimSymlinks: true });
+  process.env.XDG_CACHE_HOME = join(tmp, "cache");
+  await useGitConfig(tmp);
+  remote = join(tmp, "remote.git");
+  work = join(tmp, "work");
+});
+
 afterEach(async () => {
-  if (previousCache === undefined) delete process.env.XDG_CACHE_HOME;
-  else process.env.XDG_CACHE_HOME = previousCache;
-  if (previousGitConfig === undefined) delete process.env.GIT_CONFIG_GLOBAL;
-  else process.env.GIT_CONFIG_GLOBAL = previousGitConfig;
-  if (previousGitConfigCount === undefined) delete process.env.GIT_CONFIG_COUNT;
-  else process.env.GIT_CONFIG_COUNT = previousGitConfigCount;
-  if (previousGitNoSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM;
-  else process.env.GIT_CONFIG_NOSYSTEM = previousGitNoSystem;
   await rm(tmp, { recursive: true, force: true });
 }, 30_000);
 

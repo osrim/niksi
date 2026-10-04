@@ -41,7 +41,9 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Symlink that points outside the skill directory | `critical` |
 | Symlink inside the skill directory | `warn` |
 | Text file that contains a NUL byte | `critical` |
-| Executable, binary, or archive file | `warn` |
+| Executable that does not start with `#!`, binary, or archive file | `warn` |
+| Executable that starts with `#!`. The scan reads its text. | `info` |
+| PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, or ICO file whose first bytes match its extension | `info` |
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters: Unicode tags, zero-width characters, bidi overrides and isolates | `critical` |
 
@@ -69,14 +71,20 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | finding | severity |
 | --- | --- |
 | `curl` or `wget` piped to a shell | `critical` |
-| Base64-decoded commands | `critical` |
-| Known exfiltration hosts: webhook.site, requestbin, pipedream, ngrok, Discord, Telegram, and Slack webhooks | `critical` |
-| Mentions of `.claude/settings.json` or `permissions.allow` | `critical` |
+| A base64 decoder (`b64decode`, `base64_decode`, `base64.decodebytes`, `base64.decodestring`, `atob(`, `Buffer.from(…, 'base64')`, `base64 -d`) and, on the same line, `eval(`, `exec(`, shell `eval "…"`, or a pipe to a shell | `critical` |
+| An exfiltration host, and on the same line a credential-named variable, an environment dump, `$(cat …)`, or a file upload (`-F`, `-T`, `--upload-file`, `@file`) | `critical` |
+| Any other exfiltration host: webhook.site, requestbin.com, pipedream.net, ngrok, and Discord, Telegram, and Slack webhook URLs | `warn` |
+| `permissions.allow`, a `>`, `>>`, or `tee` into `.claude/settings.json` or `.claude/settings.local.json`, or a `SKILL.md` sentence that names that file and starts with `add`, `write`, `edit`, `modify`, `append`, `set`, `update`, or `change` | `critical` |
+| Any other mention of `.claude/settings.json` or `.claude/settings.local.json` | `warn` |
 | `--dangerously-skip-permissions` | `critical` |
 | `~/.ssh`, `id_rsa`, `~/.aws` | `critical` |
-| Environment variable reads and `.env` files | `warn` |
+| `rm -r` of `/`, `~`, `$HOME`, a system directory such as `/usr`, `/etc`, or `/Library`, or `$VAR/` without `${VAR:?}`, and every `sudo rm -r` | `critical` |
+| Any other `rm -r` | `info` |
 | Prompt-injection phrases such as "ignore previous instructions" | `warn` |
-| `rm -rf` | `warn` |
+| Environment reads, in a file that also calls the network (`fetch(`, `requests.`, `axios`, `http.request(`, `curl`, `wget`) or runs code (`eval(`, `exec(`, `child_process`, `subprocess.`, `os.system(`) | `warn` |
+| Environment reads in any other file | `info` |
+
+An environment read is a variable whose name holds `key`, `token`, `secret`, `pass`, `auth`, or `cred`, a read of the whole environment such as `JSON.stringify(process.env)`, or `.env` in quotes or after a `/`. `.env.example`, `.env.sample`, `.env.template`, and `.env.dist` are not `.env` files.
 
 Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside fenced code is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Fenced code and other files keep the full severity.
 

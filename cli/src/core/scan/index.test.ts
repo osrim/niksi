@@ -15,7 +15,7 @@ test("findings come back critical first, then warn, then info", () => {
         content: Buffer.from("---\nname: demo\ndescription: test\n---\nSee https://other.dev/x.\n"),
         mode: MODE_FILE,
       },
-      { path: "run.sh", content: Buffer.from("#!/bin/sh\n"), mode: MODE_EXEC },
+      { path: "run.sh", content: Buffer.from("echo hi\n"), mode: MODE_EXEC },
       { path: "hooks.json", content: Buffer.from("{}\n"), mode: MODE_FILE },
     ],
   });

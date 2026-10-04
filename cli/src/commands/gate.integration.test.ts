@@ -38,7 +38,7 @@ const project = async (name: string, risky: { name: string; file: string }): Pro
   await mkdir(join(root, ".git"), { recursive: true });
   await makeSkill(join(root, "skills"), "clean");
   await makeSkill(join(root, "skills"), risky.name);
-  await writeFile(join(root, "skills", risky.name, risky.file), "#!/bin/sh\necho hi\n");
+  await writeFile(join(root, "skills", risky.name, risky.file), "echo hi\n");
   return root;
 };
 

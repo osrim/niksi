@@ -9,8 +9,8 @@ import {
   type UpdatableVerdict,
   type UpdateVerdict,
 } from "../core/source/upstream.ts";
-import { logError, warn } from "./report.ts";
-import { bold, dim, skillName } from "./style.ts";
+import { logError, logWarn, warn } from "./report.ts";
+import { bold, dim, skillName, tildify } from "./style.ts";
 
 export const emptyScopeMessage = async (scope: Scope): Promise<string> => {
   const other: Scope = scope === "project" ? "global" : "project";
@@ -39,6 +39,10 @@ export const reportDisabled = (names: string[], scope: Scope): void => {
 
 export const warnRestored = (name: string): void => {
   warn(`${skillName(name)}: restored local edits from the source`);
+};
+
+export const warnLeftover = (name: string, path: string): void => {
+  logWarn(`${skillName(name)}: could not remove ${tildify(path)}\nDelete it yourself.`);
 };
 
 export const reportVerdicts = (

@@ -2,9 +2,10 @@ import { mkdir, rm, symlink, lstat, readlink, writeFile } from "node:fs/promises
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
-import { writeFiles, type SkillFile } from "../skill/files.ts";
+import type { SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
 import { canonicalDir, childPath, dataDir, tildify, type Scope } from "../paths.ts";
+import { replaceDir } from "./replace.ts";
 import { isInside, present, realpathOrNearest, unmanagedError } from "./target.ts";
 
 const isSymlinkPath = async (path: string): Promise<boolean> => {
@@ -101,12 +102,9 @@ export const copySkill = async (
   scope: Scope,
   agent: AgentId,
   managed: boolean,
-): Promise<void> => {
-  const path = skillPath(name, scope, agent);
-  await mkdir(dirname(path), { recursive: true });
+): Promise<string | undefined> => {
   if (!managed) await refuseUnmanaged(name, scope, agent);
-  await rm(path, { recursive: true, force: true });
-  await writeFiles(path, files);
+  return replaceDir(skillPath(name, scope, agent), files);
 };
 
 export const removeCopy = (name: string, scope: Scope, agent: AgentId): Promise<void> =>
@@ -116,15 +114,14 @@ export const writeCanonical = async (
   name: string,
   files: SkillFile[],
   scope: Scope,
-): Promise<void> => {
+): Promise<string | undefined> => {
   const path = canonicalPath(name, scope);
   await mkdir(dirname(path), { recursive: true });
   if (scope === "project") {
     const ignore = join(canonicalDir(scope), "..", ".gitignore");
     if (!existsSync(ignore)) await writeFile(ignore, "*\n");
   }
-  await rm(path, { recursive: true, force: true });
-  await writeFiles(path, files);
+  return replaceDir(path, files);
 };
 
 export const removeCanonical = (name: string, scope: Scope): Promise<void> =>

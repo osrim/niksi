@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
+  chmod,
   lstat,
   mkdtemp,
   mkdir,
@@ -13,7 +14,7 @@ import {
   utimes,
   writeFile,
 } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
 import { applySkill } from "./apply.ts";
 import { integrityOf } from "../skill/integrity.ts";
@@ -487,3 +488,71 @@ test("a matching store entry is installed without fetching", async () => {
     "hello\n",
   );
 });
+
+const asRoot = process.getuid?.() === 0;
+
+const version = (text: string): SkillFile[] => [
+  { path: "SKILL.md", content: Buffer.from(text), mode: "100644" },
+];
+
+const copyPlan = (text: string) => ({
+  name: "partial",
+  source: "https://github.com/o/r",
+  path: "",
+  revision,
+  files: () => Promise.resolve(version(text)),
+});
+
+test.skipIf(asRoot)(
+  "a later placement failure keeps the recorded entry and leaves earlier placements changed",
+  async () => {
+    const lock = emptyLock();
+    const both = { kind: "agent-copy", scope: "global", lock } as const;
+    await applySkill(copyPlan("v1\n"), { ...both, agents: ["claude", "opencode"], managed: [] });
+    const recorded = structuredClone(lock.skills["partial"]);
+    const opencodeDir = dirname(skillPath("partial", "global", "opencode"));
+    await chmod(opencodeDir, 0o555);
+
+    await expect(
+      applySkill(copyPlan("v2\n"), {
+        ...both,
+        agents: ["claude", "opencode"],
+        managed: ["claude", "opencode"],
+      }),
+    ).rejects.toThrow();
+    await chmod(opencodeDir, 0o755);
+
+    expect(lock.skills["partial"]).toEqual(recorded!);
+    expect(await readFile(join(skillPath("partial", "global", "claude"), "SKILL.md"), "utf8")).toBe(
+      "v2\n",
+    );
+    expect(
+      await readFile(join(skillPath("partial", "global", "opencode"), "SKILL.md"), "utf8"),
+    ).toBe("v1\n");
+  },
+);
+
+test.skipIf(asRoot)(
+  "a cleanup failure still records the new integrity and returns the leftover",
+  async () => {
+    const lock = emptyLock();
+    const target = skillPath("partial", "global", "claude");
+    await mkdir(join(target, "locked"));
+    await writeFile(join(target, "locked", "notes.md"), "mine\n");
+    await chmod(join(target, "locked"), 0o555);
+
+    const { leftovers } = await applySkill(copyPlan("v3\n"), {
+      kind: "agent-copy",
+      scope: "global",
+      agents: ["claude"],
+      managed: ["claude"],
+      lock,
+    });
+
+    expect(leftovers).toHaveLength(1);
+    expect(lock.skills["partial"]!.integrity).toBe(integrityOf(version("v3\n")));
+    expect(await readFile(join(target, "SKILL.md"), "utf8")).toBe("v3\n");
+    expect(await readFile(join(leftovers[0]!, "old", "locked", "notes.md"), "utf8")).toBe("mine\n");
+    await chmod(join(leftovers[0]!, "old", "locked"), 0o755);
+  },
+);

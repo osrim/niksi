@@ -1,22 +1,17 @@
 import * as p from "@clack/prompts";
-import { missingDeps, type BatchSkill, type MissingDep } from "../core/skill/deps.ts";
+import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import type { Lockfile } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
-import { coordinateFor, type Changes, type Source } from "../core/source/index.ts";
+import { coordinateFor, type Changes } from "../core/source/index.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
-import { fetchSkillFiles, type SkillFiles } from "./flow.ts";
-import { reviewSkills, type ReviewOptions } from "./gate.ts";
-import { isInteractive, unwrap, withSpinner } from "./prompt.ts";
+import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
-import { dim, skillName, summarize } from "./style.ts";
+import { dim, skillName } from "./style.ts";
 
-const asBatch = (selected: SkillFiles[]): BatchSkill[] =>
-  selected.map(({ skill, files }) => ({ name: skill.name, files }));
-
-const warnMentions = (missing: MissingDep[], note: string): void => {
+export const warnMentions = (missing: MissingDep[], note: string): void => {
   for (const dep of missing) {
     warn(
       `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${dep.file}:${dep.line}. ${note}.`,
@@ -24,87 +19,11 @@ const warnMentions = (missing: MissingDep[], note: string): void => {
   }
 };
 
-const reportNotInstalled = (missing: MissingDep[], sourceId: string, scope: Scope): void => {
+export const reportNotInstalled = (missing: MissingDep[], sourceId: string, scope: Scope): void => {
   warnMentions(missing, "not installed");
   p.log.info(
     `Add them: ${dim(`nik add ${coordinateFor(sourceId)} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );
-};
-
-export interface DepsContext {
-  source: Source;
-  rev: string | undefined;
-  skills: DiscoveredSkill[];
-  lock: Lockfile;
-  scope: Scope;
-  options: ReviewOptions;
-}
-
-interface ResolvedDeps {
-  added: SkillFiles[];
-  blocked: boolean;
-}
-
-export const resolveDeps = async (
-  ctx: DepsContext,
-  approved: SkillFiles[],
-): Promise<ResolvedDeps> => {
-  const known = ctx.skills.map((skill) => skill.name);
-  const interactive = !ctx.options.yes && isInteractive();
-  const added: SkillFiles[] = [];
-  let blocked = false;
-  const offered = new Set<string>();
-
-  for (;;) {
-    const missing = missingDeps(
-      asBatch([...approved, ...added]),
-      known,
-      (name) => offered.has(name) || ctx.lock.skills[name] !== undefined,
-    );
-    if (missing.length === 0) return { added, blocked };
-    for (const dep of missing) offered.add(dep.name);
-
-    if (!interactive) {
-      reportNotInstalled(missing, ctx.source.id, ctx.scope);
-      return { added, blocked };
-    }
-    warnMentions(missing, "not installed");
-
-    const picked = new Set(
-      unwrap(
-        await p.multiselect<string>({
-          message: "Add these dependencies?",
-          options: missing.map((dep) => {
-            const skill = ctx.skills.find((candidate) => candidate.name === dep.name)!;
-            return {
-              value: dep.name,
-              label: dep.name,
-              hint: summarize(skill.description) ?? `mentioned by ${dep.from}`,
-            };
-          }),
-          required: false,
-        }),
-      ),
-    );
-    if (picked.size === 0) return { added, blocked };
-    const review = await reviewSkills(
-      (
-        await fetchSkillFiles(
-          ctx.source,
-          ctx.rev,
-          ctx.skills.filter((skill) => picked.has(skill.name)),
-        )
-      ).map(({ skill, files }) => ({
-        name: skill.name,
-        files,
-        warnings: skill.warnings ?? [],
-        skill,
-      })),
-      ctx.options,
-    );
-    if (review.blocked) blocked = true;
-    added.push(...review.approved.map(({ skill, files }) => ({ skill, files })));
-  }
 };
 
 export interface UpdatedFiles {

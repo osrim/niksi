@@ -1,5 +1,5 @@
 import * as p from "@clack/prompts";
-import { applySkill, type Destination } from "../core/install/apply.ts";
+import { applySkill, type Applied, type Destination } from "../core/install/apply.ts";
 import {
   loadLock,
   splitDisabled,
@@ -198,7 +198,7 @@ const landUpdates = async (
 const recordMoved = async (
   verdict: MovedVerdict,
   destinationOf: DestinationOf,
-): Promise<{ integrity: string; restored: boolean; success: string }> => {
+): Promise<Applied & { success: string }> => {
   const { skill } = verdict;
   const destination = await destinationOf(skill);
   const result = await applySkill(
@@ -267,9 +267,9 @@ const previewAndReview = async (
 const applyUpdate = async (
   { verdict, files }: UpdatedFiles,
   destinationOf: DestinationOf,
-): Promise<{ restored: boolean; success: string }> => {
+): Promise<Applied & { success: string }> => {
   const { skill } = verdict;
-  const { integrity, restored } = await applySkill(
+  const applied = await applySkill(
     {
       name: skill.name,
       source: skill.source,
@@ -281,6 +281,6 @@ const applyUpdate = async (
   );
   const range =
     revisionRange(verdict) ||
-    `${displayLabel(skill)} → ${displayLabel({ ...verdict.upstream, integrity })}`;
-  return { restored, success: `updated ${range}` };
+    `${displayLabel(skill)} → ${displayLabel({ ...verdict.upstream, integrity: applied.integrity })}`;
+  return { ...applied, success: `updated ${range}` };
 };

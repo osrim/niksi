@@ -2,8 +2,9 @@ import * as p from "@clack/prompts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { asText, parseFrontmatter } from "../core/skill/frontmatter.ts";
 import { CRITICAL_EXIT, runScanners, type Finding, type Severity } from "../core/scan/index.ts";
-import { escapeControl, pageSkills, type PagedSkill } from "./pager.ts";
-import { isInteractive, requireTTY, unwrap } from "./prompt.ts";
+import { ask, clackDecisions, type Decisions } from "./decisions.ts";
+import { escapeControl, type PagedSkill } from "./pager.ts";
+import { isInteractive, requireTTY } from "./prompt.ts";
 import { logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
 import { skillName } from "./style.ts";
 
@@ -20,7 +21,8 @@ interface Reviewable extends PagedSkill {
 
 interface GateResult<T> {
   approved: T[];
-  blocked: boolean;
+  declined: T[];
+  blocked: T[];
 }
 
 const FRONTMATTER_KEYS = ["description", "allowed-tools"];
@@ -49,89 +51,51 @@ const renderNote = (files: SkillFile[]): string => {
 export const reviewSkills = async <T extends Reviewable>(
   selection: T[],
   options: ReviewOptions,
+  decisions: Decisions = clackDecisions,
 ): Promise<GateResult<T>> => {
-  const approved: T[] = [];
-  let blocked = false;
+  const result: GateResult<T> = { approved: [], declined: [], blocked: [] };
   for (const entry of selection) {
     const { name, files } = entry;
     p.note(renderNote(files), `${skillName(name)}: ${files.length} file(s)`);
     for (const warning of entry.warnings ?? []) logWarn(warning);
-    const outcome = await reviewSkill(entry, options);
+    const outcome = await reviewSkill(entry, options, decisions);
     if (outcome === "pass") {
-      approved.push(entry);
+      result.approved.push(entry);
     } else {
-      if (outcome === "blocked") blocked = true;
+      result[outcome].push(entry);
       warn(`${skillName(name)}: skipped`);
     }
   }
-  return { approved, blocked };
+  return result;
 };
 
 export const stopsOn = (
   findings: Finding[],
   { yes, dangerousSkipCriticalApproval }: ReviewOptions,
-): Severity | null => {
+): Exclude<Severity, "info"> | null => {
   if (!dangerousSkipCriticalApproval && findings.some((finding) => finding.severity === "critical"))
     return "critical";
   if (!yes && findings.some((finding) => finding.severity === "warn")) return "warn";
   return null;
 };
 
-const reviewSkill = async (entry: PagedSkill, options: ReviewOptions): Promise<GateOutcome> => {
+const reviewSkill = async (
+  entry: PagedSkill,
+  options: ReviewOptions,
+  decisions: Decisions,
+): Promise<GateOutcome> => {
   const findings = runScanners({ name: entry.name, files: entry.files });
   logFindings(entry.name, findings);
   const stop = stopsOn(findings, options);
   if (!stop) return "pass";
-  const stopping = findings.filter((finding) => finding.severity === stop);
-  const outcome =
-    stop === "critical"
-      ? await askApproval(entry, stopping)
-      : await askWarnFindings(entry, stopping);
-  if (outcome === "blocked") process.exitCode = CRITICAL_EXIT;
-  return outcome;
-};
-
-type Answer = "yes" | "no" | "read";
-
-const ask = async (
-  message: string,
-  initialValue: boolean,
-  reading: PagedSkill[],
-): Promise<boolean> => {
-  if (reading.length === 0) return unwrap(await p.confirm({ message, initialValue }));
-  for (;;) {
-    const answer = unwrap(
-      await p.select<Answer>({
-        message,
-        initialValue: initialValue ? "yes" : "no",
-        options: [
-          { value: "yes", label: "Yes" },
-          { value: "no", label: "No" },
-          { value: "read", label: "Read files…", hint: "press q to return" },
-        ],
-      }),
-    );
-    if (answer !== "read") return answer === "yes";
-    await pageSkills(reading);
-  }
-};
-
-const askApproval = async (entry: PagedSkill, criticals: Finding[]): Promise<GateOutcome> => {
   if (!isInteractive()) {
+    if (stop === "warn") return "pass";
     logError(`${skillName(entry.name)}: review critical findings in a terminal.`);
+    process.exitCode = CRITICAL_EXIT;
     return "blocked";
   }
-  const message = `Approve ${skillName(entry.name)} with ${criticals.length} critical finding(s)?`;
-  return (await ask(message, false, [entry])) ? "pass" : "declined";
-};
-
-const askWarnFindings = async (
-  entry: PagedSkill,
-  warnFindings: Finding[],
-): Promise<GateOutcome> => {
-  if (!isInteractive()) return "pass";
-  const message = `Continue with ${skillName(entry.name)} and ${warnFindings.length} warn finding(s)?`;
-  return (await ask(message, true, [entry])) ? "pass" : "declined";
+  const count = findings.filter((finding) => finding.severity === stop).length;
+  return (await decisions.approve(entry, stop, count)) ? "pass" : "declined";
 };
 
 export const confirmWrite = (

@@ -73,10 +73,10 @@ export const run = async (options: InstallOptions): Promise<void> => {
           "modified, skipped\nCopy the edits or run `nik install -y` to discard them.",
         );
       }
-      const { restored } = await restoreSkill(entry, scope, agents);
+      const applied = await restoreSkill(entry, scope, agents);
       return {
-        restored,
-        success: `${restored || modified.has(name) ? "restored" : "installed"} @ ${shortId(entry)}`,
+        ...applied,
+        success: `${applied.restored || modified.has(name) ? "restored" : "installed"} @ ${shortId(entry)}`,
       };
     },
     onError: (entry, error) => reportRestoreError(entry.name, error),

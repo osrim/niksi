@@ -1,14 +1,19 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { chmod, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { $ } from "bun";
+import type { AgentId } from "../core/install/agents.ts";
+import { applySkill } from "../core/install/apply.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
-import { loadLock, readLock } from "../core/install/lockfile.ts";
+import { loadLock, readLock, type LoadedLockfile } from "../core/install/lockfile.ts";
+import type { SkillFile } from "../core/skill/files.ts";
+import { integrityOf } from "../core/skill/integrity.ts";
 import { ensureClone, git } from "../core/source/git.ts";
 import { GitSource } from "../core/source/git-source.ts";
 import { fetchSkillFiles, land } from "./flow.ts";
 import { captureEnv } from "../test-env.ts";
+import { captureOutput } from "../test-output.ts";
 
 let tmp: string;
 let cwd: string;
@@ -109,4 +114,113 @@ test("fetches a batch of many skills from one partial clone", async () => {
   expect(fetched[18]!.files.find((file) => file.path === "ref-7.md")!.content.toString()).toBe(
     "skill-18 7\n",
   );
+});
+
+const version = (text: string): SkillFile[] => [
+  { path: "SKILL.md", content: Buffer.from(text), mode: "100644" },
+];
+
+const landCopies = async (
+  items: { name: string; text: string; agents: AgentId[]; managed: AgentId[] }[],
+  loaded: LoadedLockfile,
+): Promise<string> => {
+  const output = captureOutput();
+  try {
+    await land({
+      items,
+      name: (item) => item.name,
+      apply: async ({ name, text, agents, managed }) => ({
+        ...(await applySkill(
+          {
+            name,
+            source: "local:/demo",
+            path: name,
+            revision: { track: "auto" },
+            files: () => Promise.resolve(version(text)),
+          },
+          {
+            kind: "agent-copy",
+            scope: "project",
+            agents,
+            managed,
+            lock: loaded.lock,
+          },
+        )),
+        success: "copied",
+      }),
+      scope: "project",
+      lock: loaded,
+    });
+  } finally {
+    output.restore();
+  }
+  return output.text();
+};
+
+describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = join(tmp, "copies");
+    await mkdir(root, { recursive: true });
+    expect((await git(["init", "--quiet"], root)).code).toBe(0);
+    process.chdir(root);
+  });
+
+  afterEach(() => {
+    process.exitCode = 0;
+  });
+
+  test("a failure after an earlier placement changed keeps the old entry and lands later items", async () => {
+    const loaded = await loadLock("project");
+    const both: AgentId[] = ["claude", "universal"];
+    await landCopies([{ name: "broken", text: "v1\n", agents: both, managed: [] }], loaded);
+    const before = (await readLock("project")).skills["broken"];
+    const universal = join(root, ".agents", "skills");
+    await chmod(universal, 0o555);
+
+    const printed = await landCopies(
+      [
+        { name: "broken", text: "v2\n", agents: both, managed: both },
+        { name: "fine", text: "v1\n", agents: ["claude"], managed: [] },
+      ],
+      loaded,
+    ).finally(() => chmod(universal, 0o755));
+
+    expect(process.exitCode).toBe(1);
+    expect(printed).toContain("broken: ");
+    const skills = (await readLock("project")).skills;
+    expect(skills["broken"]).toEqual(before!);
+    expect(skills["fine"]!.integrity).toBe(integrityOf(version("v1\n")));
+    expect(await readFile(join(root, ".claude", "skills", "broken", "SKILL.md"), "utf8")).toBe(
+      "v2\n",
+    );
+    expect(await readFile(join(universal, "broken", "SKILL.md"), "utf8")).toBe("v1\n");
+    expect(await readFile(join(root, ".claude", "skills", "fine", "SKILL.md"), "utf8")).toBe(
+      "v1\n",
+    );
+  });
+
+  test("a directory left after a replacement is reported and the entry is recorded", async () => {
+    const loaded = await loadLock("project");
+    const locked = join(root, ".claude", "skills", "fine", "locked");
+    await mkdir(locked);
+    await writeFile(join(locked, "notes.md"), "mine\n");
+    await chmod(locked, 0o555);
+
+    const printed = await landCopies(
+      [{ name: "fine", text: "v2\n", agents: ["claude"], managed: ["claude"] }],
+      loaded,
+    );
+
+    expect(process.exitCode).toBe(0);
+    expect((await readLock("project")).skills["fine"]!.integrity).toBe(
+      integrityOf(version("v2\n")),
+    );
+    const parent = join(root, ".claude", "skills");
+    const leftover = (await readdir(parent)).find((entry) => entry.startsWith("."));
+    expect(leftover).toBeDefined();
+    expect(printed).toContain(join(parent, leftover!));
+    await chmod(join(parent, leftover!, "old", "locked"), 0o755);
+  });
 });

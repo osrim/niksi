@@ -3,58 +3,32 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { cliRunner, makeSkill, type RunCli, type RunResult } from "../test-cli.ts";
+import {
+  cliRunner,
+  makeSkill,
+  terminalRunner,
+  type RunCli,
+  type RunTerminal,
+} from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
 let runCli: RunCli;
+let runTerminal: RunTerminal;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
-const cli = join(import.meta.dir, "..", "index.ts");
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-path-cli-test-")));
   process.env.HOME = tmp;
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
   runCli = cliRunner(tmp);
+  runTerminal = terminalRunner(tmp);
 });
 
 afterAll(async () => {
   restoreEnv();
   await rm(tmp, { recursive: true, force: true });
 });
-
-const runInteractiveCli = async (cwd: string, ...args: string[]): Promise<RunResult> => {
-  const decoder = new TextDecoder();
-  let output = "";
-  let prompt = 0;
-  const child = Bun.spawn([process.execPath, cli, ...args], {
-    cwd,
-    env: {
-      ...process.env,
-      HOME: tmp,
-      NIKSI_HOME: join(tmp, "niksi-home"),
-      CI: "1",
-      NO_COLOR: "1",
-      TERM: "dumb",
-    },
-    terminal: {
-      data(terminal, data) {
-        output += decoder.decode(data, { stream: true });
-        if (prompt === 0 && output.includes("Add these dependencies?")) {
-          prompt++;
-          terminal.write(" \r");
-        } else if (prompt === 1 && output.includes("Copy primary, helper?")) {
-          prompt++;
-          terminal.write("\r");
-        }
-      },
-    },
-  });
-  const exitCode = await child.exited;
-  child.terminal?.close();
-  output += decoder.decode();
-  return { exitCode, stdout: output, stderr: "" };
-};
 
 test("add --copy --path writes every skill below the destination root and records no agents", async () => {
   const project = join(tmp, "add-project");
@@ -100,8 +74,12 @@ test.each([false, true])(
     await makeSkill(sourceDir, "helper");
     if (critical) await writeFile(join(sourceDir, "helper", "hooks.json"), "{}\n");
 
-    const result = await runInteractiveCli(
+    const result = await runTerminal(
       project,
+      [
+        { on: "Add these dependencies?", send: " \r" },
+        { on: "Copy primary, helper?", send: "\r" },
+      ],
       "add",
       sourceDir,
       "primary",

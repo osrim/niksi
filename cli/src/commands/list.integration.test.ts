@@ -30,6 +30,7 @@ test("list --global --json reports the legacy lockfile it read", async () => {
       NIKSI_HOME: undefined,
       CI: "1",
       NO_COLOR: "1",
+      FORCE_COLOR: undefined,
       TERM: "dumb",
     },
     stdout: "pipe",

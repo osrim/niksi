@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import type { AgentId } from "../core/install/agents.ts";
-import { applySkill } from "../core/install/apply.ts";
+import { applySkill, PlacementError, type Applied } from "../core/install/apply.ts";
 import { installDestination, type InstalledSkill } from "../core/install/destination.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { sourceFor, type Source } from "../core/source/index.ts";
@@ -10,7 +10,7 @@ import { IntegrityError } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { failNoTTY, isInteractive, unwrap, withSpinner } from "./prompt.ts";
 import { logError, logSkillError } from "./report.ts";
-import { warnRestored } from "./status.ts";
+import { warnLeftover, warnRestored } from "./status.ts";
 import { skillName } from "./style.ts";
 import { hideLinksFromGit } from "./destination.ts";
 
@@ -40,7 +40,7 @@ export const restoreSkill = async (
   entry: InstalledSkill,
   scope: Scope,
   agents: AgentId[],
-): Promise<{ restored: boolean }> => {
+): Promise<Applied> => {
   const destination = await installDestination(entry, scope, agents);
   const source = sourceFor(entry.source);
   return applySkill(
@@ -99,6 +99,7 @@ interface Landing<T> {
 interface LandingResult {
   success: string;
   restored?: boolean;
+  leftovers?: string[];
 }
 
 export const land = async <T>({
@@ -124,11 +125,15 @@ export const land = async <T>({
           )
         : await apply(item);
       if (result.restored) warnRestored(name(item));
+      for (const leftover of result.leftovers ?? []) warnLeftover(name(item), leftover);
       if (!message) p.log.success(`${skillName(name(item))}: ${result.success}`);
       applied++;
     } catch (e) {
       if (onError) onError(item, e);
       else logSkillError(name(item), e);
+      if (e instanceof PlacementError) {
+        for (const leftover of e.leftovers) warnLeftover(name(item), leftover);
+      }
       failed++;
     }
   }

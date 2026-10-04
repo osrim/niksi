@@ -1,8 +1,9 @@
-import { dirname, resolve } from "node:path";
-import { mkdir, rm } from "node:fs/promises";
+import { resolve } from "node:path";
+import { rm } from "node:fs/promises";
 import { childPath, projectRoot } from "../paths.ts";
-import { writeFiles, type SkillFile } from "../skill/files.ts";
+import type { SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
+import { replaceDir } from "./replace.ts";
 import { present, realpathOrNearest, relativeInside, unmanagedError } from "./target.ts";
 
 const projectRelativePath = async (path: string): Promise<string> => {
@@ -47,12 +48,10 @@ export const writePathCopy = async (
   files: SkillFile[],
   copyPath: string,
   managed: boolean,
-): Promise<void> => {
+): Promise<string | undefined> => {
   const target = await pathCopyTarget(name, copyPath);
   if (!managed) await refuseUnmanagedPathCopy(name, copyPath);
-  await mkdir(dirname(target), { recursive: true });
-  await rm(target, { recursive: true, force: true });
-  await writeFiles(target, files);
+  return replaceDir(target, files);
 };
 
 export const removePathCopy = async (name: string, copyPath: string): Promise<void> =>

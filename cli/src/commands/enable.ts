@@ -68,9 +68,9 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
     items: selected,
     name: ({ name }) => name,
     apply: async (entry) => {
-      const { restored } = await restoreSkill(entry, scope, agents);
+      const applied = await restoreSkill(entry, scope, agents);
       delete loaded.lock.skills[entry.name]!.disabled;
-      return { restored, success: `enabled @ ${displayLabel(entry)}` };
+      return { ...applied, success: `enabled @ ${displayLabel(entry)}` };
     },
     onError: (entry, error) => reportRestoreError(entry.name, error),
     spinner: (entry) => `Enabling ${skillName(entry.name)}`,

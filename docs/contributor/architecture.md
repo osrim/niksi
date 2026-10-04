@@ -26,7 +26,7 @@ cli/src/
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
   commands/          add, install, update, remove, list, disable, enable, prune
-  ui/                prompts, gate, pager, reports, help, status, destination choices, legacy migration notice
+  ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
@@ -36,7 +36,7 @@ cli/src/
     source/          coordinates, Git and local sources, revisions, upstream
     skill/           files, frontmatter, integrity, dependency mentions
     scan/            scan rules, findings, and per-rule fixtures
-    install/         scope, agents, store, target checks, links, path copies, destination, lockfile, ski layout migration
+    install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, ski layout migration
 ```
 
 `core/source/` and `core/install/` are siblings. Runtime imports point from `install/` to `source/` only. Source adapters may type-import installed skill data. Commands and UI combine the two.
@@ -47,7 +47,7 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 
 | command | uses |
 | --- | --- |
-| `add` | `fetchSkillFiles`, `confirm`, `land` |
+| `add` | `fetchSkillFiles` through `ui/review.ts`, `confirm`, `land` |
 | `update` | `land` |
 | `remove` | `confirm`, `land` |
 | `install` | `restoreSkill`, `land` |
@@ -69,7 +69,26 @@ Links use `core/install/link.ts`. Path copies use `core/install/path-copy.ts`. B
 
 A path copy does not create a canonical copy or agent link. The store is a cache. Installed skills do not depend on it.
 
+## Recovery boundary
+
+Canonical copies, agent copies, and path copies are written by `replaceDir` in `core/install/replace.ts`. `link.ts` and `path-copy.ts` resolve the directory and refuse unmanaged or unsafe targets first.
+
+`replaceDir` writes the new files into a work directory beside the target, so every rename stays on one filesystem. It then moves the old directory into the work directory and moves the new one into place.
+
+- A failure while the files are written leaves the old directory untouched.
+- A failure while the new directory is moved into place moves the old one back. If that also fails, the error names the work directory that holds the old files.
+- A failed new install leaves no directory at the target.
+- When the work directory cannot be removed after a replacement, the replacement still counts. `applySkill` returns the path, and `land` reports it as a warning. When a later placement of the same skill fails, `applySkill` throws a `PlacementError` that carries the paths, and `land` still reports them.
+
+The guarantee covers one directory. `applySkill` records the new integrity only after every placement of the skill is written. When a later placement fails, earlier placements keep the new files and the lockfile entry keeps the old integrity. `land` continues with the next item and writes the lockfile. Links, the store, and the lockfile are not part of this guarantee. Neither are crash recovery and concurrent writers.
+
 ## Review gate
+
+`add` reviews new skills through `reviewNewSkills` in `ui/review.ts`. It fetches the selected skills and passes them through the gate. It then offers the dependencies that the approved skills mention, and passes accepted dependencies through the gate, until nothing new is mentioned. It returns the approved skills and the names of declined and blocked skills. `add` keeps selection, destination policy, the write confirmation, and `land`.
+
+Each mention is offered at most once per run. A recorded skill is never offered. A declined or blocked dependency does not remove its approved parent. Dependencies are offered only in a terminal without `yes`. Otherwise they are reported with the `nik add` command that adds them.
+
+Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 
 New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes` and `dangerousSkipCriticalApproval`. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. Only `blocked`, a critical finding without a terminal or the dangerous flag, sets exit code `3`.
 

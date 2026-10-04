@@ -56,16 +56,30 @@ const refuseAgentTargets = async (
   }
 };
 
-export const applySkill = async (
-  plan: ApplyPlan,
-  destination: Destination,
-): Promise<{ integrity: string; restored: boolean }> => {
+export class PlacementError extends Error {
+  constructor(
+    cause: unknown,
+    readonly leftovers: string[],
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+  }
+}
+
+export interface Applied {
+  integrity: string;
+  restored: boolean;
+  leftovers: string[];
+}
+
+export const applySkill = async (plan: ApplyPlan, destination: Destination): Promise<Applied> => {
   if (destination.kind === "path-copy") {
     if (destination.scope !== "project") throw new Error("Path copies require project scope.");
     if (!destination.managed) await refuseUnmanagedPathCopy(plan.name, destination.root);
     if (destination.managed && plan.integrity !== undefined) {
       const state = await pathCopyState(plan.name, plan.integrity, destination.root);
-      if (!state.missing && !state.modified) return { integrity: plan.integrity, restored: false };
+      if (!state.missing && !state.modified) {
+        return { integrity: plan.integrity, restored: false, leftovers: [] };
+      }
     }
   } else {
     const managed = destination.kind === "agent-copy" ? destination.managed : [];
@@ -87,22 +101,31 @@ export const applySkill = async (
     integrity,
   };
 
-  if (destination.kind === "link") {
-    await writeCanonical(plan.name, files, destination.scope);
-    for (const agent of destination.agents) await linkSkill(plan.name, destination.scope, agent);
-  } else if (destination.kind === "agent-copy") {
-    const { agents, managed, scope } = destination;
-    for (const agent of agents) {
-      await copySkill(plan.name, files, scope, agent, managed.includes(agent));
+  const leftovers: string[] = [];
+  const collect = (leftover: string | undefined): void => {
+    if (leftover !== undefined) leftovers.push(leftover);
+  };
+  try {
+    if (destination.kind === "link") {
+      collect(await writeCanonical(plan.name, files, destination.scope));
+      for (const agent of destination.agents) await linkSkill(plan.name, destination.scope, agent);
+    } else if (destination.kind === "agent-copy") {
+      const { agents, managed, scope } = destination;
+      for (const agent of agents) {
+        collect(await copySkill(plan.name, files, scope, agent, managed.includes(agent)));
+      }
+      Object.assign(entry, {
+        copy: true,
+        agents: [...new Set([...managed, ...agents])],
+      });
+    } else {
+      collect(await writePathCopy(plan.name, files, destination.root, destination.managed));
+      Object.assign(entry, { copy: true, copyPath: destination.root });
     }
-    Object.assign(entry, {
-      copy: true,
-      agents: [...new Set([...managed, ...agents])],
-    });
-  } else {
-    await writePathCopy(plan.name, files, destination.root, destination.managed);
-    Object.assign(entry, { copy: true, copyPath: destination.root });
+  } catch (e) {
+    if (leftovers.length > 0) throw new PlacementError(e, leftovers);
+    throw e;
   }
   if (destination.lock) destination.lock.skills[plan.name] = entry;
-  return { integrity, restored };
+  return { integrity, restored, leftovers };
 };

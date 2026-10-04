@@ -1,5 +1,5 @@
 import * as p from "@clack/prompts";
-import { applySkill } from "../core/install/apply.ts";
+import { applySkill, type Applied } from "../core/install/apply.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { addDestination } from "../core/install/destination.ts";
 import { normalizeCopyPath } from "../core/install/path-copy.ts";
@@ -24,14 +24,14 @@ import {
 } from "../core/source/index.ts";
 import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
 import { usageError, USAGE_ERROR } from "../core/usage.ts";
-import { resolveDeps, type DepsContext } from "../ui/deps.ts";
-import { confirm, fetchSkillFiles, land, type SkillFiles } from "../ui/flow.ts";
-import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
+import { confirm, land } from "../ui/flow.ts";
+import { confirmWrite, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { fail } from "../ui/prompt.ts";
-import { logSourceCaution, logWarn } from "../ui/report.ts";
+import { logWarn } from "../ui/report.ts";
+import { reviewNewSkills } from "../ui/review.ts";
 import { skillName, tildify } from "../ui/style.ts";
 import {
   chooseAgents,
@@ -135,15 +135,18 @@ export const run = async (
     return;
   }
 
-  const ctx: DepsContext = {
-    source: scopedSource,
-    rev: rev.commit,
-    skills,
-    lock: loaded.lock,
-    scope,
-    options,
-  };
-  const approved = picked.skills.length > 0 ? await approveNew(picked.skills, ctx) : [];
+  const { approved } =
+    picked.skills.length > 0
+      ? await reviewNewSkills({
+          source: scopedSource,
+          rev: rev.commit,
+          skills,
+          selected: picked.skills,
+          lock: loaded.lock,
+          scope,
+          options,
+        })
+      : { approved: [] };
   if (approved.length === 0 && picked.extend.length === 0) {
     p.outro("Nothing selected.");
     return;
@@ -278,23 +281,6 @@ const resolveSource = async (source: Source, coordinate: Coordinate): Promise<Fe
   return { rev, skills };
 };
 
-const approveNew = async (skills: DiscoveredSkill[], ctx: DepsContext): Promise<SkillFiles[]> => {
-  logSourceCaution();
-  const review = await reviewSkills(
-    (await fetchSkillFiles(ctx.source, ctx.rev, skills)).map(({ skill, files }) => ({
-      name: skill.name,
-      files,
-      warnings: skill.warnings ?? [],
-      skill,
-    })),
-    ctx.options,
-  );
-  if (review.approved.length === 0) return [];
-  const approved = review.approved.map(({ skill, files }) => ({ skill, files }));
-  const deps = await resolveDeps(ctx, approved);
-  return [...approved, ...deps.added];
-};
-
 interface AddContext {
   source: Source;
   rev: Revision;
@@ -311,8 +297,8 @@ const addSkill = async (
   skill: DiscoveredSkill,
   files: SkillFile[],
   context: AddContext,
-): Promise<{ integrity: string; restored: boolean; success: string }> => {
-  const { integrity, restored } = await applySkill(
+): Promise<Applied & { success: string }> => {
+  const applied = await applySkill(
     {
       name: skill.name,
       source: context.source.id,
@@ -322,16 +308,16 @@ const addSkill = async (
     },
     addDestination(context.lock.skills[skill.name], context),
   );
-  const label = shownLabel(context.ref, { ...context.rev, integrity });
-  return { restored, integrity, success: `${context.mode.landed} @ ${label}` };
+  const label = shownLabel(context.ref, { ...context.rev, integrity: applied.integrity });
+  return { ...applied, success: `${context.mode.landed} @ ${label}` };
 };
 
 const extendSkill = async (
   { skill, agents }: Extension,
   context: AddContext,
-): Promise<{ integrity: string; restored: boolean; success: string }> => {
+): Promise<Applied & { success: string }> => {
   const entry = context.lock.skills[skill.name]!;
-  const { restored } = await applySkill(
+  const applied = await applySkill(
     {
       name: skill.name,
       source: context.source.id,
@@ -344,7 +330,7 @@ const extendSkill = async (
   );
   const label = displayLabel(entry);
   return {
-    restored,
+    ...applied,
     integrity: entry.integrity,
     success: `${context.mode.extended} into ${agents.join(", ")} @ ${label}`,
   };

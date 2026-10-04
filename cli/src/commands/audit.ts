@@ -59,11 +59,11 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
       audit.disabled.push(skill.name);
       continue;
     }
-    if (!locationPresent(await locationOf(skill, scope))) {
-      audit.missing.push(skill.name);
-      continue;
-    }
     try {
+      if (!locationPresent(await locationOf(skill, scope))) {
+        audit.missing.push(skill.name);
+        continue;
+      }
       const files = await readDirFiles(await installedPath(skill, scope));
       audit.scanned.push({ skill, findings: runScanners({ name: skill.name, files }) });
     } catch (cause) {

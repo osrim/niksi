@@ -10,6 +10,7 @@ export interface LockEntry {
   source: string;
   branch?: string;
   path: string;
+  root?: string;
   commit?: string;
   integrity: string;
   track: "auto" | "pin";
@@ -72,6 +73,7 @@ interface SerializedEntry {
   source: string;
   branch?: string | undefined;
   path: string;
+  root?: string | undefined;
   commit?: string | undefined;
   integrity: string;
   track: "auto" | "pin";
@@ -91,6 +93,7 @@ export const serializeLock = (lock: Lockfile): string => {
       source: entry.source,
       branch: entry.branch,
       path: entry.path,
+      root: entry.root,
       commit: entry.commit,
       integrity: entry.integrity,
       track: entry.track,
@@ -115,6 +118,9 @@ const SOURCE_SHAPES = [
   /^(?:[^-@/:][^@/:]*@)?(?:\[[^\]-][^\]]*\]|[^-@/:[][^@/:]*):(?!:|\/\/)./u,
 ];
 
+const hasNormalizedSegments = (path: string): boolean =>
+  path.split("/").every((segment) => !["", ".", ".."].includes(segment));
+
 // Zod reports the first invalid key. Check specific errors before generic fields.
 const EntrySchema = z
   .object({
@@ -129,6 +135,12 @@ const EntrySchema = z
     }),
     branch: z.string().optional(),
     path: z.string(),
+    root: z
+      .string()
+      .refine(hasNormalizedSegments, {
+        error: "root must be a normalized directory inside the source",
+      })
+      .optional(),
     commit: z
       .string()
       .regex(COMMIT, { error: "commit must be a 40- or 64-character lowercase hex hash" })
@@ -148,7 +160,7 @@ const EntrySchema = z
           (!path.includes("\\") &&
             !posix.isAbsolute(path) &&
             !win32.isAbsolute(path) &&
-            path.split("/").every((segment) => !["", ".", ".."].includes(segment))),
+            hasNormalizedSegments(path)),
         { error: "Use a normalized project-relative destination root for copyPath" },
       )
       .optional(),
@@ -200,6 +212,7 @@ export const parseLock = (text: string, file: string): Lockfile => {
       source: entry.source,
       ...(entry.branch === undefined ? {} : { branch: entry.branch }),
       path: entry.path,
+      ...(entry.root === undefined ? {} : { root: entry.root }),
       ...(entry.commit === undefined ? {} : { commit: entry.commit }),
       integrity: entry.integrity,
       track: entry.track,

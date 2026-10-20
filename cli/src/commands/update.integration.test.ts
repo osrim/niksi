@@ -182,3 +182,68 @@ test("a lockfile commit shaped as a git option stops update before git runs", as
     expect(await readFile(fixture.lockPath, "utf8")).toBe(planted);
   }
 });
+
+test("a skill added from a forge URL subtree keeps its root, and the dependency hint resolves under it", async () => {
+  const forge = "https://github.com/o/plugin-collection";
+  const repo = join(tmp, "plugin-collection");
+  const project = join(tmp, "rooted-project");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(join(repo, "plugins", "x"), "primary", "version one\n");
+  await makeSkill(join(repo, "plugins", "x"), "helper");
+  await makeSkill(join(repo, "plugins", "y"), "friend");
+  await initRepo(repo);
+  await commitAll(repo, "version one");
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${pathToFileURL(repo).href}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    const lockPath = join(project, "niksi-lock.json");
+    const added = await runCli(
+      project,
+      "add",
+      `${forge}/tree/main/plugins/x`,
+      "primary",
+      ...LINK,
+      "--yes",
+    );
+    expect(added.exitCode).toBe(0);
+    expect((await readSkills(lockPath)).primary).toMatchObject({
+      source: forge,
+      path: "plugins/x/primary",
+      root: "plugins/x",
+      track: "auto",
+    });
+
+    await makeSkill(join(repo, "plugins", "x"), "primary", "Use /helper and /friend.\n");
+    const upstreamCommit = await commitAll(repo, "mention dependencies");
+    const updated = await runCli(project, "update", "--all", "--yes");
+    expect(updated.exitCode).toBe(0);
+    expect((await readSkills(lockPath)).primary).toMatchObject({
+      commit: upstreamCommit,
+      root: "plugins/x",
+    });
+    expect(updated.stdout).not.toContain("mentions friend");
+    const hint = /Add them: nik add (\S+) (.+)$/mu.exec(updated.stdout);
+    expect(hint?.slice(1)).toEqual([`${forge}/tree/main/plugins/x`, "helper"]);
+
+    const pasted = await runCli(project, "add", hint![1]!, hint![2]!, ...LINK, "--yes");
+    expect(pasted.exitCode).toBe(0);
+    expect((await readSkills(lockPath)).helper).toMatchObject({
+      path: "plugins/x/helper",
+      root: "plugins/x",
+    });
+
+    await writeFile(join(repo, "README.md"), "moved\n");
+    const movedCommit = await commitAll(repo, "readme only");
+    expect((await runCli(project, "update", "--all", "--yes")).exitCode).toBe(0);
+    expect((await runCli(project, "disable", "primary", "--yes")).exitCode).toBe(0);
+    expect((await runCli(project, "enable", "primary", ...LINK, "--yes")).exitCode).toBe(0);
+    const after = await readSkills(lockPath);
+    expect(after.primary).toMatchObject({ commit: movedCommit, root: "plugins/x" });
+    expect(after.primary?.disabled).toBeUndefined();
+    expect(after.helper).toMatchObject({ commit: movedCommit, root: "plugins/x" });
+  } finally {
+    restore();
+  }
+});

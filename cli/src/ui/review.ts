@@ -2,7 +2,7 @@ import type { Lockfile } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
-import type { Source } from "../core/source/index.ts";
+import { coordinateFor, type Source } from "../core/source/index.ts";
 import { clackDecisions, type Decisions, type DependencyOffer } from "./decisions.ts";
 import { reportNotInstalled, warnMentions } from "./deps.ts";
 import { fetchSkillFiles, type SkillFiles } from "./flow.ts";
@@ -74,7 +74,7 @@ const expandDependencies = async (
     for (const dep of missing) offered.add(dep.name);
 
     if (!interactive) {
-      reportNotInstalled(missing, request.source.id, request.scope);
+      reportNotInstalled(missing, coordinateFor(request.source.id), request.scope);
       return;
     }
     warnMentions(missing, "not installed");

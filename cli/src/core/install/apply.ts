@@ -19,6 +19,7 @@ interface ApplyPlan {
   name: string;
   source: string;
   path: string;
+  root?: string | undefined;
   revision: Revision;
   integrity?: string;
   files: () => Promise<SkillFile[]>;
@@ -97,6 +98,7 @@ export const applySkill = async (plan: ApplyPlan, destination: Destination): Pro
   const entry: LockEntry = {
     source: plan.source,
     path: plan.path,
+    ...(plan.root ? { root: plan.root } : {}),
     ...plan.revision,
     integrity,
   };

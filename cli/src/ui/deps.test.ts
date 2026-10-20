@@ -91,6 +91,42 @@ describe("reportUpdateDeps", () => {
     expect(lock.skills).toEqual({});
   });
 
+  test("a recorded discovery root scopes the check and the add hint to that subtree", async () => {
+    const collection = join(tmp, "collection");
+    await makeSkill(join(collection, "plugins", "x"), "primary", "Use /helper and /friend.\n");
+    await makeSkill(join(collection, "plugins", "x"), "helper");
+    await makeSkill(join(collection, "plugins", "y"), "other", "Use /friend.\n");
+    await makeSkill(join(collection, "plugins", "y"), "friend");
+    const plugins = new LocalSource(collection);
+    const rooted = (name: string, root: string): OutdatedVerdict => {
+      const base = verdict(name, plugins);
+      return { ...base, skill: { ...base.skill, path: `${root}/${name}`, root } };
+    };
+
+    await reportUpdateDeps(
+      [
+        {
+          verdict: rooted("primary", "plugins/x"),
+          files: await plugins.fetchFiles(undefined, "plugins/x/primary"),
+          diff: noDiff,
+        },
+        {
+          verdict: rooted("other", "plugins/y"),
+          files: await plugins.fetchFiles(undefined, "plugins/y/other"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      "global",
+    );
+
+    const text = printed();
+    expect(text).toContain("primary mentions helper at SKILL.md:5. not installed.");
+    expect(text).not.toContain("primary mentions friend");
+    expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "x")} helper -g`);
+    expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "y")} friend -g`);
+  });
+
   test("a source that cannot be read skips the check with a warning", async () => {
     const gone = new LocalSource(join(tmp, "missing"));
 

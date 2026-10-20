@@ -5,7 +5,7 @@ import type { SkillFile } from "../core/skill/files.ts";
 import type { Lockfile } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
-import { coordinateFor, type Changes } from "../core/source/index.ts";
+import { discoveryCoordinate, type Changes } from "../core/source/index.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
@@ -19,10 +19,14 @@ export const warnMentions = (missing: MissingDep[], note: string): void => {
   }
 };
 
-export const reportNotInstalled = (missing: MissingDep[], sourceId: string, scope: Scope): void => {
+export const reportNotInstalled = (
+  missing: MissingDep[],
+  coordinate: string,
+  scope: Scope,
+): void => {
   warnMentions(missing, "not installed");
   p.log.info(
-    `Add them: ${dim(`nik add ${coordinateFor(sourceId)} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
+    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );
 };
 
@@ -32,10 +36,13 @@ export interface UpdatedFiles {
   diff: Changes;
 }
 
-const discoveryKey = (verdict: OutdatedVerdict): string =>
-  verdict.source.kind === "local"
-    ? verdict.skill.source
-    : `${verdict.skill.source}@${verdict.upstream.commit}`;
+const discoveryKey = ({ source, skill, upstream }: OutdatedVerdict): string =>
+  JSON.stringify([
+    skill.source,
+    source.kind === "local" ? null : upstream.commit,
+    skill.branch,
+    skill.root,
+  ]);
 
 export const reportUpdateDeps = async (
   updated: UpdatedFiles[],
@@ -49,7 +56,7 @@ export const reportUpdateDeps = async (
     try {
       known = await withSpinner(
         `Checking ${source.display} for dependencies`,
-        () => source.discover(upstream.commit),
+        () => source.discover(upstream.commit, skill.root),
         () => null,
       );
     } catch (e) {
@@ -61,6 +68,6 @@ export const reportUpdateDeps = async (
       known.map((candidate) => candidate.name),
       (name) => lock.skills[name] !== undefined,
     );
-    if (missing.length > 0) reportNotInstalled(missing, skill.source, scope);
+    if (missing.length > 0) reportNotInstalled(missing, discoveryCoordinate(skill), scope);
   }
 };

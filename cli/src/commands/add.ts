@@ -24,6 +24,7 @@ import {
 } from "../core/source/index.ts";
 import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
 import { usageError, USAGE_ERROR } from "../core/usage.ts";
+import { readOtherScopeLock } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import { confirmWrite, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -144,6 +145,7 @@ export const run = async (
           skills,
           selected: picked.skills,
           lock: loaded.lock,
+          other: await readOtherScopeLock(scope),
           scope,
           options,
         })

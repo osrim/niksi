@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { $ } from "bun";
+import { emptyLock, type Lockfile } from "./core/install/lockfile.ts";
 
 const cli = join(import.meta.dir, "index.ts");
 
@@ -90,6 +91,19 @@ export const makeSkill = async (
   const dir = join(root, name);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: test\n---\n${body}`);
+};
+
+export const recordedLock = (source: string, ...names: string[]): Lockfile => {
+  const lock = emptyLock();
+  for (const name of names) {
+    lock.skills[name] = {
+      source,
+      path: name,
+      integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      track: "auto",
+    };
+  }
+  return lock;
 };
 
 export const initRepo = async (repo: string): Promise<void> => {

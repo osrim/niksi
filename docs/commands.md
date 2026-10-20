@@ -49,6 +49,7 @@ git@github.com:owner/repo.git     clone URL
 - `add` offers to review missing dependencies mentioned by approved skills. With
   `--yes` or without a terminal, it prints a `nik add` command instead. This
   command uses the same discovery root.
+- `add` skips a mentioned skill that the current scope records or that the other scope records as enabled. When the other scope records it, `add` names that scope.
 - `--copy` writes a real directory instead of a link. To switch a skill between link and copy, remove it and add it again.
 - In project scope, a local directory outside the project root, or a symlink to one, is recorded by a path that other machines cannot resolve. `add` warns and asks before it records it. `-y` answers yes. Use `--copy` to put the files in the project, or `-g` to install for this machine only.
 - `--path <directory>` writes each selected skill to `<directory>/<skill name>`. It requires `--copy` and selects project scope. It skips agent selection.
@@ -95,6 +96,7 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
   For remote sources, the command uses the recorded branch. If absent, it uses
   `pinnedAs`, `tag`, or `commit`, in that order. Without any of these, `update`
   reports that it cannot generate the command.
+- A dependency that the current scope records, or that the other scope records as enabled, is not missing. When the other scope records it, `update` names that scope.
 - Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.
 - `update` compares and updates each path copy at its recorded project-relative destination.
 - `update` does not check disabled skills. It names them in one info line. If you name a disabled skill, `update` exits `1` and names `nik enable`.

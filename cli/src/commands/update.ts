@@ -22,7 +22,7 @@ import {
   type MovedVerdict,
   type UpdatableVerdict,
 } from "../core/source/upstream.ts";
-import { reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
+import { readOtherScopeLock, reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
 import { land } from "../ui/flow.ts";
 import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -137,7 +137,7 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
     return;
   }
   const approved = prepared.flatMap((item) => (item.kind === "update" ? [item.updated] : []));
-  await reportUpdateDeps(approved, loaded.lock, scope);
+  await reportUpdateDeps(approved, loaded.lock, await readOtherScopeLock(scope), scope);
 
   const proceed = await confirmWrite(
     `Update ${prepared.map((item) => skillName(updateName(item))).join(", ")} (${scope})?`,

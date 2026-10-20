@@ -10,15 +10,16 @@ import {
   test,
 } from "bun:test";
 import * as p from "@clack/prompts";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emptyLock } from "../core/install/lockfile.ts";
+import { emptyLock, serializeLock, type Lockfile } from "../core/install/lockfile.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
-import { makeSkill } from "../test-cli.ts";
+import { makeSkill, recordedLock } from "../test-cli.ts";
+import { captureEnv } from "../test-env.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { reportNotInstalled, reportUpdateDeps } from "./deps.ts";
+import { readOtherScopeLock, reportNotInstalled, reportUpdateDeps } from "./deps.ts";
 
 let tmp: string;
 let source: LocalSource;
@@ -66,6 +67,8 @@ const verdict = (name: string, from = source): OutdatedVerdict => ({
 
 const noDiff = { stat: "", patch: "" };
 
+const recorded = (...names: string[]): Lockfile => recordedLock(source.id, ...names);
+
 test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
   reportNotInstalled(
     [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
@@ -92,6 +95,7 @@ describe("reportUpdateDeps", () => {
         },
       ],
       lock,
+      { scope: "project", enabled: emptyLock() },
       "global",
     );
 
@@ -128,6 +132,7 @@ describe("reportUpdateDeps", () => {
         },
       ],
       emptyLock(),
+      { scope: "project", enabled: emptyLock() },
       "global",
     );
 
@@ -138,17 +143,69 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "y")} friend -g`);
   });
 
+  test("a dependency recorded in the global scope is not reported missing in a project update", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("primary"),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "global", enabled: recorded("helper") },
+      "project",
+    );
+
+    const text = printed();
+    expect(text).toContain("primary mentions helper, recorded in global scope.");
+    expect(text).toContain(`Add them: nik add ${tmp} other\n`);
+  });
+
   test("a source that cannot be read skips the check with a warning", async () => {
     const gone = new LocalSource(join(tmp, "missing"));
 
     await reportUpdateDeps(
       [{ verdict: verdict("primary", gone), files: [], diff: noDiff }],
       emptyLock(),
+      { scope: "global", enabled: emptyLock() },
       "project",
     );
 
     expect(printed()).toContain(
       `${join(tmp, "missing")}: dependency check skipped. no such directory: ${join(tmp, "missing")}`,
     );
+  });
+});
+
+describe("readOtherScopeLock", () => {
+  const restoreEnv = captureEnv("NIKSI_HOME");
+  let home: string;
+
+  beforeEach(async () => {
+    home = await mkdtemp(join(tmp, "home-"));
+    process.env.NIKSI_HOME = home;
+  });
+
+  afterEach(() => {
+    restoreEnv();
+  });
+
+  test("a project scope reads the enabled global entries", async () => {
+    const lock = recorded("helper", "off");
+    lock.skills["off"]!.disabled = true;
+    await writeFile(join(home, "niksi-lock.json"), serializeLock(lock));
+
+    expect(await readOtherScopeLock("project")).toEqual({
+      scope: "global",
+      enabled: recorded("helper"),
+    });
+  });
+
+  test("an unreadable lockfile counts nothing and warns", async () => {
+    await mkdir(join(home, "niksi-lock.json"));
+
+    expect(await readOtherScopeLock("project")).toEqual({ scope: "global", enabled: emptyLock() });
+    expect(printed()).toContain("Dependency check ignores global scope.");
   });
 });

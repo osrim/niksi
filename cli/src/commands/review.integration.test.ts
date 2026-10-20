@@ -190,3 +190,31 @@ test("a critical fixture blocks a linked add and a changed-content update unless
   expect(updated.stdout).toContain("curl-pipe-shell");
   expect(await readFile(join(installed, "SKILL.md"), "utf8")).toContain("version two");
 });
+
+test("a project add and update skip a dependency installed globally and name its scope", async () => {
+  const project = join(tmp, "deps-project");
+  const source = join(tmp, "deps-source");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(source, "primary", "Use /helper and /other.\n");
+  await makeSkill(source, "helper");
+  await makeSkill(source, "other");
+  const link = ["--agent", "claude", "--yes"];
+
+  expect((await runCli(project, "add", source, "helper", "-g", ...link)).exitCode).toBe(0);
+  const added = await runCli(project, "add", source, "primary", "-p", ...link);
+
+  expect(added.exitCode).toBe(0);
+  expect(added.stdout).toContain("primary mentions helper, recorded in global scope.");
+  expect(added.stdout).toContain(`Add them: nik add ${source} other\n`);
+  expect(existsSync(join(project, ".claude", "skills", "primary"))).toBe(true);
+  expect(existsSync(join(project, ".claude", "skills", "helper"))).toBe(false);
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
+  expect(Object.keys(lock.skills)).toEqual(["primary"]);
+
+  await makeSkill(source, "primary", "Use /helper and /other.\nversion two\n");
+  const updated = await runCli(project, "update", "--all", "--yes");
+
+  expect(updated.exitCode).toBe(0);
+  expect(updated.stdout).toContain("primary mentions helper, recorded in global scope.");
+  expect(updated.stdout).toContain(`Add them: nik add ${source} other\n`);
+});

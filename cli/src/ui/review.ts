@@ -5,7 +5,12 @@ import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { discoveryCoordinate, type Source } from "../core/source/index.ts";
 import type { Revision } from "../core/source/revision.ts";
 import { clackDecisions, type Decisions, type DependencyOffer } from "./decisions.ts";
-import { reportNotInstalled, warnMentions } from "./deps.ts";
+import {
+  reportNotInstalled,
+  reportRecordedElsewhere,
+  warnMentions,
+  type OtherScopeLock,
+} from "./deps.ts";
 import { fetchSkillFiles, type SkillFiles } from "./flow.ts";
 import { reviewSkills, type ReviewOptions } from "./gate.ts";
 import { isInteractive } from "./prompt.ts";
@@ -19,6 +24,7 @@ export interface ReviewRequest {
   skills: DiscoveredSkill[];
   selected: DiscoveredSkill[];
   lock: Lockfile;
+  other: OtherScopeLock;
   scope: Scope;
   options: ReviewOptions;
 }
@@ -67,13 +73,14 @@ const expandDependencies = async (
   const offered = new Set<string>();
 
   for (;;) {
-    const missing = missingDeps(
+    const mentioned = missingDeps(
       result.approved.map(({ skill, files }) => ({ name: skill.name, files })),
       known,
       (name) => offered.has(name) || request.lock.skills[name] !== undefined,
     );
+    for (const dep of mentioned) offered.add(dep.name);
+    const missing = reportRecordedElsewhere(mentioned, request.other);
     if (missing.length === 0) return;
-    for (const dep of missing) offered.add(dep.name);
 
     if (!interactive) {
       reportNotInstalled(

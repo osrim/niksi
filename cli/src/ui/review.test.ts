@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CRITICAL_EXIT } from "../core/scan/index.ts";
 import { emptyLock, type Lockfile } from "../core/install/lockfile.ts";
+import { otherScope } from "../core/install/scope.ts";
+import type { Scope } from "../core/paths.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { LocalSource } from "../core/source/local-source.ts";
-import { makeSkill } from "../test-cli.ts";
+import { makeSkill, recordedLock } from "../test-cli.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
 import type { Decisions } from "./decisions.ts";
 import type { ReviewOptions } from "./gate.ts";
@@ -81,10 +83,15 @@ const scripted = ({ approve = [], pick = [] }: Script = {}) => {
 interface Run {
   options?: ReviewOptions;
   lock?: Lockfile;
+  scope?: Scope;
+  other?: Lockfile;
   script?: Script;
 }
 
-const review = async (selected: string[], { options = {}, lock, script }: Run = {}) => {
+const review = async (
+  selected: string[],
+  { options = {}, lock, scope = "project", other, script }: Run = {},
+) => {
   const { decisions, asked, offered } = scripted(script);
   const result = await reviewNewSkills(
     {
@@ -94,7 +101,8 @@ const review = async (selected: string[], { options = {}, lock, script }: Run = 
       skills,
       selected: selected.map((name) => skills.find((skill) => skill.name === name)!),
       lock: lock ?? emptyLock(),
-      scope: "project",
+      other: { scope: otherScope(scope), enabled: other ?? emptyLock() },
+      scope,
       options,
     },
     decisions,
@@ -108,18 +116,7 @@ const summary = ({ approved, declined, blocked }: ReviewResult) => ({
   blocked,
 });
 
-const recorded = (...names: string[]): Lockfile => {
-  const lock = emptyLock();
-  for (const name of names) {
-    lock.skills[name] = {
-      source: source.id,
-      path: name,
-      integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-      track: "auto",
-    };
-  }
-  return lock;
-};
+const recorded = (...names: string[]): Lockfile => recordedLock(source.id, ...names);
 
 describe("reviewNewSkills", () => {
   test("an accepted skill without mentions is approved alone", async () => {
@@ -158,6 +155,36 @@ describe("reviewNewSkills", () => {
 
     expect(result.approved).toEqual(["primary"]);
     expect(result.offered).toEqual([]);
+  });
+
+  test("a dependency recorded in the global scope is not offered, and its scope is named", async () => {
+    const result = await review(["primary"], {
+      other: recorded("helper"),
+      script: { pick: ["other"] },
+    });
+
+    expect(result.approved).toEqual(["primary", "other"]);
+    expect(result.offered).toEqual([["other"]]);
+    expect(output.text()).toContain("primary mentions helper, recorded in global scope.");
+  });
+
+  test("a global add does not offer a dependency recorded in the project scope", async () => {
+    const result = await review(["primary"], {
+      scope: "global",
+      other: recorded("helper", "other"),
+    });
+
+    expect(result.offered).toEqual([]);
+    expect(output.text()).toContain("primary mentions other, recorded in project scope.");
+  });
+
+  test("without a terminal a dependency recorded in the global scope is left out of the add command", async () => {
+    setInteractive(false);
+
+    await review(["primary"], { other: recorded("helper") });
+
+    expect(output.text()).toContain("primary mentions helper, recorded in global scope.");
+    expect(output.text()).toContain(`Add them: nik add ${tmp} other\n`);
   });
 
   test("a declined dependency leaves the approved parent", async () => {

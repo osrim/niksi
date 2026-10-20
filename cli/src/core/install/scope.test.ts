@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { USAGE_ERROR } from "../usage.ts";
-import { resolveScope, scopeFlag } from "./scope.ts";
+import { otherScope, resolveScope, scopeFlag } from "./scope.ts";
 
 const noWarn = (): void => {};
 
@@ -26,4 +26,9 @@ test("no flag leaves the scope unresolved", () => {
 test("the global flag adds -g to a suggested command", () => {
   expect(scopeFlag("global")).toBe(" -g");
   expect(scopeFlag("project")).toBe("");
+});
+
+test("each scope names the other", () => {
+  expect(otherScope("global")).toBe("project");
+  expect(otherScope("project")).toBe("global");
 });

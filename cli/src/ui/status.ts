@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
-import { scopeFlag } from "../core/install/scope.ts";
+import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import {
   type MovedVerdict,
   type OutdatedVerdict,
@@ -13,7 +13,7 @@ import { logError, logWarn, warn } from "./report.ts";
 import { bold, dim, skillName, tildify } from "./style.ts";
 
 export const emptyScopeMessage = async (scope: Scope): Promise<string> => {
-  const other: Scope = scope === "project" ? "global" : "project";
+  const other = otherScope(scope);
   const count = Object.keys((await readLock(other)).skills).length;
   const base = `Nothing installed (${scope}).`;
   if (count === 0) return base;

@@ -292,7 +292,7 @@ install -m 755 nik /usr/local/bin/nik
 nik install --agent claude --yes
 ```
 
-`git` must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
+Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity. `CI` disables the update notice and its release check.
 
 `nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
 

@@ -1,6 +1,16 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from "bun:test";
 import { $ } from "bun";
-import { chmod, cp, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK } from "../skill/files.ts";
@@ -254,6 +264,43 @@ test("missing branches and invalid trees use the documented failure values", asy
   expect(headCommit(clone, "missing")).rejects.toThrow("branch missing not found upstream");
   expect(await lsTreeEntries(clone, "missing", "")).toEqual([]);
   expect(await diffSubtree(clone, "missing", firstSha, "")).toBe("");
+});
+
+// Git's --output writes a file, so any probe file shows that a value was read as an option.
+const optionProbe = (): string => `--output=${join(tmp, "probe")}`;
+const probeFiles = async (): Promise<string[]> =>
+  (await readdir(tmp)).filter((name) => name.startsWith("probe"));
+
+test("subtreeOid reads a dash-prefixed revision as a revision", async () => {
+  const clone = await ensureClone(remote);
+  expect(await subtreeOid(clone, optionProbe(), "skills/demo")).toBeNull();
+  expect(await subtreeOid(clone, optionProbe(), "")).toBeNull();
+  expect(await probeFiles()).toEqual([]);
+});
+
+test("lsTreeEntries reads a dash-prefixed revision as a revision", async () => {
+  const clone = await ensureClone(remote);
+  expect(await lsTreeEntries(clone, optionProbe(), "skills/demo")).toEqual([]);
+  expect(await probeFiles()).toEqual([]);
+});
+
+test("diffSubtree reads dash-prefixed revisions as revisions", async () => {
+  const clone = await ensureClone(remote);
+  expect(await diffSubtree(clone, optionProbe(), firstSha, "skills/demo")).toBe("");
+  expect(await diffSubtree(clone, firstSha, optionProbe(), "")).toBe("");
+  expect(await probeFiles()).toEqual([]);
+});
+
+test("findRef reads a dash-prefixed ref as a ref", async () => {
+  const clone = await ensureClone(remote);
+  expect(await findRef(clone, optionProbe())).toBeNull();
+  expect(await probeFiles()).toEqual([]);
+});
+
+test("cloneOrFetch reads a dash-prefixed source as the repository", async () => {
+  const repo = `--upload-pack=touch ${join(tmp, "probe")}`;
+  await expect(cloneOrFetch(repo)).rejects.toThrow(`(repository '${repo}' does not exist)`);
+  expect(await probeFiles()).toEqual([]);
 });
 
 test("an https address maps to the scp-style ssh address of the same repository", () => {

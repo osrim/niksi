@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -164,4 +164,21 @@ test("a moved-only run without selection does not write the lockfile", async () 
   expect(result.exitCode).toBe(2);
   expect(result.stderr).toContain("Pass skill names or --all.");
   expect(await readFile(fixture.lockPath, "utf8")).toBe(before);
+});
+
+test("a lockfile commit shaped as a git option stops update before git runs", async () => {
+  const fixture = await setupUpdate("planted", ["planted"], ["planted"]);
+  const probe = join(tmp, "planted-probe");
+  await mkdir(probe);
+  const lock = JSON.parse(await readFile(fixture.lockPath, "utf8"));
+  lock.skills.planted.commit = `--output=${join(probe, "PWNED")}`;
+  const planted = `${JSON.stringify(lock, null, 2)}\n`;
+  await writeFile(fixture.lockPath, planted);
+
+  for (const args of [["planted"], ["--all", "--yes", "--dangerous-skip-critical-approval"]]) {
+    const result = await runCli(fixture.project, "update", ...args);
+    expect(result.exitCode).toBe(1);
+    expect(await readdir(probe)).toEqual([]);
+    expect(await readFile(fixture.lockPath, "utf8")).toBe(planted);
+  }
 });

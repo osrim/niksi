@@ -49,7 +49,7 @@ Or download a binary from the [latest release](https://github.com/osrim/niksi/re
 ### Requirements
 
 - macOS or Linux. There is no Windows build yet.
-- `git` on your `PATH`.
+- Git 2.30 or later on your `PATH`.
 
 ## Quick start
 

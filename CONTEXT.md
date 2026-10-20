@@ -12,7 +12,7 @@ Use these terms in code, docs, and output.
 | forge URL | Web URL of a repository page, such as `https://github.com/o/r/tree/main/skills`. | browser URL, web link |
 | source | Git repository or local directory that holds a skill. | repo, substrate |
 | source kind | `git` or `local`. | type |
-| source id | String the lockfile stores in `source`: a Git URL, or `local:` followed by a path. | repo, url |
+| source id | String the lockfile stores in `source`: an `https://`, `ssh://`, or `file://` URL, a `user@host:path` address, or `local:` followed by a path. | repo, url |
 | revision | Resolved source state and its track. Git sources include a commit. | version, ref, pin |
 | track | `auto` follows the latest stable tag or the default branch. `pin` stays at the typed ref. | mode, tracking, strategy |
 | commit | Full 40-character Git commit. | ref, hash, SHA |

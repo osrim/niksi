@@ -107,11 +107,12 @@ export const serializeLock = (lock: Lockfile): string => {
 
 const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-// Git reads an argument that starts with `-` as an option, and `<transport>::` runs a helper.
+// Git reads an argument that starts with `-` as an option, and any other scheme or
+// `<transport>::` runs a remote helper.
 const SOURCE_SHAPES = [
   /^local:./u,
-  /^[a-z][a-z0-9+.-]*:\/\/./iu,
-  /^(?:[^-@/:][^@/:]*@)?(?:\[[^\]-][^\]]*\]|[^-@/:[][^@/:]*):(?!:)./u,
+  /^(?:https|ssh|file):\/\/./u,
+  /^(?:[^-@/:][^@/:]*@)?(?:\[[^\]-][^\]]*\]|[^-@/:[][^@/:]*):(?!:|\/\/)./u,
 ];
 
 // Zod reports the first invalid key. Check specific errors before generic fields.
@@ -124,7 +125,7 @@ const EntrySchema = z
       .string({ error: "missing integrity" })
       .regex(/^sha256-[A-Za-z0-9+/]{43}=$/u, { error: "integrity must be sha256-<base64>" }),
     source: z.string().refine((source) => SOURCE_SHAPES.some((shape) => shape.test(source)), {
-      error: "source must be local:<path>, a Git URL, or user@host:path",
+      error: "source must be local:<path>, an https, ssh, or file URL, or user@host:path",
     }),
     branch: z.string().optional(),
     path: z.string(),

@@ -361,13 +361,15 @@ test("parse errors: a source git could read as an option or a non-Git address", 
     "git@-oProxyCommand=x:o/r",
     "git@[-oProxyCommand=x]:o/r",
     "ext::sh -c touch% /tmp/probe/PWNED",
+    "example://repo",
+    "http://github.com/o/r",
     "/tmp/repo",
     "o/r",
     "local:",
     "",
   ]) {
     expect(() => parseLock(lockWith({ source }), "niksi-lock.json")).toThrow(
-      "niksi-lock.json: a: source must be local:<path>, a Git URL, or user@host:path",
+      "niksi-lock.json: a: source must be local:<path>, an https, ssh, or file URL, or user@host:path",
     );
   }
   for (const source of [

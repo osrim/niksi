@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -140,4 +140,19 @@ test("a source fetched once in a run is reused by later calls and other instance
 
   expect((await source.resolve("main")).commit).toBe(rev.commit!);
   expect((await new GitSource(repo).resolve("main")).commit).toBe(rev.commit!);
+});
+
+test("upstream counts commits ahead without reading a dash-prefixed commit as an option", async () => {
+  const commit = `--output=${join(tmp, "probe")}`;
+  const upstream = await new GitSource(repo).upstream({
+    name: "tdd",
+    source: repo,
+    branch: "main",
+    path: "pstack/skills/tdd",
+    commit,
+    integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    track: "auto",
+  });
+  expect(upstream).toMatchObject({ outdated: true, ahead: 0 });
+  expect((await readdir(tmp)).filter((name) => name.startsWith("probe"))).toEqual([]);
 });

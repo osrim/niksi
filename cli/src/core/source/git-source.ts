@@ -64,7 +64,7 @@ export class GitSource implements Source {
     if (outdated) {
       const pathspec = skill.path ? ["--", skill.path] : [];
       const counted = await git(
-        ["rev-list", "--count", `${commit}..${upstream.commit}`, ...pathspec],
+        ["rev-list", "--count", "--end-of-options", `${commit}..${upstream.commit}`, ...pathspec],
         clone,
       );
       ahead = counted.code === 0 ? Number.parseInt(counted.out || "0", 10) : 0;

@@ -44,7 +44,7 @@ const entry = {
 };
 
 const lockWithEntryA = (extra: string): string =>
-  `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
+  `{"lockfileVersion":1,"skills":{"a":{"source":"https://github.com/o/r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
 
 const local = {
   source: "local:./skills/mine",
@@ -315,17 +315,74 @@ test("parse errors: bad version, unparseable JSON, bad track, missing or non-SRI
   );
   expect(() =>
     parseLock(
-      `{"lockfileVersion":1,"skills":{"a":{"source":"r","branch":"main","path":"","sha":"${"a".repeat(40)}","track":"auto"}}}`,
+      `{"lockfileVersion":1,"skills":{"a":{"source":"https://github.com/o/r","branch":"main","path":"","sha":"${"a".repeat(40)}","track":"auto"}}}`,
       "niksi-lock.json",
     ),
   ).toThrow("niksi-lock.json: a: missing integrity");
   expect(() =>
     parseLock(
-      `{"lockfileVersion":1,"skills":{"a":{"source":"r","path":"","integrity":"sha256:${"f".repeat(64)}","track":"auto"}}}`,
+      `{"lockfileVersion":1,"skills":{"a":{"source":"https://github.com/o/r","path":"","integrity":"sha256:${"f".repeat(64)}","track":"auto"}}}`,
       "niksi-lock.json",
     ),
   ).toThrow("niksi-lock.json: a: integrity must be sha256-<base64>");
   expect(parseLock("", "f")).toEqual(emptyLock());
+});
+
+const lockWith = (fields: Record<string, string>): string =>
+  JSON.stringify({
+    lockfileVersion: 1,
+    skills: { a: { source: entry.source, path: "", integrity, track: "auto", ...fields } },
+  });
+
+test("parse errors: a commit git could read as an option or a ref name", () => {
+  for (const commit of [
+    "--output=/tmp/probe/PWNED",
+    "main",
+    "A".repeat(40),
+    "a".repeat(39),
+    "a".repeat(41),
+    "a".repeat(63),
+    "",
+  ]) {
+    expect(() => parseLock(lockWith({ commit }), "niksi-lock.json")).toThrow(
+      "niksi-lock.json: a: commit must be a 40- or 64-character lowercase hex hash",
+    );
+  }
+  for (const commit of ["0".repeat(40), "f".repeat(64)]) {
+    expect(parseLock(lockWith({ commit }), "f").skills["a"]!.commit).toBe(commit);
+  }
+});
+
+test("parse errors: a source git could read as an option or a non-Git address", () => {
+  for (const source of [
+    "--upload-pack=touch /tmp/probe/PWNED",
+    "-oProxyCommand=touch /tmp/probe/PWNED",
+    "-@github.com:o/r",
+    "git@-oProxyCommand=x:o/r",
+    "git@[-oProxyCommand=x]:o/r",
+    "ext::sh -c touch% /tmp/probe/PWNED",
+    "/tmp/repo",
+    "o/r",
+    "local:",
+    "",
+  ]) {
+    expect(() => parseLock(lockWith({ source }), "niksi-lock.json")).toThrow(
+      "niksi-lock.json: a: source must be local:<path>, a Git URL, or user@host:path",
+    );
+  }
+  for (const source of [
+    "https://github.com/o/r",
+    "ssh://git@github.com/o/r.git",
+    "file:///tmp/my repo",
+    "git@github.com:o/r",
+    "github.com:o/r",
+    "git@[::1]:o/r",
+    "deploy+ci@hö.st:o/r",
+    "local:./skills/mine",
+    "local:/tmp/skills",
+  ]) {
+    expect(parseLock(lockWith({ source }), "f").skills["a"]!.source).toBe(source);
+  }
 });
 
 test("projectRoot walks up to the nearest marker", async () => {
@@ -381,7 +438,7 @@ test("projectRoot falls back to cwd when nothing is found", async () => {
 
 test("parse errors: unsafe skill names and inconsistent copy configuration", () => {
   const lock = (name: string, extra = ""): string =>
-    `{"lockfileVersion":1,"skills":{${JSON.stringify(name)}:{"source":"r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
+    `{"lockfileVersion":1,"skills":{${JSON.stringify(name)}:{"source":"https://github.com/o/r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
   expect(() => parseLock(lock(""), "f")).toThrow('f: "": invalid skill name');
   expect(() => parseLock(lock("."), "f")).toThrow('f: ".": invalid skill name');
   expect(() => parseLock(lock(".."), "f")).toThrow('f: "..": invalid skill name');
@@ -399,7 +456,7 @@ test("parse errors: unsafe skill names and inconsistent copy configuration", () 
   );
   expect(parseLock(lock("My_Skill.v2", ',"copy":true,"agents":["claude"]'), "f").skills).toEqual({
     "My_Skill.v2": {
-      source: "r",
+      source: "https://github.com/o/r",
       path: "",
       integrity,
       track: "auto",
@@ -449,9 +506,14 @@ test("placementOf reads exactly one placement from an entry", () => {
 });
 
 test("a lockfile carrying installedAt loads without it and re-serializes without it", () => {
-  const text = `{"lockfileVersion":1,"skills":{"tdd":{"source":"r","path":"","integrity":"${integrity}","track":"auto","installedAt":"2026-08-03T12:00:00Z"}}}`;
+  const text = `{"lockfileVersion":1,"skills":{"tdd":{"source":"https://github.com/o/r","path":"","integrity":"${integrity}","track":"auto","installedAt":"2026-08-03T12:00:00Z"}}}`;
   const parsed = parseLock(text, "niksi-lock.json");
-  expect(parsed.skills["tdd"]).toEqual({ source: "r", path: "", integrity, track: "auto" });
+  expect(parsed.skills["tdd"]).toEqual({
+    source: "https://github.com/o/r",
+    path: "",
+    integrity,
+    track: "auto",
+  });
   expect(serializeLock(parsed)).not.toContain("installedAt");
 });
 
@@ -515,7 +577,7 @@ test("disabled accepts only true, and a lockfile without it parses unchanged", (
   expect(() => parseLock(lockWithEntryA(',"disabled":false'), "f")).toThrow("f: a: ");
   expect(() => parseLock(lockWithEntryA(',"disabled":"yes"'), "f")).toThrow("f: a: ");
   expect(parseLock(lockWithEntryA(""), "f").skills["a"]).toEqual({
-    source: "r",
+    source: "https://github.com/o/r",
     path: "",
     integrity,
     track: "auto",

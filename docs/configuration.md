@@ -147,11 +147,11 @@ The store is a download cache. A lockfile entry installs without the network whe
 
 | field | meaning |
 | --- | --- |
-| `source` | Git URL of the source, or `local:` followed by its path. A directory inside the project root is recorded relative to it. One outside, or a symlink to one, is recorded by a path that other machines cannot resolve, so `add` asks first. |
+| `source` | Git URL or `user@host:path` address of the source, or `local:` followed by its path. A directory inside the project root is recorded relative to it. One outside, or a symlink to one, is recorded by a path that other machines cannot resolve, so `add` asks first. |
 | `path` | Skill directory inside the source. |
 | `integrity` | sha256 of the installed skill files. `install` verifies every file against it. |
 | `track` | `auto` follows the latest stable tag or the branch. `pin` stays at the ref you typed. |
-| `commit` | Installed commit. Absent for local sources. |
+| `commit` | Installed commit, as 40 or 64 lowercase hex characters. Absent for local sources. |
 | `branch` | Default branch of the source, or the branch you pinned. Absent for local sources. |
 | `tag` | Installed tag. |
 | `pinnedAs` | The ref you typed after `@`, when it is not a branch or commit. |

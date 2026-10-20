@@ -105,6 +105,15 @@ export const serializeLock = (lock: Lockfile): string => {
   return `${JSON.stringify({ lockfileVersion: 1, skills }, null, 2)}\n`;
 };
 
+const COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+// Git reads an argument that starts with `-` as an option, and `<transport>::` runs a helper.
+const SOURCE_SHAPES = [
+  /^local:./u,
+  /^[a-z][a-z0-9+.-]*:\/\/./iu,
+  /^(?:[^-@/:][^@/:]*@)?(?:\[[^\]-][^\]]*\]|[^-@/:[][^@/:]*):(?!:)./u,
+];
+
 // Zod reports the first invalid key. Check specific errors before generic fields.
 const EntrySchema = z
   .object({
@@ -114,10 +123,15 @@ const EntrySchema = z
     integrity: z
       .string({ error: "missing integrity" })
       .regex(/^sha256-[A-Za-z0-9+/]{43}=$/u, { error: "integrity must be sha256-<base64>" }),
-    source: z.string(),
+    source: z.string().refine((source) => SOURCE_SHAPES.some((shape) => shape.test(source)), {
+      error: "source must be local:<path>, a Git URL, or user@host:path",
+    }),
     branch: z.string().optional(),
     path: z.string(),
-    commit: z.string().optional(),
+    commit: z
+      .string()
+      .regex(COMMIT, { error: "commit must be a 40- or 64-character lowercase hex hash" })
+      .optional(),
     pinnedAs: z.string().optional(),
     tag: z.string().optional(),
     copy: z.literal(true).optional(),

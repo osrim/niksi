@@ -81,12 +81,12 @@ export const sshAlternate = (repo: string): string | null => {
 
 const cloneTo = async (repo: string, dest: string): Promise<GitResult> => {
   const args = ["clone", "--quiet", "--filter=blob:none", "--no-checkout"];
-  const httpsAttempt = await git([...args, repo, dest]);
+  const httpsAttempt = await git([...args, "--", repo, dest]);
   const sshRepo = httpsAttempt.code === 0 ? null : sshAlternate(repo);
   if (!sshRepo) return httpsAttempt;
   await rm(dest, { recursive: true, force: true });
   // The automatic SSH retry must not request credentials or host-key approval.
-  const sshAttempt = await git([...args, sshRepo, dest], undefined, {
+  const sshAttempt = await git([...args, "--", sshRepo, dest], undefined, {
     GIT_SSH_COMMAND: `${process.env.GIT_SSH_COMMAND ?? "ssh"} -o BatchMode=yes`,
   });
   return sshAttempt.code === 0 ? sshAttempt : httpsAttempt;
@@ -128,7 +128,11 @@ export const subtreeOid = async (
   rev: string,
   path: string,
 ): Promise<string | null> => {
-  const result = await git(["rev-parse", `${rev}:${path}`], clone);
+  // Without --verify, rev-parse prints --end-of-options back.
+  const result = await git(
+    ["rev-parse", "--verify", "--quiet", "--end-of-options", `${rev}:${path}`],
+    clone,
+  );
   return result.code === 0 ? result.out : null;
 };
 
@@ -143,7 +147,7 @@ export const lsTreeEntries = async (
   rev: string,
   path: string,
 ): Promise<TreeEntry[]> => {
-  const args = ["ls-tree", "-r", rev, ...(path ? ["--", path] : [])];
+  const args = ["ls-tree", "-r", "--end-of-options", rev, ...(path ? ["--", path] : [])];
   const result = await git(args, clone);
   if (result.code !== 0) return [];
   return result.out
@@ -188,7 +192,10 @@ export const defaultBranch = async (clone: string): Promise<string> => {
 
 export const findRef = async (clone: string, ref: string): Promise<string | null> => {
   for (const candidate of [`origin/${ref}`, `refs/tags/${ref}^{commit}`, `${ref}^{commit}`]) {
-    const result = await git(["rev-parse", "--verify", "--quiet", candidate], clone);
+    const result = await git(
+      ["rev-parse", "--verify", "--quiet", "--end-of-options", candidate],
+      clone,
+    );
     if (result.code === 0) return result.out;
   }
   return null;
@@ -218,7 +225,10 @@ export const diffSubtree = async (
   path: string,
 ): Promise<string> => {
   const revspec = (rev: string): string => (path ? `${rev}:${path}` : `${rev}^{tree}`);
-  const result = await git(["diff", STAT_ARG, "--patch", revspec(oldRev), revspec(newRev)], clone);
+  const result = await git(
+    ["diff", STAT_ARG, "--patch", "--end-of-options", revspec(oldRev), revspec(newRev)],
+    clone,
+  );
   return result.code === 0 ? result.buf.toString("utf8") : "";
 };
 

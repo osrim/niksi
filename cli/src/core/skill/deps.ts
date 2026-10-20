@@ -65,3 +65,19 @@ export const missingDeps = (
   }
   return [...missing.values()];
 };
+
+export const referrersTo = (survivors: BatchSkill[], targets: string[]): Map<string, string[]> => {
+  const leaving = new Set(targets);
+  const referrers = new Map<string, string[]>();
+  for (const { name, files } of survivors) {
+    if (leaving.has(name)) continue;
+    for (const mention of findMentions(files, name, targets)) {
+      referrers.set(mention.name, [...(referrers.get(mention.name) ?? []), name]);
+    }
+  }
+  return new Map(
+    targets
+      .filter((target) => referrers.has(target))
+      .map((target) => [target, referrers.get(target)!.toSorted()]),
+  );
+};

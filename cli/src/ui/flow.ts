@@ -48,6 +48,7 @@ export const restoreSkill = async (
       name: entry.name,
       source: entry.source,
       path: entry.path,
+      root: entry.root,
       revision: entry,
       integrity: entry.integrity,
       files: () => source.fetchFiles(entry.commit, entry.path),

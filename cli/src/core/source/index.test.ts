@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   coordinateFor,
+  discoveryCoordinate,
   insideProject,
   localSourceId,
   LOCAL_PREFIX,
@@ -14,6 +15,7 @@ import { readDirFiles } from "../skill/files.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import { materialize } from "../install/store.ts";
 import type { InstalledSkill } from "../install/destination.ts";
+import { parseCoordinate } from "./coordinate.ts";
 
 let tmp: string;
 let dir: string;
@@ -180,4 +182,44 @@ test("coordinateFor turns a recorded id back into something nik add accepts", as
   } finally {
     process.chdir(prev);
   }
+});
+
+test("discoveryCoordinate adds the discovery root as a forge URL that parses back to it", () => {
+  const source = "https://github.com/o/r";
+  expect(discoveryCoordinate({ source, branch: "main" })).toBe(source);
+
+  const rooted = discoveryCoordinate({ source, branch: "main", root: "plugins/x" });
+  expect(rooted).toBe("https://github.com/o/r/tree/main/plugins/x");
+  expect(parseCoordinate(rooted!)).toEqual({
+    repo: source,
+    kind: "git",
+    tree: ["main", "plugins", "x"],
+  });
+
+  const encoded = discoveryCoordinate({ source, branch: "release/2.x", root: "plugins/my x" });
+  expect(encoded).toBe("https://github.com/o/r/tree/release/2.x/plugins/my%20x");
+  expect(parseCoordinate(encoded!).tree).toEqual(["release", "2.x", "plugins", "my x"]);
+});
+
+test("a remote discovery root uses a recorded ref when the branch is absent", () => {
+  const source = "https://github.com/o/r";
+  const root = "plugins/x";
+  const commit = "a".repeat(40);
+  expect(discoveryCoordinate({ source, root, pinnedAs: "release/2", tag: "v1", commit })).toBe(
+    "https://github.com/o/r/tree/release/2/plugins/x",
+  );
+  expect(discoveryCoordinate({ source, root, tag: "v1", commit })).toBe(
+    "https://github.com/o/r/tree/v1/plugins/x",
+  );
+  expect(discoveryCoordinate({ source, root, commit })).toBe(
+    `https://github.com/o/r/tree/${commit}/plugins/x`,
+  );
+  expect(discoveryCoordinate({ source, root })).toBeUndefined();
+});
+
+test("discoveryCoordinate joins the discovery root onto a local source directory", () => {
+  expect(discoveryCoordinate({ source: `${LOCAL_PREFIX}/elsewhere/repo`, root: "plugins/x" })).toBe(
+    "/elsewhere/repo/plugins/x",
+  );
+  expect(discoveryCoordinate({ source: `${LOCAL_PREFIX}/elsewhere/repo` })).toBe("/elsewhere/repo");
 });

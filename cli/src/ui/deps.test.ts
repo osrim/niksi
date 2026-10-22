@@ -18,7 +18,7 @@ import { LocalSource } from "../core/source/local-source.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { makeSkill } from "../test-cli.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { reportUpdateDeps } from "./deps.ts";
+import { reportNotInstalled, reportUpdateDeps } from "./deps.ts";
 
 let tmp: string;
 let source: LocalSource;
@@ -66,6 +66,17 @@ const verdict = (name: string, from = source): OutdatedVerdict => ({
 
 const noDiff = { stat: "", patch: "" };
 
+test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
+  reportNotInstalled(
+    [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
+    undefined,
+    "project",
+  );
+  expect(printed()).toContain("primary mentions helper at SKILL.md:5. not installed.");
+  expect(printed()).toContain("Cannot generate a rooted add command without a source revision.");
+  expect(printed()).not.toContain("Add them:");
+});
+
 describe("reportUpdateDeps", () => {
   test("missing dependencies are reported and never installed", async () => {
     setInteractive(true);
@@ -89,6 +100,42 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${tmp} helper other -g`);
     expect(multiselect).not.toHaveBeenCalled();
     expect(lock.skills).toEqual({});
+  });
+
+  test("a recorded discovery root scopes the check and the add hint to that subtree", async () => {
+    const collection = join(tmp, "collection");
+    await makeSkill(join(collection, "plugins", "x"), "primary", "Use /helper and /friend.\n");
+    await makeSkill(join(collection, "plugins", "x"), "helper");
+    await makeSkill(join(collection, "plugins", "y"), "other", "Use /friend.\n");
+    await makeSkill(join(collection, "plugins", "y"), "friend");
+    const plugins = new LocalSource(collection);
+    const rooted = (name: string, root: string): OutdatedVerdict => {
+      const base = verdict(name, plugins);
+      return { ...base, skill: { ...base.skill, path: `${root}/${name}`, root } };
+    };
+
+    await reportUpdateDeps(
+      [
+        {
+          verdict: rooted("primary", "plugins/x"),
+          files: await plugins.fetchFiles(undefined, "plugins/x/primary"),
+          diff: noDiff,
+        },
+        {
+          verdict: rooted("other", "plugins/y"),
+          files: await plugins.fetchFiles(undefined, "plugins/y/other"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      "global",
+    );
+
+    const text = printed();
+    expect(text).toContain("primary mentions helper at SKILL.md:5. not installed.");
+    expect(text).not.toContain("primary mentions friend");
+    expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "x")} helper -g`);
+    expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "y")} friend -g`);
   });
 
   test("a source that cannot be read skips the check with a warning", async () => {

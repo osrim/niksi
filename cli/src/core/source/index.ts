@@ -1,5 +1,5 @@
 import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { projectRoot, type Scope } from "../paths.ts";
 import type { DiscoveredSkill } from "./discover.ts";
 import type { SourceKind, Coordinate } from "./coordinate.ts";
@@ -93,6 +93,18 @@ export const coordinateFor = (sourceId: string): string =>
   sourceId.startsWith(LOCAL_PREFIX)
     ? resolve(projectRoot(), sourceId.slice(LOCAL_PREFIX.length))
     : sourceId;
+
+export const discoveryCoordinate = (
+  skill: Pick<InstalledSkill, "source" | "branch" | "root" | "pinnedAs" | "tag" | "commit">,
+): string | undefined => {
+  const coordinate = coordinateFor(skill.source);
+  if (!skill.root) return coordinate;
+  if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);
+  const ref = skill.branch || skill.pinnedAs || skill.tag || skill.commit;
+  if (!ref) return undefined;
+  const segments = [...ref.split("/"), ...skill.root.split("/")];
+  return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;
+};
 
 export const sourceMatches = (sourceId: string, coordinate: Coordinate): boolean =>
   coordinate.kind === "local"

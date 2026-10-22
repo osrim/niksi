@@ -10,6 +10,7 @@ Use these terms in code, docs, and output.
 | --- | --- | --- |
 | coordinate | User input in the form `owner/repo[/path/to/skill][@ref]` for GitHub, a Git URL, or a local path. | spec, locator, target |
 | forge URL | Web URL of a repository page, such as `https://github.com/o/r/tree/main/skills`. | browser URL, web link |
+| discovery root | Directory within a source that limits the search for skills. | subtree, base directory |
 | source | Git repository or local directory that holds a skill. | repo, substrate |
 | source kind | `git` or `local`. | type |
 | source id | String the lockfile stores in `source`: an `https://`, `ssh://`, or `file://` URL, a `user@host:path` address, or `local:` followed by a path. | repo, url |

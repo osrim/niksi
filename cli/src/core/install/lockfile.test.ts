@@ -597,3 +597,42 @@ test("splitDisabled separates enabled from disabled entries", () => {
   expect(Object.keys(disabled.skills)).toEqual(["beta"]);
   expect(splitDisabled(emptyLock())).toEqual({ enabled: emptyLock(), disabled: emptyLock() });
 });
+
+test("a discovery root round-trips after path, and an entry without one has no root key", async () => {
+  const lock: Lockfile = {
+    lockfileVersion: 1,
+    skills: { tdd: { ...entry, path: "plugins/x/skills/tdd", root: "plugins/x" } },
+  };
+  expect(parseLock(serializeLock(lock), "niksi-lock.json")).toEqual(lock);
+  expect(Object.keys(JSON.parse(serializeLock(lock)).skills.tdd)).toEqual([
+    "source",
+    "branch",
+    "path",
+    "root",
+    "commit",
+    "integrity",
+    "track",
+  ]);
+  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  expect(await readFile(lockPath("global"), "utf8")).not.toContain("root");
+});
+
+test("parse errors: a root that is not a normalized directory inside the source", () => {
+  for (const root of [
+    "",
+    ".",
+    "..",
+    "../x",
+    "plugins/../x",
+    "plugins//x",
+    "plugins/",
+    "/plugins",
+    "C:/plugins",
+    "plugins\\..\\other",
+  ]) {
+    expect(() => parseLock(lockWithEntryA(`,"root":${JSON.stringify(root)}`), "f")).toThrow(
+      "f: a: root must be a normalized directory inside the source",
+    );
+  }
+  expect(parseLock(lockWithEntryA(',"root":"plugins/x"'), "f").skills["a"]!.root).toBe("plugins/x");
+});

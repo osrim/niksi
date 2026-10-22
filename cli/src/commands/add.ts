@@ -105,7 +105,7 @@ export const run = async (
   const source = sourceForCoordinate(parsed);
   const fetched = await resolveSource(source, parsed);
   if (!fetched) return;
-  const { rev, skills } = fetched;
+  const { rev, skills, root } = fetched;
 
   await migrateIfLegacy(options.global ? "global" : "project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
@@ -139,7 +139,8 @@ export const run = async (
     picked.skills.length > 0
       ? await reviewNewSkills({
           source: scopedSource,
-          rev: rev.commit,
+          rev,
+          root,
           skills,
           selected: picked.skills,
           lock: loaded.lock,
@@ -170,6 +171,7 @@ export const run = async (
     source: scopedSource,
     rev,
     ref: parsed.ref,
+    root,
     scope,
     agents,
     copyPath,
@@ -255,6 +257,7 @@ const shownLabel = (userRef: string | undefined, entry: Labelled): string =>
 interface Fetched {
   rev: Revision;
   skills: DiscoveredSkill[];
+  root: string;
 }
 
 const resolveSource = async (source: Source, coordinate: Coordinate): Promise<Fetched | null> => {
@@ -278,13 +281,14 @@ const resolveSource = async (source: Source, coordinate: Coordinate): Promise<Fe
     p.outro(dir ? `No SKILL.md found under ${dir}/.` : "No SKILL.md found.");
     return null;
   }
-  return { rev, skills };
+  return { rev, skills, root: dir };
 };
 
 interface AddContext {
   source: Source;
   rev: Revision;
   ref: string | undefined;
+  root: string;
   scope: Scope;
   agents: AgentId[];
   copyPath: string | undefined;
@@ -303,6 +307,7 @@ const addSkill = async (
       name: skill.name,
       source: context.source.id,
       path: skill.path,
+      root: context.root,
       revision: context.rev,
       files: () => Promise.resolve(files),
     },
@@ -322,6 +327,7 @@ const extendSkill = async (
       name: skill.name,
       source: context.source.id,
       path: skill.path,
+      root: entry.root,
       revision: entry,
       integrity: entry.integrity,
       files: () => context.source.fetchFiles(context.rev.commit, skill.path),

@@ -89,7 +89,8 @@ const review = async (selected: string[], { options = {}, lock, script }: Run = 
   const result = await reviewNewSkills(
     {
       source,
-      rev: undefined,
+      rev: { track: "auto" },
+      root: "",
       skills,
       selected: selected.map((name) => skills.find((skill) => skill.name === name)!),
       lock: lock ?? emptyLock(),
@@ -193,6 +194,30 @@ describe("reviewNewSkills", () => {
     });
     expect(process.exitCode).toBe(CRITICAL_EXIT);
     expect(output.text()).toContain(`Add them: nik add ${tmp} helper other`);
+  });
+
+  test("a non-interactive dependency hint stays inside the discovery root", async () => {
+    const collection = join(tmp, "collection");
+    await makeSkill(join(collection, "plugins/x"), "parent", "Use /dependency and /outside.\n");
+    await makeSkill(join(collection, "plugins/x"), "dependency");
+    await makeSkill(join(collection, "plugins/y"), "outside");
+    const rootedSource = new LocalSource(collection);
+    const discovered = await rootedSource.discover(undefined, "plugins/x");
+    const result = await reviewNewSkills({
+      source: rootedSource,
+      rev: { track: "auto" },
+      root: "plugins/x",
+      skills: discovered,
+      selected: discovered.filter((skill) => skill.name === "parent"),
+      lock: emptyLock(),
+      scope: "global",
+      options: { yes: true },
+    });
+    expect(result.approved.map(({ skill }) => skill.name)).toEqual(["parent"]);
+    expect(output.text()).toContain(
+      `Add them: nik add ${join(collection, "plugins/x")} dependency -g`,
+    );
+    expect(output.text()).not.toContain("mentions outside");
   });
 
   test("--yes reports dependencies and accepts warn findings, but still asks about critical ones", async () => {

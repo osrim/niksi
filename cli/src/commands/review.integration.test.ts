@@ -3,8 +3,9 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import curlPipeShell from "../core/scan/fixtures/curl-pipe-shell.ts";
-import { cliRunner, makeSkill, type RunCli } from "../test-cli.ts";
+import { cliRunner, commitAll, initRepo, makeSkill, type RunCli } from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
@@ -57,6 +58,52 @@ test("a non-interactive add and update print the review and never start a pager"
   expect(updated.stdout).toContain("executable");
   expect(updated.stdout).toContain("external-url");
   expect(existsSync(pagerRan)).toBe(false);
+});
+
+test("a non-interactive subtree add prints a dependency command that preserves the root", async () => {
+  const forge = "https://github.com/o/review-collection";
+  const repo = join(tmp, "review-collection");
+  const project = join(tmp, "rooted-project");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(join(repo, "plugins/x"), "primary", "Use /helper and /outside.\n");
+  await makeSkill(join(repo, "plugins/x"), "helper", "Correct subtree.\n");
+  await makeSkill(join(repo, "plugins/y"), "outside");
+  await initRepo(repo);
+  await commitAll(repo, "subtree dependencies");
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${pathToFileURL(repo).href}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    const flags = ["-p", "--agent", "claude", "--yes"];
+    const added = await runCli(project, "add", `${forge}/tree/main/plugins/x`, "primary", ...flags);
+    expect(added.exitCode).toBe(0);
+    expect(added.stdout).not.toContain("mentions outside");
+    expect(existsSync(join(project, ".niksi/skills/helper"))).toBe(false);
+    const hint = /Add them: nik add (\S+) (.+)$/mu.exec(added.stdout);
+    expect(hint?.slice(1)).toEqual([`${forge}/tree/main/plugins/x`, "helper"]);
+
+    const pasted = await runCli(project, "add", hint![1]!, hint![2]!, ...flags);
+    expect(pasted.exitCode).toBe(0);
+    const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
+    expect(lock.skills.helper).toMatchObject({
+      source: forge,
+      path: "plugins/x/helper",
+      root: "plugins/x",
+    });
+    expect(await readFile(join(project, ".niksi/skills/helper/SKILL.md"), "utf8")).toContain(
+      "Correct subtree.",
+    );
+    const listed = await runCli(project, "list", "--json");
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout).skills).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "helper", path: "plugins/x/helper", root: "plugins/x" }),
+      ]),
+    );
+  } finally {
+    restore();
+  }
 });
 
 test("a non-interactive review keeps exit codes 2 and 3 and never starts a pager", async () => {

@@ -139,7 +139,8 @@ export const run = async (
     picked.skills.length > 0
       ? await reviewNewSkills({
           source: scopedSource,
-          rev: rev.commit,
+          rev,
+          root,
           skills,
           selected: picked.skills,
           lock: loaded.lock,

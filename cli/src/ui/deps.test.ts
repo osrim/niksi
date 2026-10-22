@@ -18,7 +18,7 @@ import { LocalSource } from "../core/source/local-source.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { makeSkill } from "../test-cli.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { reportUpdateDeps } from "./deps.ts";
+import { reportNotInstalled, reportUpdateDeps } from "./deps.ts";
 
 let tmp: string;
 let source: LocalSource;
@@ -65,6 +65,17 @@ const verdict = (name: string, from = source): OutdatedVerdict => ({
 });
 
 const noDiff = { stat: "", patch: "" };
+
+test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
+  reportNotInstalled(
+    [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
+    undefined,
+    "project",
+  );
+  expect(printed()).toContain("primary mentions helper at SKILL.md:5. not installed.");
+  expect(printed()).toContain("Cannot generate a rooted add command without a source revision.");
+  expect(printed()).not.toContain("Add them:");
+});
 
 describe("reportUpdateDeps", () => {
   test("missing dependencies are reported and never installed", async () => {

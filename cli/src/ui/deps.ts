@@ -21,10 +21,14 @@ export const warnMentions = (missing: MissingDep[], note: string): void => {
 
 export const reportNotInstalled = (
   missing: MissingDep[],
-  coordinate: string,
+  coordinate: string | undefined,
   scope: Scope,
 ): void => {
   warnMentions(missing, "not installed");
+  if (coordinate === undefined) {
+    warn("Cannot generate a rooted add command without a source revision.");
+    return;
+  }
   p.log.info(
     `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );

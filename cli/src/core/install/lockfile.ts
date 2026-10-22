@@ -137,9 +137,14 @@ const EntrySchema = z
     path: z.string(),
     root: z
       .string()
-      .refine(hasNormalizedSegments, {
-        error: "root must be a normalized directory inside the source",
-      })
+      .refine(
+        (root) =>
+          !root.includes("\\") &&
+          !posix.isAbsolute(root) &&
+          !win32.isAbsolute(root) &&
+          hasNormalizedSegments(root),
+        { error: "root must be a normalized directory inside the source" },
+      )
       .optional(),
     commit: z
       .string()

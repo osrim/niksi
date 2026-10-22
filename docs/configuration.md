@@ -149,7 +149,7 @@ The store is a download cache. A lockfile entry installs without the network whe
 | --- | --- |
 | `source` | `https://`, `ssh://`, or `file://` URL or `user@host:path` address of the source, or `local:` followed by its path. A directory inside the project root is recorded relative to it. One outside, or a symlink to one, is recorded by a path that other machines cannot resolve, so `add` asks first. |
 | `path` | Skill directory inside the source. |
-| `root` | Discovery root: the directory inside the source that `add` searched, from a forge URL such as `https://github.com/o/r/tree/main/plugins/x`. Absent when `add` searched the whole source. `update` checks dependencies under it. |
+| `root` | Discovery root selected by a forge URL such as `https://github.com/o/r/tree/main/plugins/x`. Absent when `add` searches the whole source. Use a relative path with forward slashes and no empty, `.` or `..` segments. Absolute POSIX and Windows paths and backslashes are rejected. `update` checks dependencies within this directory. |
 | `integrity` | sha256 of the installed skill files. `install` verifies every file against it. |
 | `track` | `auto` follows the latest stable tag or the branch. `pin` stays at the ref you typed. |
 | `commit` | Installed commit, as 40 or 64 lowercase hex characters. Absent for local sources. |
@@ -163,7 +163,10 @@ The store is a download cache. A lockfile entry installs without the network whe
 
 A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. Link entries have neither. `disabled` does not depend on placement. It is the last key. Lockfile version 1 remains in use.
 
-Releases without path-copy support reject these entries because `copy: true` has no `agents` field. Releases without disable support drop the `disabled` field and install the entry. Releases without `root` support drop the field and check dependencies across the whole source.
+Releases without path-copy support reject path-copy entries because they have
+`copy: true` but no `agents`. Without disable support, releases drop `disabled`
+and install the entry. Without discovery-root support, releases drop `root`
+and check dependencies across the whole source.
 
 ## Environment variables
 

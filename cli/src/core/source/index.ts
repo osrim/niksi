@@ -95,13 +95,14 @@ export const coordinateFor = (sourceId: string): string =>
     : sourceId;
 
 export const discoveryCoordinate = (
-  skill: Pick<InstalledSkill, "source" | "branch" | "root">,
-): string => {
+  skill: Pick<InstalledSkill, "source" | "branch" | "root" | "pinnedAs" | "tag" | "commit">,
+): string | undefined => {
   const coordinate = coordinateFor(skill.source);
   if (!skill.root) return coordinate;
   if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);
-  if (!skill.branch) return coordinate;
-  const segments = [...skill.branch.split("/"), ...skill.root.split("/")];
+  const ref = skill.branch || skill.pinnedAs || skill.tag || skill.commit;
+  if (!ref) return undefined;
+  const segments = [...ref.split("/"), ...skill.root.split("/")];
   return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;
 };
 

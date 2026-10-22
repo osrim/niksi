@@ -627,6 +627,8 @@ test("parse errors: a root that is not a normalized directory inside the source"
     "plugins//x",
     "plugins/",
     "/plugins",
+    "C:/plugins",
+    "plugins\\..\\other",
   ]) {
     expect(() => parseLock(lockWithEntryA(`,"root":${JSON.stringify(root)}`), "f")).toThrow(
       "f: a: root must be a normalized directory inside the source",

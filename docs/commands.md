@@ -40,11 +40,15 @@ git@github.com:owner/repo.git     clone URL
 
 - Without skill names, `add` opens a picker. A source with one skill skips the picker.
 - `--all` selects every skill in the source.
-- A forge URL that points into a directory, such as `https://github.com/o/r/tree/main/plugins/x`, limits discovery to that directory. The lockfile entry records it as `root`.
+- When a forge URL names a directory, `add` searches only that directory.
+  `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
+  The lockfile records this discovery root as `root`.
 - Named skills must exist in the source and have distinct names.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
 - `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).
-- `add` finds mentions of other skills from the same source and offers to review them too.
+- `add` offers to review missing dependencies mentioned by approved skills. With
+  `--yes` or without a terminal, it prints a `nik add` command instead. This
+  command uses the same discovery root.
 - `--copy` writes a real directory instead of a link. To switch a skill between link and copy, remove it and add it again.
 - In project scope, a local directory outside the project root, or a symlink to one, is recorded by a path that other machines cannot resolve. `add` warns and asks before it records it. `-y` answers yes. Use `--copy` to put the files in the project, or `-g` to install for this machine only.
 - `--path <directory>` writes each selected skill to `<directory>/<skill name>`. It requires `--copy` and selects project scope. It skips agent selection.
@@ -85,7 +89,12 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 - A changed skill shows a diff stat. The full diff is in `Read files…` at the review questions. See [security-scan.md](security-scan.md#reading-files).
 - Candidates not selected are reported as still having an update available.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
-- Missing dependencies are reported with the `nik add` command that adds them, not installed. For a skill with a recorded `root`, `update` checks only that directory, and the command names it as a forge URL, such as `https://github.com/o/r/tree/main/plugins/x`.
+- `update` reports missing dependencies but does not install them. If an entry
+  has a `root`, both the check and the `nik add` command use that directory.
+  `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
+  For remote sources, the command uses the recorded branch. If absent, it uses
+  `pinnedAs`, `tag`, or `commit`, in that order. Without any of these, `update`
+  reports that it cannot generate the command.
 - Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.
 - `update` compares and updates each path copy at its recorded project-relative destination.
 - `update` does not check disabled skills. It names them in one info line. If you name a disabled skill, `update` exits `1` and names `nik enable`.

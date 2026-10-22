@@ -10,26 +10,31 @@ import {
   test,
 } from "bun:test";
 import * as p from "@clack/prompts";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emptyLock } from "../core/install/lockfile.ts";
+import { emptyLock, serializeLock, type Lockfile } from "../core/install/lockfile.ts";
+import { skillsDir, type AgentId } from "../core/install/agents.ts";
+import { linkSkill, writeCanonical } from "../core/install/link.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
-import { makeSkill } from "../test-cli.ts";
+import { makeSkill, recordedLock } from "../test-cli.ts";
+import { captureEnv } from "../test-env.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { reportNotInstalled, reportUpdateDeps } from "./deps.ts";
+import { readOtherScopeLock, reportNotInstalled, reportUpdateDeps } from "./deps.ts";
 
 let tmp: string;
 let source: LocalSource;
 let output: CapturedOutput;
 let restoreTty: () => void;
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME", "PATH");
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-deps-test-")));
   await makeSkill(tmp, "primary", "Use /helper and /other.\n");
   await makeSkill(tmp, "helper", "Back to /primary.\n");
   await makeSkill(tmp, "other");
+  await makeSkill(tmp, "secondary", "Use /helper.\n");
   source = new LocalSource(tmp);
 });
 
@@ -37,12 +42,19 @@ afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  const home = await mkdtemp(join(tmp, "home-"));
+  process.env.HOME = home;
+  process.env.NIKSI_HOME = join(home, "niksi");
+  process.env.CLAUDE_HOME = join(home, ".claude");
+  process.env.XDG_CONFIG_HOME = join(home, ".config");
+  process.env.PATH = "";
   output = captureOutput();
   restoreTty = setInteractive(false);
 });
 
 afterEach(() => {
+  restoreEnv();
   mock.restore();
   restoreTty();
   process.exitCode = 0;
@@ -50,7 +62,7 @@ afterEach(() => {
 
 const printed = (): string => output.text();
 
-const verdict = (name: string, from = source): OutdatedVerdict => ({
+const verdict = (name: string, from = source, agents: AgentId[] = ["claude"]): OutdatedVerdict => ({
   kind: "outdated",
   skill: {
     name,
@@ -58,6 +70,8 @@ const verdict = (name: string, from = source): OutdatedVerdict => ({
     path: name,
     integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     track: "auto",
+    copy: true,
+    agents,
   },
   source: from,
   upstream: { track: "auto" },
@@ -65,6 +79,14 @@ const verdict = (name: string, from = source): OutdatedVerdict => ({
 });
 
 const noDiff = { stat: "", patch: "" };
+
+const recorded = (...names: string[]): Lockfile => recordedLock(source.id, ...names);
+
+const linked = async (...agents: AgentId[]): Promise<Lockfile> => {
+  await writeCanonical("helper", await source.fetchFiles(undefined, "helper"), "global");
+  for (const agent of agents) await linkSkill("helper", "global", agent);
+  return recorded("helper");
+};
 
 test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
   reportNotInstalled(
@@ -92,6 +114,7 @@ describe("reportUpdateDeps", () => {
         },
       ],
       lock,
+      { scope: "project", enabled: emptyLock() },
       "global",
     );
 
@@ -128,6 +151,7 @@ describe("reportUpdateDeps", () => {
         },
       ],
       emptyLock(),
+      { scope: "project", enabled: emptyLock() },
       "global",
     );
 
@@ -138,17 +162,123 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${join(collection, "plugins", "y")} friend -g`);
   });
 
+  test("a dependency linked globally for the selected agent is not reported missing in a project update", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("primary"),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "global", enabled: await linked("claude") },
+      "project",
+    );
+
+    const text = printed();
+    expect(text).toContain("primary mentions helper, recorded in global scope.");
+    expect(text).toContain(`Add them: nik add ${tmp} other\n`);
+  });
+
+  test("a dependency needed by different agents is reported for the agent without it", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("primary"),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+        {
+          verdict: verdict("secondary", source, ["universal"]),
+          files: await source.fetchFiles(undefined, "secondary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "global", enabled: await linked("claude") },
+      "project",
+    );
+
+    expect(printed()).toContain("primary mentions helper, recorded in global scope.");
+    expect(printed()).toContain("secondary mentions helper at SKILL.md:5. not installed.");
+    expect(printed()).toContain(`Add them: nik add ${tmp} other helper\n`);
+  });
+
+  test("an agent copy in the other scope counts only while its recorded agent has the copy", async () => {
+    const other = recorded("helper");
+    Object.assign(other.skills["helper"]!, { copy: true, agents: ["claude"] });
+    await makeSkill(skillsDir("global", "claude"), "helper");
+
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("primary"),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "global", enabled: other },
+      "project",
+    );
+
+    expect(printed()).toContain(`Add them: nik add ${tmp} other\n`);
+    await rm(join(skillsDir("global", "claude"), "helper"), { recursive: true });
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("primary"),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "global", enabled: other },
+      "project",
+    );
+    expect(printed()).toContain(`Add them: nik add ${tmp} helper other\n`);
+  });
+
   test("a source that cannot be read skips the check with a warning", async () => {
     const gone = new LocalSource(join(tmp, "missing"));
 
     await reportUpdateDeps(
       [{ verdict: verdict("primary", gone), files: [], diff: noDiff }],
       emptyLock(),
+      { scope: "global", enabled: emptyLock() },
       "project",
     );
 
     expect(printed()).toContain(
       `${join(tmp, "missing")}: dependency check skipped. no such directory: ${join(tmp, "missing")}`,
     );
+  });
+});
+
+describe("readOtherScopeLock", () => {
+  let home: string;
+
+  beforeEach(async () => {
+    home = await mkdtemp(join(tmp, "home-"));
+    process.env.NIKSI_HOME = home;
+  });
+
+  test("a project scope reads the enabled global entries", async () => {
+    const lock = recorded("helper", "off");
+    lock.skills["off"]!.disabled = true;
+    await writeFile(join(home, "niksi-lock.json"), serializeLock(lock));
+
+    expect(await readOtherScopeLock("project")).toEqual({
+      scope: "global",
+      enabled: recorded("helper"),
+    });
+  });
+
+  test("an unreadable lockfile counts nothing and warns", async () => {
+    await mkdir(join(home, "niksi-lock.json"));
+
+    expect(await readOtherScopeLock("project")).toEqual({ scope: "global", enabled: emptyLock() });
+    expect(printed()).toContain("Dependency check ignores global scope.");
   });
 });

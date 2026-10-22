@@ -19,7 +19,7 @@ import {
 import { readConfig, remember } from "../core/config.ts";
 import { syncExcludes } from "../core/install/exclude.ts";
 import { projectRoot, type Scope } from "../core/paths.ts";
-import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { otherScope, resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { usageError } from "../core/usage.ts";
 import { isInteractive, unwrap } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
@@ -213,7 +213,7 @@ export const shadowNote = (scope: Scope, agent: AgentId): string => {
 };
 
 export const warnScopeCollisions = (names: string[], scope: Scope, agents: AgentId[]): void => {
-  const other: Scope = scope === "global" ? "project" : "global";
+  const other = otherScope(scope);
   for (const agent of agents) {
     const dir = skillsDir(other, agent);
     if (dir === skillsDir(scope, agent)) continue;

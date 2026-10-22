@@ -2,9 +2,11 @@ import * as p from "@clack/prompts";
 import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
-import type { Lockfile } from "../core/install/lockfile.ts";
+import { emptyLock, readLock, splitDisabled, type Lockfile } from "../core/install/lockfile.ts";
+import type { AgentId } from "../core/install/agents.ts";
+import { lackingAgents, updateDestination } from "../core/install/destination.ts";
 import type { Scope } from "../core/paths.ts";
-import { scopeFlag } from "../core/install/scope.ts";
+import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import { discoveryCoordinate, type Changes } from "../core/source/index.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
@@ -34,6 +36,44 @@ export const reportNotInstalled = (
   );
 };
 
+export interface OtherScopeLock {
+  scope: Scope;
+  enabled: Lockfile;
+}
+
+export const readOtherScopeLock = async (scope: Scope): Promise<OtherScopeLock> => {
+  const other = otherScope(scope);
+  try {
+    return { scope: other, enabled: splitDisabled(await readLock(other)).enabled };
+  } catch (e) {
+    logWarn(`${(e as Error).message}\nDependency check ignores ${other} scope.`);
+    return { scope: other, enabled: emptyLock() };
+  }
+};
+
+export const reportRecordedElsewhere = async (
+  missing: MissingDep[],
+  other: OtherScopeLock,
+  agents: AgentId[],
+): Promise<MissingDep[]> => {
+  const remaining: MissingDep[] = [];
+  for (const dep of missing) {
+    const entry = other.enabled.skills[dep.name];
+    if (
+      agents.length === 0 ||
+      entry === undefined ||
+      (await lackingAgents({ ...entry, name: dep.name }, other.scope, agents)).length > 0
+    ) {
+      remaining.push(dep);
+      continue;
+    }
+    p.log.info(
+      `${skillName(dep.from)} mentions ${skillName(dep.name)}, recorded in ${other.scope} scope.`,
+    );
+  }
+  return remaining;
+};
+
 export interface UpdatedFiles {
   verdict: OutdatedVerdict;
   files: SkillFile[];
@@ -51,6 +91,7 @@ const discoveryKey = ({ source, skill, upstream }: OutdatedVerdict): string =>
 export const reportUpdateDeps = async (
   updated: UpdatedFiles[],
   lock: Lockfile,
+  other: OtherScopeLock,
   scope: Scope,
 ): Promise<void> => {
   const groups = Map.groupBy(updated, (item) => discoveryKey(item.verdict));
@@ -67,11 +108,25 @@ export const reportUpdateDeps = async (
       logWarn(`${source.display}: dependency check skipped. ${(e as Error).message}`);
       continue;
     }
-    const missing = missingDeps(
-      group.map((item) => ({ name: item.verdict.skill.name, files: item.files })),
-      known.map((candidate) => candidate.name),
-      (name) => lock.skills[name] !== undefined,
-    );
-    if (missing.length > 0) reportNotInstalled(missing, discoveryCoordinate(skill), scope);
+    const knownNames = known.map((candidate) => candidate.name);
+    const inBatch = new Set(group.map((item) => item.verdict.skill.name));
+    const missing = new Map<string, MissingDep>();
+    for (const item of group) {
+      const { destination } = await updateDestination(item.verdict.skill, scope, lock);
+      const mentioned = missingDeps(
+        [{ name: item.verdict.skill.name, files: item.files }],
+        knownNames,
+        (name) => lock.skills[name] !== undefined || inBatch.has(name),
+      );
+      const remaining = await reportRecordedElsewhere(
+        mentioned,
+        other,
+        destination.kind === "path-copy" ? [] : destination.agents,
+      );
+      for (const dep of remaining) missing.set(dep.name, dep);
+    }
+    if (missing.size > 0) {
+      reportNotInstalled([...missing.values()], discoveryCoordinate(skill), scope);
+    }
   }
 };

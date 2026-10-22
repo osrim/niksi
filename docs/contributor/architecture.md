@@ -86,7 +86,18 @@ The guarantee covers one directory. `applySkill` records the new integrity only 
 
 `add` reviews new skills through `reviewNewSkills` in `ui/review.ts`. It fetches the selected skills and passes them through the gate. It then offers the dependencies that the approved skills mention, and passes accepted dependencies through the gate, until nothing new is mentioned. It returns the approved skills and the names of declined and blocked skills. `add` keeps selection, destination policy, the write confirmation, and `land`.
 
-Each mention is offered at most once per run. A recorded skill is never offered. A declined or blocked dependency does not remove its approved parent. Dependencies are offered only in a terminal without `yes`. Otherwise they are reported with the `nik add` command that adds them.
+Each mention is offered at most once per run. A skill that the current scope
+records is never offered. An enabled skill in the other scope is skipped only
+when `lackingAgents` finds a link or agent copy in every selected agent directory.
+`add` passes its selected directories through `ReviewRequest`. `update` resolves
+each skill's destination with `updateDestination`, so dependencies shared by
+skills with different destinations are checked separately. Path copies do not
+provide other-scope agent availability, and path-copy exports do not use it.
+When the other scope satisfies a dependency, the report names that scope. An
+unreadable lockfile in the other scope prints a warning, and the check ignores
+that scope. A declined or blocked dependency does not remove its approved parent.
+Dependencies are offered only in a terminal without `yes`. Otherwise they are
+reported with the `nik add` command that adds them.
 
 Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 

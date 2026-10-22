@@ -25,3 +25,5 @@ export const resolveScope = (
 };
 
 export const scopeFlag = (scope: Scope): string => (scope === "global" ? " -g" : "");
+
+export const otherScope = (scope: Scope): Scope => (scope === "global" ? "project" : "global");

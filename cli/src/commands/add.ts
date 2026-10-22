@@ -147,6 +147,7 @@ export const run = async (
           lock: loaded.lock,
           other: await readOtherScopeLock(scope),
           scope,
+          agents,
           options,
         })
       : { approved: [] };

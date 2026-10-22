@@ -218,3 +218,39 @@ test("a project add and update skip a dependency installed globally and name its
   expect(updated.stdout).toContain("primary mentions helper, recorded in global scope.");
   expect(updated.stdout).toContain(`Add them: nik add ${source} other\n`);
 });
+
+test("add and update report an other-scope dependency installed only for a different agent", async () => {
+  const home = join(tmp, "cross-agent");
+  const project = join(home, "project");
+  const source = join(home, "source");
+  const run = cliRunner(home);
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(source, "primary", "Use /helper.\n");
+  await makeSkill(source, "helper");
+
+  const global = await run(project, "add", source, "helper", "-g", "--agent", "codex", "--yes");
+  expect(global.exitCode).toBe(0);
+  const added = await run(project, "add", source, "primary", "-p", "--agent", "claude", "--yes");
+  expect(added.exitCode).toBe(0);
+  expect(added.stdout).toContain(`Add them: nik add ${source} helper\n`);
+  expect(added.stdout).not.toContain("recorded in global scope");
+  expect(existsSync(join(home, ".agents", "skills", "helper", "SKILL.md"))).toBe(true);
+  expect(existsSync(join(home, ".claude", "skills", "helper"))).toBe(false);
+  expect(existsSync(join(project, ".claude", "skills", "helper"))).toBe(false);
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
+  expect(Object.keys(lock.skills)).toEqual(["primary"]);
+
+  await makeSkill(source, "primary", "Use /helper.\nversion two\n");
+  const updated = await run(project, "update", "--all", "--yes");
+  expect(updated.exitCode).toBe(0);
+  expect(updated.stdout).toContain(`Add them: nik add ${source} helper\n`);
+  expect(updated.stdout).not.toContain("recorded in global scope");
+  expect(
+    await readFile(join(project, ".claude", "skills", "primary", "SKILL.md"), "utf8"),
+  ).toContain("version two");
+  const listed = await run(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills.map((skill: { name: string }) => skill.name)).toEqual([
+    "primary",
+  ]);
+});

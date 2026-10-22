@@ -3,6 +3,8 @@ import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { emptyLock, readLock, splitDisabled, type Lockfile } from "../core/install/lockfile.ts";
+import type { AgentId } from "../core/install/agents.ts";
+import { lackingAgents, updateDestination } from "../core/install/destination.ts";
 import type { Scope } from "../core/paths.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import { discoveryCoordinate, type Changes } from "../core/source/index.ts";
@@ -49,18 +51,27 @@ export const readOtherScopeLock = async (scope: Scope): Promise<OtherScopeLock> 
   }
 };
 
-// Agents load enabled skills from both scopes, so these dependencies are already available.
-export const reportRecordedElsewhere = (
+export const reportRecordedElsewhere = async (
   missing: MissingDep[],
   other: OtherScopeLock,
-): MissingDep[] => {
-  const elsewhere = (dep: MissingDep): boolean => other.enabled.skills[dep.name] !== undefined;
-  for (const dep of missing.filter(elsewhere)) {
+  agents: AgentId[],
+): Promise<MissingDep[]> => {
+  const remaining: MissingDep[] = [];
+  for (const dep of missing) {
+    const entry = other.enabled.skills[dep.name];
+    if (
+      agents.length === 0 ||
+      entry === undefined ||
+      (await lackingAgents({ ...entry, name: dep.name }, other.scope, agents)).length > 0
+    ) {
+      remaining.push(dep);
+      continue;
+    }
     p.log.info(
       `${skillName(dep.from)} mentions ${skillName(dep.name)}, recorded in ${other.scope} scope.`,
     );
   }
-  return missing.filter((dep) => !elsewhere(dep));
+  return remaining;
 };
 
 export interface UpdatedFiles {
@@ -97,14 +108,25 @@ export const reportUpdateDeps = async (
       logWarn(`${source.display}: dependency check skipped. ${(e as Error).message}`);
       continue;
     }
-    const missing = reportRecordedElsewhere(
-      missingDeps(
-        group.map((item) => ({ name: item.verdict.skill.name, files: item.files })),
-        known.map((candidate) => candidate.name),
-        (name) => lock.skills[name] !== undefined,
-      ),
-      other,
-    );
-    if (missing.length > 0) reportNotInstalled(missing, discoveryCoordinate(skill), scope);
+    const knownNames = known.map((candidate) => candidate.name);
+    const inBatch = new Set(group.map((item) => item.verdict.skill.name));
+    const missing = new Map<string, MissingDep>();
+    for (const item of group) {
+      const { destination } = await updateDestination(item.verdict.skill, scope, lock);
+      const mentioned = missingDeps(
+        [{ name: item.verdict.skill.name, files: item.files }],
+        knownNames,
+        (name) => lock.skills[name] !== undefined || inBatch.has(name),
+      );
+      const remaining = await reportRecordedElsewhere(
+        mentioned,
+        other,
+        destination.kind === "path-copy" ? [] : destination.agents,
+      );
+      for (const dep of remaining) missing.set(dep.name, dep);
+    }
+    if (missing.size > 0) {
+      reportNotInstalled([...missing.values()], discoveryCoordinate(skill), scope);
+    }
   }
 };

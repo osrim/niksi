@@ -1,10 +1,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CRITICAL_EXIT } from "../core/scan/index.ts";
 import { emptyLock, type Lockfile } from "../core/install/lockfile.ts";
 import { otherScope } from "../core/install/scope.ts";
+import type { AgentId } from "../core/install/agents.ts";
+import { linkSkill, writeCanonical } from "../core/install/link.ts";
+import { captureEnv } from "../test-env.ts";
 import type { Scope } from "../core/paths.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { LocalSource } from "../core/source/local-source.ts";
@@ -19,6 +22,8 @@ let source: LocalSource;
 let skills: DiscoveredSkill[];
 let output: CapturedOutput;
 let restoreTty: () => void;
+const cwd = process.cwd();
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "CLAUDE_HOME", "XDG_CONFIG_HOME");
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-review-test-")));
@@ -47,12 +52,23 @@ afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  const workspace = await mkdtemp(join(tmp, "workspace-"));
+  const home = join(workspace, "home");
+  await mkdir(join(workspace, ".git"));
+  await mkdir(home);
+  process.chdir(workspace);
+  process.env.HOME = home;
+  process.env.NIKSI_HOME = join(home, "niksi");
+  process.env.CLAUDE_HOME = join(home, ".claude");
+  process.env.XDG_CONFIG_HOME = join(home, ".config");
   output = captureOutput();
   restoreTty = setInteractive(true);
 });
 
 afterEach(() => {
+  process.chdir(cwd);
+  restoreEnv();
   output.restore();
   restoreTty();
   process.exitCode = 0;
@@ -84,13 +100,14 @@ interface Run {
   options?: ReviewOptions;
   lock?: Lockfile;
   scope?: Scope;
+  agents?: AgentId[];
   other?: Lockfile;
   script?: Script;
 }
 
 const review = async (
   selected: string[],
-  { options = {}, lock, scope = "project", other, script }: Run = {},
+  { options = {}, lock, scope = "project", agents = ["claude"], other, script }: Run = {},
 ) => {
   const { decisions, asked, offered } = scripted(script);
   const result = await reviewNewSkills(
@@ -103,6 +120,7 @@ const review = async (
       lock: lock ?? emptyLock(),
       other: { scope: otherScope(scope), enabled: other ?? emptyLock() },
       scope,
+      agents,
       options,
     },
     decisions,
@@ -117,6 +135,18 @@ const summary = ({ approved, declined, blocked }: ReviewResult) => ({
 });
 
 const recorded = (...names: string[]): Lockfile => recordedLock(source.id, ...names);
+
+const linked = async (
+  scope: Scope,
+  names: string[],
+  agents: AgentId[] = ["claude"],
+): Promise<Lockfile> => {
+  for (const name of names) {
+    await writeCanonical(name, await source.fetchFiles(undefined, name), scope);
+    for (const agent of agents) await linkSkill(name, scope, agent);
+  }
+  return recorded(...names);
+};
 
 describe("reviewNewSkills", () => {
   test("an accepted skill without mentions is approved alone", async () => {
@@ -157,9 +187,9 @@ describe("reviewNewSkills", () => {
     expect(result.offered).toEqual([]);
   });
 
-  test("a dependency recorded in the global scope is not offered, and its scope is named", async () => {
+  test("a dependency linked globally to the selected agent is not offered, and its scope is named", async () => {
     const result = await review(["primary"], {
-      other: recorded("helper"),
+      other: await linked("global", ["helper"]),
       script: { pick: ["other"] },
     });
 
@@ -168,23 +198,68 @@ describe("reviewNewSkills", () => {
     expect(output.text()).toContain("primary mentions helper, recorded in global scope.");
   });
 
-  test("a global add does not offer a dependency recorded in the project scope", async () => {
+  test("a global add does not offer a dependency linked to the selected agent in the project scope", async () => {
     const result = await review(["primary"], {
       scope: "global",
-      other: recorded("helper", "other"),
+      other: await linked("project", ["helper", "other"]),
     });
 
     expect(result.offered).toEqual([]);
     expect(output.text()).toContain("primary mentions other, recorded in project scope.");
   });
 
-  test("without a terminal a dependency recorded in the global scope is left out of the add command", async () => {
+  test("without a terminal a dependency linked globally to the selected agent is left out of the add command", async () => {
     setInteractive(false);
 
-    await review(["primary"], { other: recorded("helper") });
+    await review(["primary"], { other: await linked("global", ["helper"]) });
 
     expect(output.text()).toContain("primary mentions helper, recorded in global scope.");
     expect(output.text()).toContain(`Add them: nik add ${tmp} other\n`);
+  });
+
+  test("a dependency linked globally only for another agent is still offered", async () => {
+    const result = await review(["primary"], {
+      other: await linked("global", ["helper"], ["universal"]),
+      script: { pick: ["helper"] },
+    });
+
+    expect(result.offered).toEqual([["helper", "other"]]);
+    expect(result.approved).toEqual(["primary", "helper"]);
+    expect(output.text()).not.toContain("recorded in global scope");
+  });
+
+  test("an other-scope dependency must cover every selected agent", async () => {
+    const result = await review(["primary"], {
+      agents: ["claude", "universal"],
+      other: await linked("global", ["helper"]),
+    });
+
+    expect(result.offered).toEqual([["helper", "other"]]);
+  });
+
+  test("a recorded other-scope dependency without a link is still offered", async () => {
+    const result = await review(["primary"], { other: recorded("helper") });
+
+    expect(result.offered).toEqual([["helper", "other"]]);
+  });
+
+  test("a path-copy export still offers dependencies installed for agents", async () => {
+    const result = await review(["primary"], {
+      agents: [],
+      other: await linked("global", ["helper"]),
+    });
+
+    expect(result.offered).toEqual([["helper", "other"]]);
+  });
+
+  test("a project path copy is not available to global agents", async () => {
+    const other = recorded("helper");
+    Object.assign(other.skills["helper"]!, { copy: true, copyPath: "out" });
+    await makeSkill(join(process.cwd(), "out"), "helper");
+
+    const result = await review(["primary"], { scope: "global", other });
+
+    expect(result.offered).toEqual([["helper", "other"]]);
   });
 
   test("a declined dependency leaves the approved parent", async () => {
@@ -237,7 +312,9 @@ describe("reviewNewSkills", () => {
       skills: discovered,
       selected: discovered.filter((skill) => skill.name === "parent"),
       lock: emptyLock(),
+      other: { scope: "project", enabled: emptyLock() },
       scope: "global",
+      agents: ["claude"],
       options: { yes: true },
     });
     expect(result.approved.map(({ skill }) => skill.name)).toEqual(["parent"]);

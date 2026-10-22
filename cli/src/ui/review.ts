@@ -1,4 +1,5 @@
 import type { Lockfile } from "../core/install/lockfile.ts";
+import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
 import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
@@ -26,6 +27,7 @@ export interface ReviewRequest {
   lock: Lockfile;
   other: OtherScopeLock;
   scope: Scope;
+  agents: AgentId[];
   options: ReviewOptions;
 }
 
@@ -79,7 +81,7 @@ const expandDependencies = async (
       (name) => offered.has(name) || request.lock.skills[name] !== undefined,
     );
     for (const dep of mentioned) offered.add(dep.name);
-    const missing = reportRecordedElsewhere(mentioned, request.other);
+    const missing = await reportRecordedElsewhere(mentioned, request.other, request.agents);
     if (missing.length === 0) return;
 
     if (!interactive) {

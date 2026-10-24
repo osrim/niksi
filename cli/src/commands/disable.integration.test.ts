@@ -3,11 +3,18 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { cliRunner, makeSkill, type RunCli } from "../test-cli.ts";
+import {
+  cliRunner,
+  makeSkill,
+  terminalRunner,
+  type RunCli,
+  type RunTerminal,
+} from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
 let runCli: RunCli;
+let runTerminal: RunTerminal;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
 
 beforeAll(async () => {
@@ -15,6 +22,7 @@ beforeAll(async () => {
   process.env.HOME = tmp;
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
   runCli = cliRunner(tmp);
+  runTerminal = terminalRunner(tmp);
 });
 
 afterAll(async () => {
@@ -318,4 +326,73 @@ test("agent copies and path copies go through a disable and enable cycle", async
   lock = await readLockJson(project);
   expect(lock["gamma"]!["disabled"]).toBeUndefined();
   expect(lock["delta"]!["disabled"]).toBeUndefined();
+});
+
+const setupReferenced = async (name: string): Promise<{ project: string; source: string }> => {
+  const { project, source } = await setup(name);
+  await makeSkill(source, "grilling");
+  await makeSkill(source, "wayfinder", "Hand off to /grilling.\n");
+  await makeSkill(source, "implement", "Run the `grilling` skill first.\n");
+  return { project, source };
+};
+
+test("disable names the enabled skills that reference it before the confirm prompt", async () => {
+  const { project, source } = await setupReferenced("referenced-confirm");
+  for (const name of ["grilling", "wayfinder", "implement"]) await addLink(project, source, name);
+
+  const declined = await runTerminal(
+    project,
+    [{ on: "Disable grilling (project)?", send: "n\r" }],
+    "disable",
+    "grilling",
+  );
+
+  expect(declined.exitCode).toBe(0);
+  const warning = declined.stdout.indexOf("grilling is referenced by implement, wayfinder");
+  expect(warning).toBeGreaterThan(-1);
+  expect(warning).toBeLessThan(declined.stdout.indexOf("Disable grilling (project)?"));
+  expect((await readLockJson(project))["grilling"]!["disabled"]).toBeUndefined();
+});
+
+test("disable -y warns and proceeds, and a disabled referrer does not count", async () => {
+  const { project, source } = await setupReferenced("referenced-yes");
+  for (const name of ["grilling", "wayfinder", "implement"]) await addLink(project, source, name);
+  expect((await runCli(project, "disable", "implement", "-y")).exitCode).toBe(0);
+
+  const disabled = await runCli(project, "disable", "grilling", "-y");
+
+  expect(disabled.exitCode).toBe(0);
+  expect(disabled.stdout).toContain("grilling is referenced by wayfinder\n");
+  expect(disabled.stdout).toContain("grilling: disabled");
+  expect(existsSync(join(project, ".claude", "skills", "grilling"))).toBe(false);
+  expect((await readLockJson(project))["grilling"]!["disabled"]).toBe(true);
+});
+
+test("disabling a skill together with its referrers warns about neither", async () => {
+  const { project, source } = await setupReferenced("referenced-batch");
+  await makeSkill(source, "grilling", "Back to /wayfinder.\n");
+  await addLink(project, source, "grilling");
+  await addLink(project, source, "wayfinder");
+
+  const disabled = await runCli(project, "disable", "grilling", "wayfinder", "-y");
+
+  expect(disabled.exitCode).toBe(0);
+  expect(disabled.stdout).not.toContain("is referenced by");
+  const lock = await readLockJson(project);
+  expect(lock["grilling"]!["disabled"]).toBe(true);
+  expect(lock["wayfinder"]!["disabled"]).toBe(true);
+});
+
+test("disable catches a referrer installed from another source", async () => {
+  const { project, source } = await setupReferenced("referenced-cross");
+  const other = join(tmp, "referenced-cross-other");
+  await makeSkill(other, "planner", "Then use /grilling.\n");
+  await addLink(project, source, "grilling");
+  await addLink(project, other, "planner");
+
+  const disabled = await runCli(project, "disable", "grilling", "-y");
+
+  expect(disabled.exitCode).toBe(0);
+  expect(disabled.stdout).toContain("grilling is referenced by planner");
+  expect((await readLockJson(project))["grilling"]!["disabled"]).toBe(true);
 });

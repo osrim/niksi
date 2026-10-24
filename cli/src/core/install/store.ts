@@ -18,6 +18,16 @@ const entryDir = (source: string): string => {
 export const storeEntryPath = (source: string, name: string, integrity: string): string =>
   `${childPath(entryDir(source), name)}@${integrityHex(integrity).slice(0, 12)}`;
 
+export const storedFiles = (
+  source: string,
+  name: string,
+  integrity: string,
+): Promise<SkillFile[]> =>
+  readDirFiles(storeEntryPath(source, name, integrity)).catch((e: NodeJS.ErrnoException) => {
+    if (e.code !== "ENOENT") throw e;
+    return [];
+  });
+
 export class IntegrityError extends Error {
   constructor(
     readonly expected: string,

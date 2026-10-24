@@ -9,6 +9,7 @@ import {
   IntegrityError,
   materialize,
   prunePlan,
+  storedFiles,
   storeEntryPath,
 } from "./store.ts";
 import { storeDir } from "../paths.ts";
@@ -180,4 +181,11 @@ test("materialize rejects files that do not match the expected integrity and kee
   await expect(mismatch).rejects.toMatchObject({ expected });
   expect(existsSync(storeEntryPath(SOURCE, "demo", expected))).toBe(false);
   expect(await readdir(join(storeDir(), "github.com_o_r"))).toEqual([]);
+});
+
+test("storedFiles reads an entry back and finds nothing for a missing one", async () => {
+  const { integrity } = await materialize(SOURCE, "demo", files("v1"));
+
+  expect(await storedFiles(SOURCE, "demo", integrity)).toEqual(files("v1"));
+  expect(await storedFiles(OTHER, "demo", integrity)).toEqual([]);
 });

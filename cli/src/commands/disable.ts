@@ -8,6 +8,7 @@ import {
   removeInstalledSkill,
 } from "../core/install/destination.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { warnReferrers } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
@@ -67,6 +68,7 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
   if (modified.size > 0) {
     reportModified([...modified], "Disabling discards those edits and cannot be undone.");
   }
+  await warnReferrers(skills, names);
 
   const proceed = await confirm(`Disable ${names.map(skillName).join(", ")} (${scope})?`, {
     yes: options.yes,

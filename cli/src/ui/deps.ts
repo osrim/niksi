@@ -31,10 +31,15 @@ export const warnReferrers = async (
   targets: string[],
 ): Promise<void> => {
   const batch = await Promise.all(
-    survivors.map(async (skill) => ({
-      name: skill.name,
-      files: await storedFiles(skill.source, skill.name, skill.integrity),
-    })),
+    survivors
+      .filter((skill) => !targets.includes(skill.name))
+      .map(async (skill) => ({
+        name: skill.name,
+        files: await storedFiles(skill.source, skill.name, skill.integrity).catch((e: Error) => {
+          logWarn(`${skillName(skill.name)}: mention check skipped. ${e.message}`);
+          return [];
+        }),
+      })),
   );
   for (const [target, referrers] of referrersTo(batch, targets)) {
     warn(`${skillName(target)} is referenced by ${referrers.map(skillName).join(", ")}`);

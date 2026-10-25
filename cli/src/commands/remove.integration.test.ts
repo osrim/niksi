@@ -82,6 +82,11 @@ test("remove -y warns and proceeds", async () => {
   expect(removed.stdout).toContain("grilling: removed");
   expect(existsSync(join(project, ".claude", "skills", "grilling"))).toBe(false);
   expect(Object.keys(await readLockJson(project))).toEqual(["wayfinder"]);
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills.map((row: { name: string }) => row.name)).toEqual([
+    "wayfinder",
+  ]);
 });
 
 test("remove stays quiet when nothing references the skill", async () => {

@@ -126,7 +126,7 @@ Before it confirms, `remove` warns when another installed skill in the same scop
 grilling is referenced by implement, wayfinder
 ```
 
-The check reads the stored files of every other entry in the scope's lockfile, from any source, disabled ones included. It skips an entry whose files are missing from the store. `nik install` restores them. Mentions between selected skills do not count. It uses the same mention detection as `add`, so it can miss or over-match a mention. The warning never blocks. `--yes` proceeds.
+The check reads the stored files of every other entry in the scope's lockfile, from any source, disabled ones included. It skips an entry whose files are missing from the store. `nik install` restores them. It also skips an entry whose stored files cannot be read, and names it in a warning. Mentions between selected skills do not count. It uses the same mention detection as `add`, so it can miss or over-match a mention. The warning never blocks. `--yes` proceeds.
 
 ## `list`
 

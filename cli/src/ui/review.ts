@@ -70,14 +70,13 @@ const expandDependencies = async (
   decisions: Decisions,
   result: ReviewResult,
 ): Promise<void> => {
-  const known = request.skills.map((skill) => skill.name);
   const interactive = !request.options.yes && isInteractive();
   const offered = new Set<string>();
 
   for (;;) {
     const mentioned = missingDeps(
-      result.approved.map(({ skill, files }) => ({ name: skill.name, files })),
-      known,
+      result.approved.map(({ skill, files }) => ({ ...skill, files })),
+      request.skills,
       (name) => offered.has(name) || request.lock.skills[name] !== undefined,
     );
     for (const dep of mentioned) offered.add(dep.name);

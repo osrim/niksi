@@ -42,7 +42,7 @@ Use these terms in code, docs, and output.
 | discovered skill | Skill found before installation. | remote skill, candidate |
 | ambiguous | Two discovered skills in one source share a name. Each is selected by its path. | duplicate, conflict |
 | dependency | Another skill needed from the same source. | requirement, peer |
-| mention | One use of another skill's name in a skill file. | reference, link, citation |
+| mention | One use of another skill's name, or one relative Markdown link to its `SKILL.md` or directory, in a skill file. | reference, link, citation |
 | batch | The skills one command run processes. One failure does not stop the batch. | set, group, queue |
 
 ## Installation

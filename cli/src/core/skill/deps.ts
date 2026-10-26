@@ -1,4 +1,4 @@
-import { extname } from "node:path";
+import { extname, posix } from "node:path";
 import type { SkillFile } from "./files.ts";
 import { lineAt, stripFencedCode } from "./text.ts";
 
@@ -6,6 +6,11 @@ interface SkillMention {
   name: string;
   file: string;
   line: number;
+}
+
+interface SkillRef {
+  name: string;
+  path: string;
 }
 
 const SKILL_NAME = "[a-z][a-z0-9-]{1,63}";
@@ -18,23 +23,58 @@ const NAMED_SKILL_CODE_MENTION = new RegExp(
   "gmu",
 );
 
+// `[text](target)`, with optional angle brackets and title.
+const MARKDOWN_LINK = /\]\(\s*<?([^\s<>()]+)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/gu;
+
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/iu;
+
+const targetSkillPath = (from: string, target: string): string | undefined => {
+  const relativePath = target.replace(/[?#].*$/u, "");
+  if (!relativePath || URL_SCHEME.test(relativePath) || relativePath.startsWith("/")) {
+    return undefined;
+  }
+  const resolved = posix.join(from, relativePath).replace(/\/+$/u, "");
+  const dir = posix.basename(resolved) === "SKILL.md" ? posix.dirname(resolved) : resolved;
+  return dir === "." ? "" : dir;
+};
+
+interface Candidate {
+  name: string | undefined;
+  index: number;
+}
+
+const candidates = (
+  text: string,
+  pattern: RegExp,
+  resolve: (capture: string) => string | undefined,
+): Candidate[] =>
+  [...text.matchAll(pattern)].map((m) => ({ name: resolve(m[1]!), index: m.index }));
+
 export const findMentions = (
   files: SkillFile[],
-  self: string,
-  known: Iterable<string>,
+  self: SkillRef,
+  known: readonly SkillRef[],
 ): SkillMention[] => {
-  const names = new Set(known);
+  const names = new Set(known.map((skill) => skill.name));
+  const byPath = new Map(known.map((skill) => [skill.path, skill.name]));
+  const named = (name: string) => (names.has(name) ? name : undefined);
   const found = new Map<string, SkillMention>();
   for (const file of files) {
     if (extname(file.path).toLowerCase() !== ".md") continue;
     const text = stripFencedCode(file.content.toString("utf8"));
-    for (const pattern of [STANDALONE_SLASH_MENTION, NAMED_SKILL_CODE_MENTION]) {
-      pattern.lastIndex = 0;
-      for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-        const name = match[1]!;
-        if (name === self || !names.has(name) || found.has(name)) continue;
-        found.set(name, { name, file: file.path, line: lineAt(text, match.index) });
-      }
+    const from = posix.join(self.path, posix.dirname(file.path));
+    const targeted = (target: string) => {
+      const path = targetSkillPath(from, target);
+      return path === undefined ? undefined : byPath.get(path);
+    };
+    const inOrder = [
+      ...candidates(text, STANDALONE_SLASH_MENTION, named),
+      ...candidates(text, NAMED_SKILL_CODE_MENTION, named),
+      ...candidates(text, MARKDOWN_LINK, targeted),
+    ].toSorted((a, b) => a.index - b.index);
+    for (const { name, index } of inOrder) {
+      if (name === undefined || name === self.name || found.has(name)) continue;
+      found.set(name, { name, file: file.path, line: lineAt(text, index) });
     }
   }
   return [...found.values()].toSorted((a, b) => a.name.localeCompare(b.name));
@@ -44,23 +84,22 @@ export interface MissingDep extends SkillMention {
   from: string;
 }
 
-export interface BatchSkill {
-  name: string;
+export interface BatchSkill extends SkillRef {
   files: SkillFile[];
 }
 
 export const missingDeps = (
   batch: BatchSkill[],
-  known: Iterable<string>,
+  known: readonly SkillRef[],
   alreadyHere: (name: string) => boolean,
 ): MissingDep[] => {
   const inBatch = new Set(batch.map((skill) => skill.name));
   const missing = new Map<string, MissingDep>();
-  for (const { name: from, files } of batch) {
-    for (const mention of findMentions(files, from, known)) {
+  for (const skill of batch) {
+    for (const mention of findMentions(skill.files, skill, known)) {
       if (inBatch.has(mention.name) || missing.has(mention.name) || alreadyHere(mention.name))
         continue;
-      missing.set(mention.name, { ...mention, from });
+      missing.set(mention.name, { ...mention, from: skill.name });
     }
   }
   return [...missing.values()];

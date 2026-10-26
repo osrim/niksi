@@ -35,6 +35,7 @@ beforeAll(async () => {
   await makeSkill(tmp, "helper", "Back to /primary.\n");
   await makeSkill(tmp, "other");
   await makeSkill(tmp, "secondary", "Use /helper.\n");
+  await makeSkill(tmp, "linker", "Read [helper](../helper/SKILL.md).\n");
   source = new LocalSource(tmp);
 });
 
@@ -123,6 +124,23 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${tmp} helper other -g`);
     expect(multiselect).not.toHaveBeenCalled();
     expect(lock.skills).toEqual({});
+  });
+
+  test("a Markdown link to another skill's SKILL.md counts as a mention", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("linker"),
+          files: await source.fetchFiles(undefined, "linker"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain("linker mentions helper at SKILL.md:5. not installed.");
   });
 
   test("a recorded discovery root scopes the check and the add hint to that subtree", async () => {

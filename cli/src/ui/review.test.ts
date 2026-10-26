@@ -36,6 +36,7 @@ beforeAll(async () => {
   await makeSkill(tmp, "chain-a", "Use /chain-b.\n");
   await makeSkill(tmp, "chain-b", "Use /chain-c.\n");
   await makeSkill(tmp, "chain-c");
+  await makeSkill(tmp, "links-chain", "Read [the chain](../chain-a/SKILL.md) first.\n");
   await makeSkill(tmp, "hub", "Use /spoke and /helper.\n");
   await makeSkill(tmp, "spoke", "Also /helper.\n");
   await makeSkill(tmp, "scripted");
@@ -171,6 +172,15 @@ describe("reviewNewSkills", () => {
 
     expect(result.approved).toEqual(["chain-a", "chain-b", "chain-c"]);
     expect(result.offered).toEqual([["chain-b"], ["chain-c"]]);
+  });
+
+  test("a Markdown link to another skill's SKILL.md is offered, then that skill's own dependencies", async () => {
+    const result = await review(["links-chain"], {
+      script: { pick: ["chain-a", "chain-b", "chain-c"] },
+    });
+
+    expect(result.approved).toEqual(["links-chain", "chain-a", "chain-b", "chain-c"]);
+    expect(result.offered).toEqual([["chain-a"], ["chain-b"], ["chain-c"]]);
   });
 
   test("a mention is offered once, even when a later dependency repeats it", async () => {

@@ -125,6 +125,71 @@ test("external, fenced, non-skill and self links are not mentions", () => {
   expect(names([md("SKILL.md", text)])).toEqual([]);
 });
 
+test("Markdown reference links cite the line that uses them, not the definition", () => {
+  const text = [
+    "Read [the loop][tdd-ref] first.",
+    "Then [Grilling][] and [Research].",
+    "",
+    "[TDD-Ref]: ../tdd/SKILL.md",
+    "[grilling]: <../grilling/> 'Grilling'",
+    "[research]: ../research/SKILL.md",
+  ].join("\n");
+  expect(findMentions([md("SKILL.md", text)], at("self"), KNOWN)).toEqual([
+    { name: "grilling", file: "SKILL.md", line: 2 },
+    { name: "research", file: "SKILL.md", line: 2 },
+    { name: "tdd", file: "SKILL.md", line: 1 },
+  ]);
+});
+
+test("a Markdown reference definition alone, or a use without one, is not a mention", () => {
+  const text = "[tdd]: ../tdd/SKILL.md\n\nSee [grilling][nowhere] and [research].";
+  expect(names([md("SKILL.md", text)])).toEqual([]);
+});
+
+test("an angle-bracket Markdown link destination may contain spaces", () => {
+  const known = [{ name: "full-send", path: "skills/full send" }];
+  const files = [md("SKILL.md", "Then [full-send](<../full send/SKILL.md>).")];
+  expect(findMentions(files, at("full-stop"), known).map((r) => r.name)).toEqual(["full-send"]);
+});
+
+test("slash and backtick idioms inside a Markdown link destination are not mentions", () => {
+  const text = [
+    "[read](/tdd) and [see][g]",
+    "[x](<`domain-modeling` skill.md>)",
+    "",
+    "[g]: /grilling",
+    "[run /research](../code-review/SKILL.md)",
+  ].join("\n");
+  expect(findMentions([md("SKILL.md", text)], at("self"), KNOWN)).toEqual([
+    { name: "code-review", file: "SKILL.md", line: 5 },
+    { name: "research", file: "SKILL.md", line: 5 },
+  ]);
+});
+
+test("a Markdown link to an ambiguous skill carries the linked path, even after a name mention", () => {
+  const known = [
+    { name: "twin", path: "a/twin", ambiguous: true },
+    { name: "twin", path: "b/twin", ambiguous: true },
+  ];
+  expect(findMentions([md("SKILL.md", "Use /twin.")], at("self"), known)).toEqual([
+    { name: "twin", file: "SKILL.md", line: 1 },
+  ]);
+  const files = [
+    md("SKILL.md", "Use /twin."),
+    md("refs/x.md", "Or [it](../../../b/twin/SKILL.md)."),
+  ];
+  expect(findMentions(files, at("self"), known)).toEqual([
+    { name: "twin", path: "b/twin", file: "SKILL.md", line: 1 },
+  ]);
+  const batch = [
+    { ...at("one"), files: [md("SKILL.md", "Use /twin.")] },
+    { ...at("two"), files: [md("SKILL.md", "Use [it](../../b/twin/SKILL.md).")] },
+  ];
+  expect(missingDeps(batch, known, () => false)).toEqual([
+    { name: "twin", path: "b/twin", file: "SKILL.md", line: 1, from: "one" },
+  ]);
+});
+
 test("missingDeps drops batch members, skills already here and repeats; first mention wins", () => {
   const batch = [
     { ...at("a"), files: [md("SKILL.md", "run /tdd then /grilling and /research")] },

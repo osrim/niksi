@@ -60,8 +60,11 @@ const reviewBatch = async (
   return review.approved.length;
 };
 
+const refersTo = (dep: MissingDep, skill: DiscoveredSkill): boolean =>
+  dep.path === undefined ? skill.name === dep.name : skill.path === dep.path;
+
 const offerFor = (request: ReviewRequest, dep: MissingDep): DependencyOffer => {
-  const skill = request.skills.find((candidate) => candidate.name === dep.name)!;
+  const skill = request.skills.find((candidate) => refersTo(dep, candidate))!;
   return { name: dep.name, hint: summarize(skill.description) ?? `mentioned by ${dep.from}` };
 };
 
@@ -97,7 +100,9 @@ const expandDependencies = async (
       await decisions.pickDependencies(missing.map((dep) => offerFor(request, dep))),
     );
     if (picked.size === 0) return;
-    const batch = request.skills.filter((skill) => picked.has(skill.name));
+    const batch = request.skills.filter((skill) =>
+      missing.some((dep) => picked.has(dep.name) && refersTo(dep, skill)),
+    );
     await reviewBatch(request, batch, decisions, result);
   }
 };

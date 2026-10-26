@@ -32,7 +32,7 @@ export const reportNotInstalled = (
     return;
   }
   p.log.info(
-    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
+    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.path ?? dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );
 };
 

@@ -5,11 +5,20 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import curlPipeShell from "../core/scan/fixtures/curl-pipe-shell.ts";
-import { cliRunner, commitAll, initRepo, makeSkill, type RunCli } from "../test-cli.ts";
+import {
+  cliRunner,
+  commitAll,
+  initRepo,
+  makeSkill,
+  terminalRunner,
+  type RunCli,
+  type RunTerminal,
+} from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
 let runCli: RunCli;
+let runTerminal: RunTerminal;
 let pagerRan: string;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "PAGER");
 
@@ -20,6 +29,7 @@ beforeAll(async () => {
   pagerRan = join(tmp, "pager-ran");
   process.env.PAGER = `touch '${pagerRan}'`;
   runCli = cliRunner(tmp);
+  runTerminal = terminalRunner(tmp);
 });
 
 afterAll(async () => {
@@ -252,5 +262,46 @@ test("add and update report an other-scope dependency installed only for a diffe
   expect(listed.exitCode).toBe(0);
   expect(JSON.parse(listed.stdout).skills.map((skill: { name: string }) => skill.name)).toEqual([
     "primary",
+  ]);
+});
+
+test("an interactive add offers a skill that a relative Markdown link names, and adds it", async () => {
+  const project = join(tmp, "markdown-link-project");
+  const skills = join(project, "vendor", "skills");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(skills, "full-stop", "Then read [the next step][send].\n\n[send]: ../send-it/\n");
+  await makeSkill(skills, "send-it");
+  await writeFile(
+    join(skills, "send-it", "SKILL.md"),
+    "---\nname: full-send\ndescription: test\n---\n",
+  );
+
+  const added = await runTerminal(
+    project,
+    [
+      { on: "Add these dependencies?", send: " \r" },
+      { on: "Add full-stop, full-send?", send: "\r" },
+    ],
+    "add",
+    dirname(skills),
+    "full-stop",
+    "-p",
+    "--agent",
+    "claude",
+  );
+
+  expect(added.exitCode).toBe(0);
+  expect(added.stdout).toContain("full-stop mentions full-send at SKILL.md:5. not installed.");
+  for (const name of ["full-stop", "full-send"]) {
+    expect(existsSync(join(project, ".claude", "skills", name, "SKILL.md"))).toBe(true);
+  }
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
+  expect(lock.skills["full-send"]).toMatchObject({ path: "skills/send-it" });
+  expect(lock.skills["full-stop"]).toMatchObject({ path: "skills/full-stop" });
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills.map((skill: { name: string }) => skill.name)).toEqual([
+    "full-send",
+    "full-stop",
   ]);
 });

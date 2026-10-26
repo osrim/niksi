@@ -100,6 +100,19 @@ test("missing dependencies without a usable rooted coordinate warn without a bro
   expect(printed()).not.toContain("Add them:");
 });
 
+test("an ambiguous dependency appears in the add command by its path", () => {
+  reportNotInstalled(
+    [
+      { from: "primary", name: "helper", file: "SKILL.md", line: 5 },
+      { from: "primary", name: "twin", path: "b/twin", file: "SKILL.md", line: 6 },
+    ],
+    "o/r@main",
+    "project",
+  );
+  expect(printed()).toContain("primary mentions twin at SKILL.md:6. not installed.");
+  expect(printed()).toContain("Add them: nik add o/r@main helper b/twin\n");
+});
+
 describe("reportUpdateDeps", () => {
   test("missing dependencies are reported and never installed", async () => {
     setInteractive(true);

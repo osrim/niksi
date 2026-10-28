@@ -37,6 +37,7 @@ beforeAll(async () => {
   await makeSkill(tmp, "helper", "Back to /primary.\n");
   await makeSkill(tmp, "other");
   await makeSkill(tmp, "secondary", "Use /helper.\n");
+  await makeSkill(tmp, "linker", "Read [helper](../helper/SKILL.md).\n");
   source = new LocalSource(tmp);
 });
 
@@ -101,6 +102,19 @@ test("missing dependencies without a usable rooted coordinate warn without a bro
   expect(printed()).not.toContain("Add them:");
 });
 
+test("an ambiguous dependency appears in the add command by its path", () => {
+  reportNotInstalled(
+    [
+      { from: "primary", name: "helper", file: "SKILL.md", line: 5 },
+      { from: "primary", name: "twin", path: "b/twin", file: "SKILL.md", line: 6 },
+    ],
+    "o/r@main",
+    "project",
+  );
+  expect(printed()).toContain("primary mentions twin at SKILL.md:6. not installed.");
+  expect(printed()).toContain("Add them: nik add o/r@main helper b/twin\n");
+});
+
 describe("reportUpdateDeps", () => {
   test("missing dependencies are reported and never installed", async () => {
     setInteractive(true);
@@ -125,6 +139,23 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${tmp} helper other -g`);
     expect(multiselect).not.toHaveBeenCalled();
     expect(lock.skills).toEqual({});
+  });
+
+  test("a Markdown link to another skill's SKILL.md counts as a mention", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("linker"),
+          files: await source.fetchFiles(undefined, "linker"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain("linker mentions helper at SKILL.md:5. not installed.");
   });
 
   test("a recorded discovery root scopes the check and the add hint to that subtree", async () => {

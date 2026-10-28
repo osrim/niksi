@@ -9,7 +9,7 @@ import type { AgentId } from "../core/install/agents.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
 import { captureEnv } from "../test-env.ts";
 import type { Scope } from "../core/paths.ts";
-import type { DiscoveredSkill } from "../core/source/discover.ts";
+import { selector, type DiscoveredSkill } from "../core/source/discover.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import { makeSkill, recordedLock } from "../test-cli.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
@@ -36,6 +36,10 @@ beforeAll(async () => {
   await makeSkill(tmp, "chain-a", "Use /chain-b.\n");
   await makeSkill(tmp, "chain-b", "Use /chain-c.\n");
   await makeSkill(tmp, "chain-c");
+  await makeSkill(tmp, "links-chain", "Read [the chain](../chain-a/SKILL.md) first.\n");
+  await makeSkill(join(tmp, "pair-a"), "twin");
+  await makeSkill(join(tmp, "pair-b"), "twin");
+  await makeSkill(tmp, "links-twin", "Read [the twin](../pair-b/twin/SKILL.md).\n");
   await makeSkill(tmp, "hub", "Use /spoke and /helper.\n");
   await makeSkill(tmp, "spoke", "Also /helper.\n");
   await makeSkill(tmp, "scripted");
@@ -129,7 +133,7 @@ const review = async (
 };
 
 const summary = ({ approved, declined, blocked }: ReviewResult) => ({
-  approved: approved.map(({ skill }) => skill.name),
+  approved: approved.map(({ skill }) => selector(skill)),
   declined,
   blocked,
 });
@@ -171,6 +175,22 @@ describe("reviewNewSkills", () => {
 
     expect(result.approved).toEqual(["chain-a", "chain-b", "chain-c"]);
     expect(result.offered).toEqual([["chain-b"], ["chain-c"]]);
+  });
+
+  test("a Markdown link to another skill's SKILL.md is offered, then that skill's own dependencies", async () => {
+    const result = await review(["links-chain"], {
+      script: { pick: ["chain-a", "chain-b", "chain-c"] },
+    });
+
+    expect(result.approved).toEqual(["links-chain", "chain-a", "chain-b", "chain-c"]);
+    expect(result.offered).toEqual([["chain-a"], ["chain-b"], ["chain-c"]]);
+  });
+
+  test("a Markdown link to an ambiguous skill offers and adds only the linked one", async () => {
+    const result = await review(["links-twin"], { script: { pick: ["twin"] } });
+
+    expect(result.approved).toEqual(["links-twin", "pair-b/twin"]);
+    expect(result.offered).toEqual([["twin"]]);
   });
 
   test("a mention is offered once, even when a later dependency repeats it", async () => {

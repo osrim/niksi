@@ -57,7 +57,7 @@ export const reportNotInstalled = (
     return;
   }
   p.log.info(
-    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.name).join(" ")}${scopeFlag(scope)}`)}`,
+    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.path ?? dep.name).join(" ")}${scopeFlag(scope)}`)}`,
   );
 };
 
@@ -133,14 +133,13 @@ export const reportUpdateDeps = async (
       logWarn(`${source.display}: dependency check skipped. ${(e as Error).message}`);
       continue;
     }
-    const knownNames = known.map((candidate) => candidate.name);
     const inBatch = new Set(group.map((item) => item.verdict.skill.name));
     const missing = new Map<string, MissingDep>();
     for (const item of group) {
       const { destination } = await updateDestination(item.verdict.skill, scope, lock);
       const mentioned = missingDeps(
-        [{ name: item.verdict.skill.name, files: item.files }],
-        knownNames,
+        [{ ...item.verdict.skill, files: item.files }],
+        known,
         (name) => lock.skills[name] !== undefined || inBatch.has(name),
       );
       const remaining = await reportRecordedElsewhere(

@@ -52,6 +52,7 @@ const project = async (name: string, ...skills: string[]): Promise<string> => {
 const addLink = async (root: string, coordinate: string, ...names: string[]): Promise<void> => {
   const result = await runCli(root, "add", coordinate, ...names, "-p", "--agent", "claude", "-y");
   expect(result.exitCode).toBe(0);
+  expect(result.stdout).not.toContain("\x1b");
 };
 
 const isLink = async (path: string): Promise<boolean> =>
@@ -87,6 +88,7 @@ test("a fresh checkout installs every entry with --agent claude --yes", async ()
     );
   }
   expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+  expect(result.stdout).not.toContain("\x1b");
 });
 
 test.each([

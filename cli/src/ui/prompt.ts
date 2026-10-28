@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import { logError } from "./report.ts";
+import { red } from "./style.ts";
 
 export const isInteractive = (): boolean => Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
@@ -29,12 +30,26 @@ export const requireTTY = (question: string, remedy: string): void => {
   if (!isInteractive()) failNoTTY(question, remedy);
 };
 
+type Spinner = Pick<p.SpinnerResult, "start" | "stop" | "error" | "clear">;
+
+const noop = (): void => undefined;
+
+// Clack's spinner hides and shows the cursor even when stdout is piped.
+const lineSpinner = (): Spinner => ({
+  start: noop,
+  stop: (message = "") => p.log.step(message),
+  error: (message = "") => p.log.message(message, { symbol: red(p.S_STEP_ERROR) }),
+  clear: noop,
+});
+
+export const createSpinner = (): Spinner => (process.stdout.isTTY ? p.spinner() : lineSpinner());
+
 export const withSpinner = async <T>(
   message: string,
   work: () => Promise<T>,
   done: (result: T) => string | null,
 ): Promise<T> => {
-  const spinner = p.spinner();
+  const spinner = createSpinner();
   spinner.start(message);
   try {
     const result = await work();

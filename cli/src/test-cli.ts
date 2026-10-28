@@ -51,33 +51,56 @@ export const cliRunner =
     return { exitCode, stdout, stderr };
   };
 
+interface SpawnOptions {
+  cwd: string;
+  env: Record<string, string | undefined>;
+}
+
+interface TerminalResult {
+  exitCode: number;
+  output: string;
+}
+
+export const spawnTerminal = async (
+  argv: string[],
+  options: SpawnOptions,
+  onOutput?: (output: string, terminal: Bun.Terminal) => void,
+): Promise<TerminalResult> => {
+  const decoder = new TextDecoder();
+  let output = "";
+  const child = Bun.spawn(argv, {
+    ...options,
+    terminal: {
+      data(terminal, data) {
+        output += decoder.decode(data, { stream: true });
+        onOutput?.(output, terminal);
+      },
+    },
+  });
+  const exitCode = await child.exited;
+  child.terminal?.close();
+  return { exitCode, output: output + decoder.decode() };
+};
+
 // A terminal merges stdout and stderr, so the result carries both in stdout.
 export const terminalRunner =
   (home: string): RunTerminal =>
   async (cwd, answers, ...args) => {
-    const decoder = new TextDecoder();
-    let output = "";
     let next = 0;
     let searchFrom = 0;
-    const child = Bun.spawn([process.execPath, cli, ...args], {
-      cwd,
-      env: cliEnv(home),
-      terminal: {
-        data(terminal, data) {
-          output += decoder.decode(data, { stream: true });
-          const answer = answers[next];
-          if (!answer) return;
-          const at = output.indexOf(answer.on, searchFrom);
-          if (at === -1) return;
-          next++;
-          searchFrom = at + answer.on.length;
-          terminal.write(answer.send);
-        },
+    const { exitCode, output } = await spawnTerminal(
+      [process.execPath, cli, ...args],
+      { cwd, env: cliEnv(home) },
+      (sofar, terminal) => {
+        const answer = answers[next];
+        if (!answer) return;
+        const at = sofar.indexOf(answer.on, searchFrom);
+        if (at === -1) return;
+        next++;
+        searchFrom = at + answer.on.length;
+        terminal.write(answer.send);
       },
-    });
-    const exitCode = await child.exited;
-    child.terminal?.close();
-    output += decoder.decode();
+    );
     const unanswered = answers[next];
     if (unanswered) throw new Error(`no prompt "${unanswered.on}" in:\n${output}`);
     return { exitCode, stdout: output, stderr: "" };

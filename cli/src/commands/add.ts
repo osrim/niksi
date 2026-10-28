@@ -30,7 +30,7 @@ import { confirmWrite, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
-import { fail } from "../ui/prompt.ts";
+import { createSpinner, fail } from "../ui/prompt.ts";
 import { logWarn } from "../ui/report.ts";
 import { reviewNewSkills } from "../ui/review.ts";
 import { skillName, tildify } from "../ui/style.ts";
@@ -264,7 +264,7 @@ interface Fetched {
 }
 
 const resolveSource = async (source: Source, coordinate: Coordinate): Promise<Fetched | null> => {
-  const spinner = p.spinner();
+  const spinner = createSpinner();
   spinner.start(
     coordinate.kind === "local" ? `Reading ${source.display}` : `Fetching ${source.display}`,
   );

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { probe } from "../test-color.ts";
+import { probe, probeTerminal } from "../test-color.ts";
 
 const ESC = "\u001B";
 
@@ -16,6 +16,11 @@ const BUFFER = `
   process.stdout.write(Buffer.from("\\u001B[31mred\\u001B[39m ✓\\n"));
 `;
 
+const PAINT = `
+  const { red } = await import(DIR + "/style.ts");
+  process.stdout.write(red("hello"));
+`;
+
 const TWICE = `
   const { enforceColorPolicy } = await import(DIR + "/style.ts");
   enforceColorPolicy();
@@ -23,6 +28,21 @@ const TWICE = `
   enforceColorPolicy();
   process.stdout.write(first === process.stdout.write ? "same" : "stacked");
 `;
+
+describe("colour level", () => {
+  test("NO_COLOR turns colour off on a terminal", async () => {
+    expect(await probeTerminal({}, PAINT)).toInclude(ESC);
+    const out = await probeTerminal({ NO_COLOR: "1" }, PAINT);
+    expect(out).toInclude("hello");
+    expect(out).not.toInclude(ESC);
+  });
+
+  test("piped output has no colour without NO_COLOR", async () => {
+    const out = (await probe({}, PAINT)).join("\n");
+    expect(out).toInclude("hello");
+    expect(out).not.toInclude(ESC);
+  });
+});
 
 describe("enforceColorPolicy", () => {
   test("strips clack's own colour when colour is off", async () => {

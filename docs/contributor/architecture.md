@@ -2,6 +2,8 @@
 
 For contributors. `niksi` is a Bun workspace with one package in `cli/`. Terms follow [CONTEXT.md](../../CONTEXT.md).
 
+The GitHub Action is `action.yml` at the repository root. Its steps run the Bash scripts in `action/`. `setup.sh` downloads and verifies the `nik` binary: the `version` input, else the version in `cli/package.json`. `install.sh`, `update.sh`, and `scan.sh` run one action mode each, with `nik`, `git`, `gh`, and `jq`. `cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source and a stub `gh`. See [ci.md](../ci.md).
+
 ## Layers
 
 ```text

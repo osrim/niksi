@@ -8,6 +8,8 @@ For maintainers. A release is a tag, a GitHub Release with four binaries, a Home
 
 The version lives in `cli/package.json`. The tag is the version with a `v` prefix. `release.yml` fails when they differ.
 
+The GitHub Action at a tag downloads the binaries of that tag's release, so `uses: osrim/niksi@vX.Y.Z` fails until `release.yml` has uploaded them.
+
 ## Release command
 
 From `cli/`, on `main`, with a clean tree:

@@ -1,0 +1,77 @@
+name: niksi
+description: Restore agent skills, open skill update pull requests, or scan a skill repository.
+author: osrim
+branding:
+  icon: package
+  color: purple
+
+inputs:
+  mode:
+    description: "install, update, or scan."
+    required: true
+  version:
+    description: The niksi version to run. Defaults to the version of this action's release.
+    default: ""
+  agent:
+    description: "Install mode: agents for link entries, separated by commas, as in nik install --agent."
+    default: ""
+  source:
+    description: "Update mode: update only the skills from this source, as in nik update --source. Defaults to every skill that is not pinned."
+    default: ""
+  pull-request:
+    description: "Update mode: open or update a pull request with the changes. Set to false to write only the report."
+    default: "true"
+  branch:
+    description: "Update mode: the pull request branch."
+    default: niksi-update
+  title:
+    description: "Update mode: the pull request title and commit message."
+    default: "chore: update skills"
+  token:
+    description: "Update mode: the token that pushes the branch and opens the pull request."
+    default: ${{ github.token }}
+  path:
+    description: "Scan mode: the directory of the skill repository to scan."
+    default: "."
+
+outputs:
+  report:
+    description: "Update mode: path of the Markdown review report."
+    value: ${{ steps.run.outputs.report }}
+  pull-request-url:
+    description: "Update mode: URL of the opened or updated pull request."
+    value: ${{ steps.run.outputs.pull-request-url }}
+  badge:
+    description: "Scan mode: Markdown for a badge that shows the scan workflow's status and links to niksi."
+    value: ${{ steps.run.outputs.badge }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install nik
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/action/setup.sh"
+    - id: run
+      name: Run nik
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_AGENT: ${{ inputs.agent }}
+        INPUT_SOURCE: ${{ inputs.source }}
+        INPUT_PULL_REQUEST: ${{ inputs.pull-request }}
+        INPUT_BRANCH: ${{ inputs.branch }}
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_TOKEN: ${{ inputs.mode == 'update' && inputs.token || '' }}
+        INPUT_DEFAULT_TOKEN: ${{ inputs.token == github.token }}
+        INPUT_PATH: ${{ inputs.path }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        case "$INPUT_MODE" in
+          install | update | scan) bash "$GITHUB_ACTION_PATH/action/$INPUT_MODE.sh" ;;
+          *)
+            echo "::error::mode must be install, update, or scan."
+            exit 2
+            ;;
+        esac

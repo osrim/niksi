@@ -45,7 +45,7 @@ Use `name: result` for one skill. Name the skill once. Put a remedy on the next 
 grilling: installed @ v1.2.0
 grilling: restored @ v1.2.0
 grilling: removed from custom-directory/grilling
-grilling: source no longer has skills/grilling, skipped
+grilling: source no longer has skills/grilling
 ```
 
 A failed skill does not stop the batch. The command continues, writes state that matches disk, and exits `1`.

@@ -113,18 +113,30 @@ interface UpdateSelection {
   needsPrompt: boolean;
 }
 
+export const requestedNames = (
+  skills: InstalledSkill[],
+  names: string[],
+  all: boolean,
+): string[] | undefined => {
+  if (names.length > 0) return names;
+  if (!all) return undefined;
+  return skills.filter((skill) => skill.track !== "pin").map((skill) => skill.name);
+};
+
 export const selectUpdates = (
   candidates: UpdatableVerdict[],
   names: string[],
   all: boolean,
 ): UpdateSelection => {
-  if (names.length > 0) {
-    const selected = candidates.filter((verdict) => names.includes(verdict.skill.name));
-    const skipped = names.filter(
-      (name) => !selected.some((verdict) => verdict.skill.name === name),
-    );
-    return { selected, skipped, needsPrompt: false };
-  }
-  if (all) return { selected: candidates, skipped: [], needsPrompt: false };
-  return { selected: [], skipped: [], needsPrompt: true };
+  const requested = requestedNames(
+    candidates.map((verdict) => verdict.skill),
+    names,
+    all,
+  );
+  if (!requested) return { selected: [], skipped: [], needsPrompt: true };
+  const selected = candidates.filter((verdict) => requested.includes(verdict.skill.name));
+  const skipped = requested.filter(
+    (name) => !selected.some((verdict) => verdict.skill.name === name),
+  );
+  return { selected, skipped, needsPrompt: false };
 };

@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { $ } from "bun";
 import type { InstalledSkill } from "../install/destination.ts";
-import { computeVerdicts, selectUpdates, type OutdatedVerdict } from "./upstream.ts";
+import {
+  computeVerdicts,
+  requestedNames,
+  selectUpdates,
+  type OutdatedVerdict,
+} from "./upstream.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import { cloneOrFetch } from "./git.ts";
 import { storeEntryPath } from "../install/store.ts";
@@ -256,4 +261,12 @@ test("selectUpdates: no names, no --all: prompt needed", () => {
   const s = selectUpdates(outdatedSet, [], false);
   expect(s.selected).toEqual([]);
   expect(s.needsPrompt).toBe(true);
+});
+
+test("requestedNames: names win, --all takes every unpinned skill, neither asks", () => {
+  const pinned = { ...outdatedStatus("pinned").skill, track: "pin" as const };
+  const skills = [outdatedStatus("alpha").skill, pinned];
+  expect(requestedNames(skills, ["pinned"], true)).toEqual(["pinned"]);
+  expect(requestedNames(skills, [], true)).toEqual(["alpha"]);
+  expect(requestedNames(skills, [], false)).toBeUndefined();
 });

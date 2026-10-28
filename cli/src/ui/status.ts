@@ -4,6 +4,7 @@ import type { Scope } from "../core/paths.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import {
+  type GoneVerdict,
   type MovedVerdict,
   type OutdatedVerdict,
   type UpdatableVerdict,
@@ -45,30 +46,40 @@ export const warnLeftover = (name: string, path: string): void => {
   logWarn(`${skillName(name)}: could not remove ${tildify(path)}\nDelete it yourself.`);
 };
 
+const goneMessage = ({ skill, source }: GoneVerdict, scope: Scope): string => {
+  const what = skill.path ? `no longer has ${skill.path}` : "no longer has this skill";
+  // From the home directory, a command without -p acts on the global scope.
+  const flag = scope === "global" ? "-g" : "-p";
+  const remedy =
+    source.kind === "local" ? `\nRun ${dim(`nik remove ${skill.name} ${flag}`)} to remove it.` : "";
+  return `${skillName(skill.name)}: source ${what}.${remedy}`;
+};
+
 export const reportVerdicts = (
   verdicts: UpdateVerdict[],
-  names: string[],
+  requested: string[],
   scope: Scope,
-): { moved: MovedVerdict[]; outdated: OutdatedVerdict[] } => {
+): { moved: MovedVerdict[]; outdated: OutdatedVerdict[]; upToDate: string[] } => {
   const moved: MovedVerdict[] = [];
   const outdated: OutdatedVerdict[] = [];
+  const upToDate: string[] = [];
   for (const verdict of verdicts) {
     const { skill } = verdict;
+    const failed = (message: string): void => {
+      logError(message);
+      if (requested.includes(skill.name)) process.exitCode = 1;
+    };
     switch (verdict.kind) {
       case "unreachable":
-        logError(`${skillName(skill.name)}: no upstream. ${verdict.error}`);
-        if (names.includes(skill.name)) process.exitCode = 1;
+        failed(`${skillName(skill.name)}: no upstream. ${verdict.error}`);
         break;
-      case "gone": {
-        const what = skill.path ? `no longer has ${skill.path}` : "no longer has this skill";
-        warn(`${skillName(skill.name)}: source ${what}. Skipped.`);
+      case "gone":
+        failed(goneMessage(verdict, scope));
         break;
-      }
       case "rewritten":
-        logError(
+        failed(
           `${skillName(skill.name)}: pinned ref "${verdict.pinnedAs}" was rewritten. ${shortId({ commit: verdict.expected })} → ${shortId({ commit: verdict.actual })}.\nReinstall to accept it.`,
         );
-        if (names.includes(skill.name)) process.exitCode = 1;
         break;
       case "pinned":
         p.log.info(
@@ -82,10 +93,11 @@ export const reportVerdicts = (
         outdated.push(verdict);
         break;
       case "up-to-date":
+        upToDate.push(skill.name);
         break;
     }
   }
-  return { moved, outdated };
+  return { moved, outdated, upToDate };
 };
 
 const describeAhead = (verdict: OutdatedVerdict): string =>

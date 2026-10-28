@@ -112,7 +112,7 @@ describe("reportVerdicts", () => {
     process.exitCode = 0;
   });
 
-  test("moved and outdated verdicts are returned for the update and print nothing", () => {
+  test("moved, outdated, and up-to-date verdicts are returned and print nothing", () => {
     const moved: UpdateVerdict = { kind: "moved", ...base("m") };
     const outdated: UpdateVerdict = { kind: "outdated", ...base("o") };
     const upToDate: UpdateVerdict = { kind: "up-to-date", ...base("u") };
@@ -120,8 +120,19 @@ describe("reportVerdicts", () => {
     expect(reportVerdicts([moved, outdated, upToDate], [], "project")).toEqual({
       moved: [moved],
       outdated: [outdated],
+      upToDate: ["u"],
     });
     expect(output.text()).toBe("");
+  });
+
+  test("a gone skill from a local source names the project scope explicitly", () => {
+    reportVerdicts([{ kind: "gone", ...base(), source: sourceFor("local:/src") }], [], "project");
+    expect(output.text()).toContain("Run nik remove tdd -p to remove it.");
+  });
+
+  test("a gone skill from a Git source does not suggest remove", () => {
+    reportVerdicts([{ kind: "gone", ...base() }], ["tdd"], "global");
+    expect(output.text()).not.toContain("nik remove");
   });
 
   test.each<{ verdict: UpdateVerdict; message: string; named: number; unnamed: number }>([
@@ -133,8 +144,14 @@ describe("reportVerdicts", () => {
     },
     {
       verdict: { kind: "gone", ...base() },
-      message: "tdd: source no longer has skills/tdd. Skipped.",
-      named: 0,
+      message: "tdd: source no longer has skills/tdd.",
+      named: 1,
+      unnamed: 0,
+    },
+    {
+      verdict: { kind: "gone", ...base(), source: sourceFor("local:/src") },
+      message: "tdd: source no longer has skills/tdd.\n│  Run nik remove tdd -g to remove it.",
+      named: 1,
       unnamed: 0,
     },
     {
@@ -153,7 +170,11 @@ describe("reportVerdicts", () => {
   ])(
     "$verdict.kind prints its message and sets the exit code",
     ({ verdict: reported, message, named, unnamed }) => {
-      expect(reportVerdicts([reported], [], "global")).toEqual({ moved: [], outdated: [] });
+      expect(reportVerdicts([reported], [], "global")).toEqual({
+        moved: [],
+        outdated: [],
+        upToDate: [],
+      });
       expect(output.text()).toContain(message);
       expect(process.exitCode).toBe(unnamed);
 

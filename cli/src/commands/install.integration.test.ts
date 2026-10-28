@@ -1,5 +1,15 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { cp, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -79,22 +89,29 @@ test("a fresh checkout installs every entry with --agent claude --yes", async ()
   expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
 });
 
-test("an integrity mismatch skips that entry, installs the rest, and exits 1", async () => {
-  const origin = await project("mismatch-origin", "changed", "intact");
-  await addLink(origin, "./skills/changed");
-  await addLink(origin, "./skills/intact");
-  const { root, run } = await checkout(origin, "mismatch-checkout");
-  await makeSkill(join(root, "skills"), "changed", "tampered\n");
-  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+test.each([false, true])(
+  "a changed local source skips that entry, installs the rest, and exits 1 (shared store: %p)",
+  async (sharedStore) => {
+    const origin = await project(`mismatch-origin-${sharedStore}`, "changed", "intact");
+    await addLink(origin, "./skills/changed");
+    await addLink(origin, "./skills/intact");
+    const checkedOut = await checkout(origin, `mismatch-checkout-${sharedStore}`);
+    const { root } = checkedOut;
+    const run = sharedStore ? runCli : checkedOut.run;
+    const stored = await readdir(join(tmp, "niksi-home", "store", "local_._skills_changed"));
+    expect(stored.some((entry) => entry.startsWith("changed@"))).toBe(true);
+    await makeSkill(join(root, "skills"), "changed", "tampered\n");
+    const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
 
-  const result = await run(root, "install", "--agent", "claude", "--yes");
+    const result = await run(root, "install", "--agent", "claude", "--yes");
 
-  expect(result.exitCode).toBe(1);
-  expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
-  expect(await isLink(join(root, ".claude", "skills", "intact"))).toBe(true);
-  expect(await isLink(join(root, ".claude", "skills", "changed"))).toBe(false);
-  expect(await lstat(join(root, ".niksi", "skills", "changed")).catch(() => null)).toBeNull();
-});
+    expect(result.exitCode).toBe(1);
+    expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+    expect(await isLink(join(root, ".claude", "skills", "intact"))).toBe(true);
+    expect(await isLink(join(root, ".claude", "skills", "changed"))).toBe(false);
+    expect(await lstat(join(root, ".niksi", "skills", "changed")).catch(() => null)).toBeNull();
+  },
+);
 
 const modifiedLink = async (name: string): Promise<{ root: string; file: string }> => {
   const root = await project(name, "demo");

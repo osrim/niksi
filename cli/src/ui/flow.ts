@@ -8,6 +8,7 @@ import type { SkillFile } from "../core/skill/files.ts";
 import { writeLock, type LoadedLockfile } from "../core/install/lockfile.ts";
 import { IntegrityError } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
+import { scopeFlag } from "../core/install/scope.ts";
 import { failNoTTY, isInteractive, unwrap, withSpinner } from "./prompt.ts";
 import { logError, logSkillError } from "./report.ts";
 import { warnLeftover, warnRestored } from "./status.ts";
@@ -36,6 +37,12 @@ export const fetchSkillFiles = (
     (fetched) => `Fetched ${fetched.length} skill(s) from ${source.display}`,
   );
 
+class SourceChangedError extends Error {
+  constructor() {
+    super("source changed since niksi-lock.json");
+  }
+}
+
 export const restoreSkill = async (
   entry: InstalledSkill,
   scope: Scope,
@@ -43,6 +50,10 @@ export const restoreSkill = async (
 ): Promise<Applied> => {
   const destination = await installDestination(entry, scope, agents);
   const source = sourceFor(entry.source);
+  // The store may still hold the recorded content after the local source moved on.
+  if (source.kind === "local" && (await source.upstream(entry)).outdated) {
+    throw new SourceChangedError();
+  }
   return applySkill(
     {
       name: entry.name,
@@ -57,7 +68,16 @@ export const restoreSkill = async (
   );
 };
 
-export const reportRestoreError = (name: string, error: unknown): void => {
+export const reportRestoreError = (entry: InstalledSkill, scope: Scope, error: unknown): void => {
+  const { name } = entry;
+  const fix =
+    sourceFor(entry.source).kind === "local"
+      ? `Run \`nik update ${name}${scopeFlag(scope)}\` to review the new content.`
+      : "Run `nik add` to re-review the content.";
+  if (error instanceof SourceChangedError) {
+    logError(`${skillName(name)}: ${error.message}\n${fix}`);
+    return;
+  }
   if (!(error instanceof IntegrityError)) {
     logSkillError(name, error);
     return;
@@ -67,7 +87,7 @@ export const reportRestoreError = (name: string, error: unknown): void => {
       `${skillName(name)}: source files do not match niksi-lock.json`,
       `  expected  ${error.expected}`,
       `  actual    ${error.actual}`,
-      "Run `nik add` to re-review the content.",
+      fix,
     ].join("\n"),
   );
 };

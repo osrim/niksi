@@ -79,7 +79,7 @@ export const run = async (options: InstallOptions): Promise<void> => {
         success: `${applied.restored || modified.has(name) ? "restored" : "installed"} @ ${shortId(entry)}`,
       };
     },
-    onError: (entry, error) => reportRestoreError(entry.name, error),
+    onError: (entry, error) => reportRestoreError(entry, scope, error),
     spinner: (entry) =>
       modified.has(entry.name) && !restore ? null : `Installing ${skillName(entry.name)}`,
     scope,

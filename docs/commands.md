@@ -85,7 +85,7 @@ Link entries install to the agents you pass with `--agent`, or to the saved or d
 ## `update`
 
 ```text
-nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
+nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval] [--report <file>]
 ```
 
 `update` checks every installed skill against its source, then shows and scans changed files before writing.
@@ -110,6 +110,26 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 - Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.
 - `update` compares and updates each path copy at its recorded project-relative destination.
 - `update` does not check disabled skills. It names them in one info line. If you name a disabled skill, `update` exits `1` and names `nik enable`.
+- `--report <file>` writes a Markdown review of the run. See [Update report](#update-report).
+
+### Update report
+
+`--report <file>` writes the outcome of the run as Markdown, for a pull request body or a job summary. A relative path resolves from the current directory. `update` overwrites the file.
+
+The report has these sections. A section with no skills is left out.
+
+- **Updated**: each written skill with its old and new revision, the diff stat, and its findings grouped by severity. A moved revision shows `No file changes.` instead.
+- **Needs a person**: each skill that critical findings blocked, with the same detail and the `nik update` command to run in a terminal.
+- **Not updated**: each other skill and its reason: declined at review, write not confirmed, update available but not selected, write failed, pinned, pinned ref rewritten, no longer in the source, no upstream, or disabled.
+- **Up to date**: the names of the checked skills that had no update.
+
+When every section is empty, the report says `No skill changed.` The report puts upstream text, such as tags, file names, and finding details, in code spans and fences, so a skill can't add Markdown or HTML to the page.
+
+`update` writes the report at the end of every run that it finishes, including runs that change nothing or exit `3`. A missing directory for the file, or a path that is a directory, exits `2` before `update` checks upstream. If the file can't be written at the end, `update` reports the error and exits `1` unless an earlier failure set another code. An error that stops `update`, such as an unknown skill name, writes no report.
+
+GitHub limits a pull request body to 65,536 characters. A run with many changed skills can exceed it, so post a long report as a comment or a job summary instead.
+
+The report is Markdown only, for people who review the change. For machine checks, use the exit code, the diff of `niksi-lock.json`, and `nik audit --json`, which lists the findings of every installed skill.
 
 ## `remove`
 
@@ -280,6 +300,7 @@ nik prune [-y]
 | `--copy` | `add` | Write directories instead of links. |
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
 | `--json` | `list`, `audit` | Write JSON only. |
+| `--report <file>` | `update` | Write a Markdown review report. |
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
@@ -334,6 +355,23 @@ nik add owner/skills --all --yes --copy --path ./custom-directory --dangerous-sk
 nik update --all --yes --dangerous-skip-critical-approval
 git diff --exit-code niksi-lock.json ./custom-directory
 ```
+
+To open a pull request for updates, write a report and use it as the body. Without `--dangerous-skip-critical-approval`, a skill with critical findings stays at its recorded revision and the command exits `3`. The report lists it under **Needs a person**, so the pull request still carries the other updates:
+
+```sh
+report="$(mktemp)"
+status=0
+nik update --all --yes --report "$report" || status=$?
+[ "$status" -eq 0 ] || [ "$status" -eq 3 ] || exit "$status"
+git diff --quiet niksi-lock.json && exit "$status"
+git switch -c skill-updates
+git add -A
+git commit -m "chore: update skills"
+git push -u origin skill-updates
+gh pr create --title "chore: update skills" --body-file "$report"
+```
+
+The report is written outside the repository, so `git add -A` does not commit it. When critical findings block every update, nothing changes and the script exits `3`, so the job fails instead of hiding the findings.
 
 ## Exit codes
 

@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import type { Finding } from "../core/scan/index.ts";
 import { MODE_FILE, type SkillFile } from "../core/skill/files.ts";
-import { renderFrontmatter, stopsOn } from "./gate.ts";
+import { captureOutput, setInteractive } from "../test-output.ts";
+import { renderFrontmatter, reviewSkills, stopsOn } from "./gate.ts";
 
 const finding = (severity: Finding["severity"], rule: Finding["rule"]): Finding => ({
   severity,
@@ -117,5 +118,37 @@ describe("renderFrontmatter", () => {
     expect(renderFrontmatter([skillMd('---\ndescription: "a\\eb"\n---\n')])).toEqual([
       "description: a^[b",
     ]);
+  });
+});
+
+describe("reviewSkills", () => {
+  const savedExitCode = process.exitCode;
+  afterEach(() => {
+    process.exitCode = savedExitCode;
+  });
+
+  test("returns the findings of every reviewed skill, blocked or approved", async () => {
+    const output = captureOutput();
+    const restoreTty = setInteractive(false);
+    try {
+      const clean = { name: "clean", files: [skillMd("---\nname: clean\n---\n")] };
+      const hooked = {
+        name: "hooked",
+        files: [
+          skillMd("---\nname: hooked\n---\n"),
+          { path: "hooks.json", content: Buffer.from("{}\n"), mode: MODE_FILE },
+        ],
+      };
+
+      const result = await reviewSkills([clean, hooked], { yes: true });
+
+      expect(result.approved).toEqual([clean]);
+      expect(result.blocked).toEqual([hooked]);
+      expect(result.findings.get("clean")).toEqual([]);
+      expect(result.findings.get("hooked")?.map(({ severity }) => severity)).toContain("critical");
+    } finally {
+      restoreTty();
+      output.restore();
+    }
   });
 });

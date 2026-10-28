@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { USAGE_ERROR } from "../usage.ts";
-import { parseCoordinate, repoName } from "./coordinate.ts";
+import { parseCoordinate, parseSource, repoName } from "./coordinate.ts";
 
 test("owner/repo shorthand expands to a GitHub URL", () => {
   expect(parseCoordinate("owner/repo")).toEqual({
@@ -216,5 +216,12 @@ test("plain HTTP is refused with the https form", () => {
   );
   expect(() => parseCoordinate("http://github.com/acme/repo/tree/main/skills")).toThrow(
     "Plain HTTP is not supported.",
+  );
+});
+
+test("parseSource keeps a source alone and names the caller's remedy otherwise", () => {
+  expect(parseSource("o/r", "remedy").repo).toBe("https://github.com/o/r");
+  expect(() => parseSource("o/r@v1.0.0", "Pass the skill name.")).toThrow(
+    "o/r@v1.0.0 names a skill or ref inside a source.\nPass the skill name.",
   );
 });

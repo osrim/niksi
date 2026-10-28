@@ -14,11 +14,11 @@ import { isApproved, type LockEntry, type Lockfile } from "../core/install/lockf
 import { integrityOf } from "../core/skill/integrity.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
-import { parseCoordinate, type Coordinate } from "../core/source/coordinate.ts";
+import { parseSource, type Coordinate } from "../core/source/coordinate.ts";
 import { sourceMatches, type Source } from "../core/source/index.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
 import type { UpdatableVerdict } from "../core/source/upstream.ts";
-import { usageError, USAGE_ERROR } from "../core/usage.ts";
+import { USAGE_ERROR } from "../core/usage.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "./prompt.ts";
 import { describeUpdate, friendlySource, groupLabel } from "./status.ts";
 import { green, skillName, softOrange, summarize, unstruck } from "./style.ts";
@@ -390,17 +390,12 @@ const SOURCE_ONLY =
   "Pass the skill name, or the source alone: owner/repo, a Git URL, or a local path.";
 
 const parseSourceOrFail = (raw: string): Coordinate => {
-  let parsed: Coordinate;
   try {
-    parsed = parseCoordinate(raw);
+    return parseSource(raw, SOURCE_ONLY);
   } catch (e) {
     if ((e as Error).name === USAGE_ERROR) throw e;
     return fail((e as Error).message);
   }
-  if (parsed.skill !== undefined || parsed.ref !== undefined || parsed.tree !== undefined) {
-    throw usageError(`${raw} names a skill or ref inside a source.\n${SOURCE_ONLY}`);
-  }
-  return parsed;
 };
 
 const expandSources = (args: string[], lock: Lockfile, recorded: string[]): string[] => {

@@ -67,6 +67,10 @@ const buildCli = (): CAC => {
     .option("-g, --global", "Use the global scope")
     .option("-p, --project", "Use project scope")
     .option("-a, --all", "Select all outdated skills")
+    .option(
+      "--source <coordinate>",
+      "Select all outdated skills from one source. local selects every local source",
+    )
     .option("-y, --yes", "Skip ordinary confirmations")
     .option("--dangerous-skip-critical-approval", "Skip approval for critical findings. Dangerous.")
     .option("--report <file>", "Write a Markdown review report of the run")

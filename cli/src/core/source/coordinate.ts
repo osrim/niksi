@@ -172,3 +172,11 @@ export const parseCoordinate = (raw: string): Coordinate => {
   }
   throw new Error(`Invalid coordinate "${raw}". Use owner/repo, a Git URL, or a local path.`);
 };
+
+export const parseSource = (raw: string, remedy: string): Coordinate => {
+  const coordinate = parseCoordinate(raw);
+  if (coordinate.skill !== undefined || coordinate.ref !== undefined || coordinate.tree) {
+    throw usageError(`${raw} names a skill or ref inside a source.\n${remedy}`);
+  }
+  return coordinate;
+};

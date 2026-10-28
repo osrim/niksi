@@ -179,7 +179,7 @@ and check dependencies across the whole source.
 | `FORCE_COLOR` | Enable color when stdout is not a terminal. |
 | `CI`, `NO_UPDATE_NOTIFIER`, `NIKSI_NO_UPDATE_NOTIFIER` | Disable the update notice and its release check. |
 
-Color is also off when stdout is not a terminal or `TERM=dumb`.
+Color is also off when stdout is not a terminal or `TERM=dumb`. Without a terminal, spinners print one plain line per step with no cursor codes.
 
 ## Update notice
 

@@ -2,6 +2,7 @@ import { spyOn } from "bun:test";
 
 export interface CapturedOutput {
   text: () => string;
+  raw: () => string;
   restore: () => void;
 }
 
@@ -15,6 +16,7 @@ export const captureOutput = (): CapturedOutput => {
   );
   return {
     text: () => Bun.stripANSI(chunks.join("")),
+    raw: () => chunks.join(""),
     restore: () => {
       for (const spy of spies) spy.mockRestore();
     },

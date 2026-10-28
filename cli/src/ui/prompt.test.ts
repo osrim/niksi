@@ -77,6 +77,7 @@ describe("requireTTY", () => {
 
 describe("withSpinner", () => {
   test("returns the work's result and prints the done line", async () => {
+    setInteractive(true);
     expect(
       await withSpinner(
         "Reading",
@@ -88,6 +89,7 @@ describe("withSpinner", () => {
   });
 
   test("a null done line clears the spinner instead of stopping it", async () => {
+    setInteractive(true);
     const spinner = p.spinner();
     const clear = spyOn(spinner, "clear");
     const stop = spyOn(spinner, "stop");
@@ -104,6 +106,7 @@ describe("withSpinner", () => {
   });
 
   test("a failure marks the spinner failed and rethrows", async () => {
+    setInteractive(true);
     await expect(
       withSpinner(
         "Fetching",
@@ -112,5 +115,40 @@ describe("withSpinner", () => {
       ),
     ).rejects.toThrow("offline");
     expect(output.text()).toContain("Fetching: failed");
+  });
+
+  describe("without a terminal", () => {
+    const CURSOR_CODE = "\u001B[?";
+
+    test("prints one plain line per step", async () => {
+      await withSpinner(
+        "Reading",
+        () => Promise.resolve(3),
+        (n) => `Read ${n}`,
+      );
+      expect(output.raw()).not.toContain(CURSOR_CODE);
+      expect(output.text()).toBe("│\n◇  Read 3\n");
+    });
+
+    test("a null done line prints nothing", async () => {
+      await withSpinner(
+        "Checking",
+        () => Promise.resolve(0),
+        () => null,
+      );
+      expect(output.raw()).toBe("");
+    });
+
+    test("a failure prints the failed line", async () => {
+      await expect(
+        withSpinner(
+          "Fetching",
+          () => Promise.reject(new Error("offline")),
+          () => "done",
+        ),
+      ).rejects.toThrow("offline");
+      expect(output.raw()).not.toContain(CURSOR_CODE);
+      expect(output.text()).toBe("│\n▲  Fetching: failed\n");
+    });
   });
 });

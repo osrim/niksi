@@ -125,6 +125,7 @@ test("--all updates moved and outdated skills and counts both", async () => {
   expect(after.changed?.commit).toBe(fixture.upstreamCommit);
   expect(result.stdout).toContain("no file changes");
   expect(result.stdout).toContain("Updated 2 skill(s).");
+  expect(result.stdout).not.toContain("\x1b");
 });
 
 test("a pinned skill updates only when named", async () => {

@@ -70,7 +70,7 @@ Paint through `ui/style.ts` only. It resolves `NO_COLOR`, `FORCE_COLOR`, `TERM=d
 
 Tables have no borders. Group rows by source and indent skill rows by two spaces. Measure rendered width with `Bun.stringWidth`.
 
-One spinner covers one wait. Its final line states the result. Spinners do not nest.
+One spinner covers one wait. Its final line states the result. Spinners do not nest. Start one through `ui/prompt.ts`, never Clack directly: when stdout is not a terminal, it prints only the final line, with no cursor codes.
 
 ## Lockfile errors
 

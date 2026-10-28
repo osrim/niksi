@@ -64,13 +64,13 @@ The scan looks for default-ignorable characters, format controls, private-use ch
 | finding | severity |
 | --- | --- |
 | Tag characters (U+E0000 to U+E007F) outside a subdivision flag, which is a black flag, two to seven lowercase tag letters or digits, and a cancel tag | `critical` |
-| Bidi embeddings, overrides, and isolates (U+202A to U+202E, U+2066 to U+2069) | `critical` |
+| Bidi controls: embeddings, overrides, isolates, and marks (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) | `critical` |
 | Interlinear annotation characters (U+FFF9 to U+FFFB) | `critical` |
 | A character between two ASCII letters, alone or in a run, such as a word joiner (U+2060) between `Do` and `not` | `critical` |
 | Three or more characters in one file, not counting soft hyphens | `critical` |
 | A character within two lines of a prompt-injection match | `critical` |
 | Soft hyphen (U+00AD) | `info` |
-| Any other character, such as a lone zero-width space or a left-to-right mark | `warn` |
+| Any other character, such as a lone zero-width space | `warn` |
 
 These characters shape visible text and are not findings:
 

@@ -107,10 +107,28 @@ export default [
     fire: [{ severity: "warn", line: 5 }],
   },
   {
-    name: "a left-to-right mark",
+    name: "a lone left-to-right mark",
     path: "SKILL.md",
-    content: entry("Hebrew: שלום\u{200E}."),
-    fire: [{ severity: "warn", line: 5 }],
+    content: entry("Hebrew: שלום \u{200E} ."),
+    fire: [
+      { severity: "critical", line: 5, detail: "1 invisible character(s): U+200E (bidi control)" },
+    ],
+  },
+  {
+    name: "a lone right-to-left mark",
+    path: "SKILL.md",
+    content: entry("Mark: \u{200F} here."),
+    fire: [
+      { severity: "critical", line: 5, detail: "1 invisible character(s): U+200F (bidi control)" },
+    ],
+  },
+  {
+    name: "a lone Arabic letter mark",
+    path: "SKILL.md",
+    content: entry("Mark: \u{061C} here."),
+    fire: [
+      { severity: "critical", line: 5, detail: "1 invisible character(s): U+061C (bidi control)" },
+    ],
   },
   {
     name: "a soft hyphen",

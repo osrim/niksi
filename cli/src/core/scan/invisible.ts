@@ -69,13 +69,12 @@ const SHAPERS: Shaper[] = [
 const shapesText = (text: string, index: number, cp: number): boolean =>
   SHAPERS.find((shaper) => shaper.applies(cp))?.shapes(text, index) ?? false;
 
-const isBidiControl = (cp: number): boolean =>
-  (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069);
+const BIDI_CONTROL = /^\p{Bidi_Control}$/u;
 
 const tier = (text: string, index: number, ch: string): Pick<Hit, "severity" | "why"> => {
   const cp = ch.codePointAt(0)!;
   if (cp === 0xad) return { severity: "info", why: "soft hyphen" };
-  if (isBidiControl(cp)) return { severity: "critical", why: "bidi control" };
+  if (BIDI_CONTROL.test(ch)) return { severity: "critical", why: "bidi control" };
   if (cp >= 0xfff9 && cp <= 0xfffb) return { severity: "critical", why: "interlinear annotation" };
   if (before(text, index, LETTER_BEFORE) && after(text, index + ch.length, LETTER_AFTER)) {
     return { severity: "critical", why: "between letters" };

@@ -42,6 +42,15 @@ cli/src/
 
 `core/source/` and `core/install/` are siblings. Runtime imports point from `install/` to `source/` only. Source adapters may type-import installed skill data. Commands and UI combine the two.
 
+## GitHub Action
+
+The action is `action.yml` at the repository root. Its steps run the Bash scripts in `action/`, outside the Bun workspace:
+
+- `setup.sh` downloads the `nik` binary, checks it against `checksums.txt`, and puts it on `PATH`. It takes the `version` input, else the version in `cli/package.json` at the action's ref.
+- `install.sh`, `update.sh`, and `scan.sh` each run one action mode. They call `nik`, `git`, `gh`, and `jq`, and never import from `cli/`.
+
+`cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. The `action` job in `checks.yml` runs the action end to end on pull requests. The user-facing contract is in [ci.md](../ci.md).
+
 ## Write path
 
 Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFiles`, `confirm`, `restoreSkill`, and `land`.

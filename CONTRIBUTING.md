@@ -69,4 +69,4 @@ AI tools are welcome. Rules:
 - [Architecture](docs/contributor/architecture.md) for module boundaries
 - [Releasing](docs/releasing.md) for how a version ships (maintainers)
 - [Terminal style](docs/contributor/terminal-style.md) for prompts and output
-- [Commands](docs/commands.md), [Configuration](docs/configuration.md), and [Security scan](docs/security-scan.md) for the user-facing contract
+- [Commands](docs/commands.md), [Configuration](docs/configuration.md), [Security scan](docs/security-scan.md), and [CI](docs/ci.md) for the user-facing contract

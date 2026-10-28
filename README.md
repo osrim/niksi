@@ -19,7 +19,7 @@
 - **Pin what should never change:** `nik add owner/repo@v1.2.0`. Everything else follows the latest stable tag, or the default branch.
 - **Share skills with your team:** commit `niksi-lock.json`. It records the source, the commit, and a sha256 of the files. Your teammates get the exact files you reviewed by running `nik install`.
 - **Pull in dependencies:** when a skill mentions another skill from the same source, `nik` offers to add it in the same run.
-- **Use it in CI:** `nik install --yes` runs without a terminal and exits `0` only when every enabled skill is on disk with its recorded integrity.
+- **Use it in CI:** `nik install --yes` runs without a terminal and exits `0` only when every enabled skill is on disk with its recorded integrity. The [GitHub Action](docs/ci.md) restores skills, opens pull requests for skill updates, and scans skill repositories.
 - **No account, no registry, no telemetry.**
 
 ## Install
@@ -133,6 +133,7 @@ Checked against each tool's documentation on 2026-09-19.
 - [Commands](docs/commands.md): every command, flag, and exit code, plus non-interactive use.
 - [Configuration](docs/configuration.md): scope, agents, paths, environment variables, and the lockfile.
 - [Security scan](docs/security-scan.md): what the scan catches and what it cannot.
+- [CI](docs/ci.md): the GitHub Action, its modes, and its exit codes.
 
 ## Contributing
 

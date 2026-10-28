@@ -36,6 +36,25 @@ jobs:
       - run: bun run fmt:check
       - run: bun run test
 
+  # Runs the action with the nik release that cli/package.json names, not this branch's nik.
+  # Not on main: the release commit lands there before release.yml uploads its binaries.
+  action:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: shellcheck action/*.sh
+        working-directory: .
+      - uses: ./
+        with:
+          mode: scan
+          path: cli/testdata/benign-skills
+
   pr-title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

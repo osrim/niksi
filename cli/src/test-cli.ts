@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { $ } from "bun";
 import { emptyLock, type Lockfile } from "./core/install/lockfile.ts";
 
-const cli = join(import.meta.dir, "index.ts");
+export const cli = join(import.meta.dir, "index.ts");
 
 export interface RunResult {
   exitCode: number;
@@ -20,7 +20,7 @@ export interface Answer {
 
 export type RunTerminal = (cwd: string, answers: Answer[], ...args: string[]) => Promise<RunResult>;
 
-const cliEnv = (home: string): Record<string, string | undefined> => ({
+export const cliEnv = (home: string): Record<string, string | undefined> => ({
   ...process.env,
   HOME: home,
   NIKSI_HOME: join(home, "niksi-home"),

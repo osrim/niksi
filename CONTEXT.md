@@ -116,3 +116,10 @@ Use these terms in code, docs, and output.
 | version | `niksi`'s semver number. | revision, build |
 | release | Tagged commit and GitHub release with the binaries for one version. Every version goes to npm. Stable versions also get the Homebrew formula. | publish, ship, cut |
 | update notice | Two stderr lines after a successful run that name a newer release and how to get it. Fed by a release check that runs once a day, or on the next run after a failed request or an unwritten cache. | update prompt, upgrade nag, version warning |
+
+## CI
+
+| term | meaning | avoid |
+| --- | --- | --- |
+| action | The `osrim/niksi` GitHub Action. It installs `nik` and runs one action mode. | plugin, step |
+| action mode | `install`, `update`, or `scan`: what the action runs. Distinct from the `link` or `copy` mode of an installed skill. | command, task |

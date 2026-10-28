@@ -332,7 +332,7 @@ Ctrl-C exits `130`. Files already written stay written.
 
 ## CI
 
-Install a pinned release and check it against the release's `checksums.txt`. Every release has a `niksi-<os>-<arch>.tar.gz` for `linux-x64`, `linux-arm64`, `darwin-arm64`, and `darwin-x64`.
+On GitHub Actions, use the [`niksi` action](ci.md). On other CI systems, install a pinned release and check it against the release's `checksums.txt`. Every release has a `niksi-<os>-<arch>.tar.gz` for `linux-x64`, `linux-arm64`, `darwin-arm64`, and `darwin-x64`.
 
 ```sh
 set -e

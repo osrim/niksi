@@ -35,11 +35,11 @@
 		"zod": "4.6.7"
 	},
 	"devDependencies": {
-		"@types/bun": "1.4.3",
+		"@types/bun": "1.4.4",
 		"@types/write-file-atomic": "4.0.3",
 		"bumpp": "12.3.0",
-		"oxfmt": "0.73.0",
-		"oxlint": "1.88.0",
+		"oxfmt": "0.74.0",
+		"oxlint": "1.89.0",
 		"typescript": "7.0.2"
 	}
 }

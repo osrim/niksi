@@ -16,6 +16,9 @@ interface SkillRef {
   ambiguous?: boolean;
 }
 
+// A known skill without a path is mentioned by name only.
+type KnownSkill = Omit<SkillRef, "path"> & { path?: string };
+
 const SKILL_NAME = "[a-z][a-z0-9-]{1,63}";
 
 // Exclude paths, closing tags, and slash-prefixed commands.
@@ -115,15 +118,13 @@ const namedCandidates = (text: string, names: Set<string>, hrefs: Span[]): Candi
 const linkedCandidates = (
   links: MarkdownLink[],
   from: string,
-  byPath: Map<string, SkillRef>,
+  byPath: Map<string, KnownSkill>,
 ): Candidate[] =>
   links.flatMap(({ href, index }) => {
     const path = targetSkillPath(from, href);
     const skill = path === undefined ? undefined : byPath.get(path);
-    if (skill === undefined) return [];
-    return [
-      skill.ambiguous ? { name: skill.name, path: skill.path, index } : { name: skill.name, index },
-    ];
+    if (path === undefined || skill === undefined) return [];
+    return [skill.ambiguous ? { name: skill.name, path, index } : { name: skill.name, index }];
   });
 
 // The first mention is cited, but a later Markdown link still pins an ambiguous skill.
@@ -134,10 +135,12 @@ const pinPath = (first: SkillMention, path: string | undefined): void => {
 export const findMentions = (
   files: SkillFile[],
   self: SkillRef,
-  known: readonly SkillRef[],
+  known: readonly KnownSkill[],
 ): SkillMention[] => {
   const names = new Set(known.map((skill) => skill.name));
-  const byPath = new Map(known.map((skill) => [skill.path, skill]));
+  const byPath = new Map(
+    known.flatMap((skill) => (skill.path === undefined ? [] : [[skill.path, skill] as const])),
+  );
   const found = new Map<string, SkillMention>();
   for (const file of files) {
     if (extname(file.path).toLowerCase() !== ".md") continue;
@@ -184,17 +187,29 @@ export const missingDeps = (
   return [...missing.values()];
 };
 
-export const referrersTo = (survivors: BatchSkill[], targets: string[]): Map<string, string[]> => {
-  const leaving = new Set(targets);
+export interface Survivor extends BatchSkill {
+  source: string;
+}
+
+export interface Target extends KnownSkill {
+  source?: string;
+}
+
+// A Markdown link names a target only within the survivor's own source.
+export const referrersTo = (survivors: Survivor[], targets: Target[]): Map<string, string[]> => {
+  const leaving = new Set(targets.map((target) => target.name));
   const referrers = new Map<string, string[]>();
-  for (const { name, files } of survivors) {
-    if (leaving.has(name)) continue;
-    for (const mention of findMentions(files, name, targets)) {
-      referrers.set(mention.name, [...(referrers.get(mention.name) ?? []), name]);
+  for (const survivor of survivors) {
+    if (leaving.has(survivor.name)) continue;
+    const known = targets.map((target) =>
+      target.source === survivor.source ? target : { name: target.name },
+    );
+    for (const mention of findMentions(survivor.files, survivor, known)) {
+      referrers.set(mention.name, [...(referrers.get(mention.name) ?? []), survivor.name]);
     }
   }
   return new Map(
-    targets
+    [...leaving]
       .filter((target) => referrers.has(target))
       .map((target) => [target, referrers.get(target)!.toSorted()]),
   );

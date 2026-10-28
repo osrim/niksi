@@ -366,6 +366,17 @@ describe("warnReferrers", () => {
     expect(text).toContain("grilling is referenced by wayfinder");
   });
 
+  test("a Markdown link to a selected skill in the same source names its referrer", async () => {
+    const survivors = [
+      await stored("wayfinder", "Read [it](../grilling/SKILL.md)."),
+      await stored("grilling", "red, green"),
+    ];
+
+    await warnReferrers(survivors, ["grilling"]);
+
+    expect(printed()).toContain("grilling is referenced by wayfinder");
+  });
+
   test("a selected skill is never read", async () => {
     await warnReferrers([await unreadable("broken")], ["broken", "grilling"]);
 

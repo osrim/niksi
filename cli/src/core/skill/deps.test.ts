@@ -199,14 +199,22 @@ test("missingDeps drops batch members, skills already here and repeats; first me
   expect(missing).toEqual([{ name: "grilling", file: "SKILL.md", line: 1, from: "a" }]);
 });
 
-const skill = (name: string, content: string): { name: string; files: SkillFile[] } => ({
-  name,
+const SOURCE = "https://github.com/o/r";
+
+const skill = (name: string, content: string, source = SOURCE) => ({
+  ...at(name),
+  source,
   files: [md("SKILL.md", content)],
 });
 
+const targets = (...leaving: string[]) =>
+  leaving.map((name) => Object.assign(at(name), { source: SOURCE }));
+
 test("referrersTo names the one survivor that references a target", () => {
   const survivors = [skill("wayfinder", "hand off to /grilling"), skill("tdd", "red, green")];
-  expect(referrersTo(survivors, ["grilling"])).toEqual(new Map([["grilling", ["wayfinder"]]]));
+  expect(referrersTo(survivors, targets("grilling"))).toEqual(
+    new Map([["grilling", ["wayfinder"]]]),
+  );
 });
 
 test("referrersTo sorts several referrers", () => {
@@ -214,33 +222,50 @@ test("referrersTo sorts several referrers", () => {
     skill("wayfinder", "hand off to /grilling"),
     skill("implement", "run the `grilling` skill first"),
   ];
-  expect(referrersTo(survivors, ["grilling"])).toEqual(
+  expect(referrersTo(survivors, targets("grilling"))).toEqual(
     new Map([["grilling", ["implement", "wayfinder"]]]),
   );
 });
 
 test("referrersTo ignores survivors that are themselves targets", () => {
   const survivors = [skill("tdd", "then /grilling"), skill("grilling", "then /tdd")];
-  expect(referrersTo(survivors, ["tdd", "grilling"])).toEqual(new Map());
+  expect(referrersTo(survivors, targets("tdd", "grilling"))).toEqual(new Map());
 });
 
 test("referrersTo leaves an unreferenced target out", () => {
   const survivors = [skill("wayfinder", "hand off to /grilling")];
-  expect(referrersTo(survivors, ["grilling", "tdd"])).toEqual(
+  expect(referrersTo(survivors, targets("grilling", "tdd"))).toEqual(
     new Map([["grilling", ["wayfinder"]]]),
   );
 });
 
 test("referrersTo ignores a survivor mentioning its own name", () => {
-  expect(referrersTo([skill("tdd", "re-run /tdd")], ["tdd"])).toEqual(new Map());
+  expect(referrersTo([skill("tdd", "re-run /tdd")], targets("tdd"))).toEqual(new Map());
 });
 
 test("referrersTo counts only the survivors it is given", () => {
   const enabled = skill("wayfinder", "hand off to /grilling");
   const disabled = skill("implement", "run /grilling");
-  expect(referrersTo([enabled, disabled], ["grilling"]).get("grilling")).toEqual([
+  expect(referrersTo([enabled, disabled], targets("grilling")).get("grilling")).toEqual([
     "implement",
     "wayfinder",
   ]);
-  expect(referrersTo([enabled], ["grilling"]).get("grilling")).toEqual(["wayfinder"]);
+  expect(referrersTo([enabled], targets("grilling")).get("grilling")).toEqual(["wayfinder"]);
+});
+
+test("referrersTo counts a Markdown link only from a survivor in the target's source", () => {
+  const survivors = [
+    skill("wayfinder", "Read [it](../grilling/SKILL.md)."),
+    skill("elsewhere", "Read [it](../grilling/SKILL.md).", "https://github.com/o/other"),
+  ];
+  expect(referrersTo(survivors, targets("grilling"))).toEqual(
+    new Map([["grilling", ["wayfinder"]]]),
+  );
+});
+
+test("referrersTo matches a target without a source by name only", () => {
+  const survivors = [skill("wayfinder", "Read [it](../grilling/SKILL.md) and /tdd.")];
+  expect(referrersTo(survivors, [{ name: "grilling" }, { name: "tdd" }])).toEqual(
+    new Map([["tdd", ["wayfinder"]]]),
+  );
 });

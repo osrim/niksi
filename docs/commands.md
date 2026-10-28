@@ -120,6 +120,14 @@ Without names or `--all`, it opens a picker. `--all` selects every installed ski
 
 `remove` also deletes disabled entries. The picker labels them `[disabled]`.
 
+Before it confirms, `remove` warns when another installed skill in the same scope still mentions a selected skill. It prints one line per mentioned skill and names the skills that mention it:
+
+```text
+grilling is referenced by implement, wayfinder
+```
+
+The check reads the stored files of every other entry in the scope's lockfile, from any source, disabled ones included. It skips an entry whose files are missing from the store. `nik install` restores them. It also skips an entry whose stored files cannot be read, and names it in a warning. Mentions between selected skills do not count. It uses the same mention detection as `add`, so it can miss or over-match a mention. The warning never blocks. `--yes` proceeds.
+
 ## `list`
 
 ```text
@@ -219,6 +227,7 @@ nik disable [...skills|source] [-g|-p] [-a] [-y]
 - `--all` selects every enabled skill. Without names or `--all`, a picker opens. It groups skills by source. A group header selects the whole source.
 - A skill that is already disabled prints `name: already disabled`. `disable` drops it from the batch.
 - `disable` warns when a selected skill is modified, because it discards the edits. One confirmation covers the batch. `--yes` skips it.
+- `disable` warns before it confirms when an enabled skill in the same scope still mentions a selected skill, as `remove` does. A disabled skill that mentions it does not count, because it does not run either.
 - The disabled state is in `niksi-lock.json`. Commit it to share it. `install`, `update`, and `list` read it. `remove` deletes a disabled entry.
 
 ## `enable`

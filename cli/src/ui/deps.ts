@@ -1,10 +1,15 @@
 import * as p from "@clack/prompts";
-import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
+import { missingDeps, referrersTo, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { emptyLock, readLock, splitDisabled, type Lockfile } from "../core/install/lockfile.ts";
 import type { AgentId } from "../core/install/agents.ts";
-import { lackingAgents, updateDestination } from "../core/install/destination.ts";
+import {
+  lackingAgents,
+  updateDestination,
+  type InstalledSkill,
+} from "../core/install/destination.ts";
+import { storedFiles } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import { discoveryCoordinate, type Changes } from "../core/source/index.ts";
@@ -18,6 +23,26 @@ export const warnMentions = (missing: MissingDep[], note: string): void => {
     warn(
       `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${dep.file}:${dep.line}. ${note}.`,
     );
+  }
+};
+
+export const warnReferrers = async (
+  survivors: InstalledSkill[],
+  targets: string[],
+): Promise<void> => {
+  const batch = await Promise.all(
+    survivors
+      .filter((skill) => !targets.includes(skill.name))
+      .map(async (skill) => ({
+        name: skill.name,
+        files: await storedFiles(skill.source, skill.name, skill.integrity).catch((e: Error) => {
+          logWarn(`${skillName(skill.name)}: mention check skipped. ${e.message}`);
+          return [];
+        }),
+      })),
+  );
+  for (const [target, referrers] of referrersTo(batch, targets)) {
+    warn(`${skillName(target)} is referenced by ${referrers.map(skillName).join(", ")}`);
   }
 };
 

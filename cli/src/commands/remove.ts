@@ -8,6 +8,7 @@ import {
   removeInstalledSkill,
 } from "../core/install/destination.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { warnReferrers } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { pickRecorded } from "../ui/pick.ts";
@@ -37,7 +38,8 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
     outro(await emptyScopeMessage(scope));
     return;
   }
-  const locations = await locationsOf(installedSkills(loaded.lock), scope);
+  const skills = installedSkills(loaded.lock);
+  const locations = await locationsOf(skills, scope);
 
   const unknown = names.filter((name) => !installed.includes(name));
   if (unknown.length > 0) {
@@ -62,6 +64,7 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }
+  await warnReferrers(skills, selection);
 
   const proceed = await confirm(`Remove ${selection.map(skillName).join(", ")} (${scope})?`, {
     yes: options.yes,

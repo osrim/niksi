@@ -13,15 +13,17 @@ import * as p from "@clack/prompts";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { InstalledSkill } from "../core/install/destination.ts";
 import { emptyLock, serializeLock, type Lockfile } from "../core/install/lockfile.ts";
 import { skillsDir, type AgentId } from "../core/install/agents.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
+import { materialize, storeEntryPath } from "../core/install/store.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { makeSkill, recordedLock } from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { readOtherScopeLock, reportNotInstalled, reportUpdateDeps } from "./deps.ts";
+import { readOtherScopeLock, reportNotInstalled, reportUpdateDeps, warnReferrers } from "./deps.ts";
 
 let tmp: string;
 let source: LocalSource;
@@ -280,5 +282,62 @@ describe("readOtherScopeLock", () => {
 
     expect(await readOtherScopeLock("project")).toEqual({ scope: "global", enabled: emptyLock() });
     expect(printed()).toContain("Dependency check ignores global scope.");
+  });
+});
+
+const stored = async (name: string, body: string): Promise<InstalledSkill> => {
+  const files = [{ path: "SKILL.md", content: Buffer.from(body), mode: "100644" }];
+  const { integrity } = await materialize("https://github.com/o/r", name, files);
+  return { name, source: "https://github.com/o/r", path: name, integrity, track: "auto" };
+};
+
+const unreadable = async (name: string): Promise<InstalledSkill> => {
+  const skill = await stored(name, "hand off to /grilling");
+  const entry = storeEntryPath(skill.source, skill.name, skill.integrity);
+  await rm(entry, { recursive: true });
+  await writeFile(entry, "not a directory");
+  return skill;
+};
+
+describe("warnReferrers", () => {
+  test("one line per referenced target names its sorted referrers from the store", async () => {
+    const survivors = [
+      await stored("wayfinder", "hand off to /grilling and /tdd"),
+      await stored("implement", "run the `grilling` skill"),
+    ];
+
+    await warnReferrers(survivors, ["grilling", "tdd", "research"]);
+
+    const text = printed();
+    expect(text).toContain("grilling is referenced by implement, wayfinder");
+    expect(text).toContain("tdd is referenced by wayfinder");
+    expect(text).not.toContain("research");
+  });
+
+  test("a survivor missing from the store is skipped", async () => {
+    const gone: InstalledSkill = {
+      ...(await stored("gone", "hand off to /grilling")),
+      source: "https://github.com/o/other",
+    };
+
+    await warnReferrers([gone], ["grilling"]);
+
+    expect(printed()).toBe("");
+  });
+
+  test("a survivor whose store entry cannot be read is skipped with a warning", async () => {
+    const survivors = [await unreadable("broken"), await stored("wayfinder", "then /grilling")];
+
+    await warnReferrers(survivors, ["grilling"]);
+
+    const text = printed();
+    expect(text).toContain("broken: mention check skipped. ENOTDIR");
+    expect(text).toContain("grilling is referenced by wayfinder");
+  });
+
+  test("a selected skill is never read", async () => {
+    await warnReferrers([await unreadable("broken")], ["broken", "grilling"]);
+
+    expect(printed()).toBe("");
   });
 });

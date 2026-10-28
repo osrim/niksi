@@ -106,7 +106,7 @@ A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to
 
 ## The scan
 
-`add` and `update` scan each file before writing it. The rules catch `curl` piped to a shell, known exfiltration hosts, hooks in `SKILL.md` frontmatter, commands that run at load time, invisible Unicode, and reads of `~/.ssh` and `~/.aws`. Findings are `info`, `warn`, or `critical`. A critical finding stops the install until you approve it in a terminal. `nik audit` scans installed skills again with the current rules.
+`add` and `update` scan each file before writing it. The rules catch downloaded code that runs, such as `curl` piped to a shell, known exfiltration hosts, hooks in `SKILL.md` frontmatter, commands that run at load time, invisible Unicode, and reads of `~/.ssh` and `~/.aws`. Findings are `info`, `warn`, or `critical`. A critical finding stops the install until you approve it in a terminal. `nik audit` scans installed skills again with the current rules.
 
 > [!IMPORTANT]
 > `niksi` runs static checks. It does not run the skill, follow URLs, or understand intent. **A malicious skill can pass clean and a good one can have false positives.** Read more in [docs/security-scan.md](docs/security-scan.md).

@@ -80,7 +80,7 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 
 | finding | severity |
 | --- | --- |
-| `curl` or `wget` piped to a shell | `critical` |
+| A download fed to a shell or interpreter, or saved and then run | `critical` |
 | A base64 decoder (`b64decode`, `base64_decode`, `base64.decodebytes`, `base64.decodestring`, `atob(`, `Buffer.from(…, 'base64')`, `base64 -d`) and, on the same line, `eval(`, `exec(`, shell `eval "…"`, or a pipe to a shell | `critical` |
 | An exfiltration host, and on the same line a credential-named variable, an environment dump, `$(cat …)`, or a file upload (`-F`, `-T`, `--upload-file`, `@file`) | `critical` |
 | Any other exfiltration host: webhook.site, requestbin.com, pipedream.net, ngrok, and Discord, Telegram, and Slack webhook URLs | `warn` |
@@ -97,6 +97,12 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 An environment read is a variable whose name holds `key`, `token`, `secret`, `pass`, `auth`, or `cred`, a read of the whole environment such as `JSON.stringify(process.env)`, or `.env` in quotes or after a `/`. `.env.example`, `.env.sample`, `.env.template`, and `.env.dist` are not `.env` files.
 
 Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside fenced code is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Fenced code and other files keep the full severity.
+
+A download is `curl`, `wget`, `fetch`, `iwr`, `irm`, `Invoke-WebRequest`, or `Invoke-RestMethod`. It is fed to an interpreter when it is piped to a shell, Python, Node, Bun, Deno, Perl, Ruby, PHP, `osascript`, PowerShell, or `iex`, passed as `<(…)`, or passed as `$(…)` to `eval`, `source`, `exec`, or an interpreter's `-c` or `-e` flag. A statement that starts with `$(…)` of a download also runs it. So do Python `exec(` or `eval(` of `urlopen` or `requests.get`, JavaScript `eval(` or `new Function(` of `fetch(`, and PowerShell `IEX` of `DownloadString(`. A pipe to an interpreter that runs a script file or a `-c` command, such as `curl … | python3 -c "…"`, only passes data.
+
+A download is saved and then run when the same file saves it to a path (`-o`, `-O`, `-OutFile`, or `>`) and runs that path with an interpreter, `chmod +x`, or as a command such as `./setup.sh`. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A Python file that calls `urlretrieve` and also uses `subprocess` or a bare `exec(` counts too.
+
+A download that runs from a `#` or `//` comment in a script or fenced code is `warn`.
 
 ### URLs
 

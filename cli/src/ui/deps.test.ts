@@ -19,6 +19,7 @@ import { skillsDir, type AgentId } from "../core/install/agents.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
 import { materialize, storeEntryPath } from "../core/install/store.ts";
 import { LocalSource } from "../core/source/local-source.ts";
+import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { makeSkill, recordedLock } from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
@@ -82,6 +83,17 @@ const verdict = (name: string, from = source, agents: AgentId[] = ["claude"]): O
 });
 
 const noDiff = { stat: "", patch: "" };
+
+const COMMIT = "c".repeat(40);
+
+const pinned = (name: string, upstream: Omit<Revision, "track">): OutdatedVerdict => {
+  const base = verdict(name);
+  return {
+    ...base,
+    skill: { ...base.skill, track: "pin" },
+    upstream: { ...upstream, track: "pin" },
+  };
+};
 
 const recorded = (...names: string[]): Lockfile => recordedLock(source.id, ...names);
 
@@ -150,6 +162,69 @@ describe("reportUpdateDeps", () => {
     expect(text).toContain(`Add them: nik add ${tmp} helper other -g`);
     expect(multiselect).not.toHaveBeenCalled();
     expect(lock.skills).toEqual({});
+  });
+
+  test("a group of pinned skills carries the reviewed tag in the add command", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: pinned("primary", { commit: COMMIT, pinnedAs: "v2.0.0", tag: "v2.0.0" }),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain(`Add them: nik add ${tmp}@v2.0.0 helper other -g`);
+  });
+
+  test.each([
+    ["no tag", {}],
+    ["a tag that cannot follow @", { pinnedAs: "primary@v2.0.0", tag: "primary@v2.0.0" }],
+    ["a tag with a slash", { pinnedAs: "release/2", tag: "release/2" }],
+    ["a tag with a hash", { pinnedAs: "v2#1", tag: "v2#1" }],
+    ["a tag that a shell expands", { pinnedAs: "v2.0.0+$USER", tag: "v2.0.0+$USER" }],
+  ])("a pinned group with %s carries the reviewed commit", async (_, ref) => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: pinned("primary", { commit: COMMIT, ...ref }),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain(`Add them: nik add ${tmp}@${COMMIT} helper other -g`);
+  });
+
+  test("a mixed group pins only the dependencies that pinned skills alone mention", async () => {
+    await reportUpdateDeps(
+      [
+        {
+          verdict: verdict("secondary"),
+          files: await source.fetchFiles(undefined, "secondary"),
+          diff: noDiff,
+        },
+        {
+          verdict: pinned("primary", { commit: COMMIT, pinnedAs: "v2.0.0", tag: "v2.0.0" }),
+          files: await source.fetchFiles(undefined, "primary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain(`Add them: nik add ${tmp} helper -g\n`);
+    expect(printed()).toContain(`Add them: nik add ${tmp}@v2.0.0 other -g\n`);
   });
 
   test("a Markdown link to another skill's SKILL.md counts as a mention", async () => {

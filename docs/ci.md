@@ -233,7 +233,7 @@ The step exits with the code of `nik`, as listed in [commands.md](commands.md#ex
 | --- | --- | --- | --- |
 | `0` | Every enabled skill is on disk with its recorded integrity. | Every selected skill is up to date or updated. The pull request is open, updated, or closed. | No critical finding. Warn findings pass. |
 | `1` | A skill failed to restore. | A skill failed. No pull request. | `path` is not a directory, `nik add` failed, or a skill couldn't be read. |
-| `2` | Invalid input. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`. | Invalid input. |
+| `2` | Invalid input. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or `branch` is the branch it runs on. | Invalid input. |
 | `3` | | Critical findings blocked a skill. The pull request still carries the other updates. | A skill has a critical finding. |
 
 An unknown `mode` exits `2`. An invalid `version`, a failed download or checksum, or an unsupported runner exits `1`.

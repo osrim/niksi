@@ -29,7 +29,6 @@ interface ActionResult {
   body: string;
 }
 
-// Logs each call, answers `pr list` with GH_OPEN_PR and `pr create` with a URL, and keeps the body.
 const GH_STUB = `#!/usr/bin/env bash
 echo "$*" >> "$GH_LOG"
 printf '%s' "$GH_TOKEN" > "$GH_LOG.token"
@@ -363,4 +362,19 @@ test("update mode pushes and calls gh with the token input", async () => {
   expect(await $`git -C ${project.remote} branch --list niksi-update`.text()).toContain(
     "niksi-update",
   );
+});
+
+test("update mode refuses a pull request branch that is the branch the run is on", async () => {
+  const project = await gitProject("update-same-branch", "hello");
+  const before = await $`git -C ${project.remote} rev-parse main`.text();
+  await release(project.source, "v1.1.0", "version two\n", "hello");
+
+  const result = await runAction("update.sh", project.checkout, {
+    ...PR_RUN,
+    INPUT_BRANCH: "main",
+  });
+
+  expect(result.exitCode).toBe(2);
+  expect(await $`git -C ${project.remote} rev-parse main`.text()).toBe(before);
+  expect(result.gh).toBe("");
 });

@@ -11,6 +11,10 @@ check_ref() {
     echo "::error::Update mode opens a pull request only from a branch, and this run is on ${GITHUB_REF:-no ref}. Set pull-request to false to write only the report."
     exit 2
   fi
+  if [ "$INPUT_PULL_REQUEST" = true ] && [ "$INPUT_BRANCH" = "${GITHUB_REF#refs/heads/}" ]; then
+    echo "::error::branch must differ from ${GITHUB_REF#refs/heads/}, the branch this run is on."
+    exit 2
+  fi
 }
 
 # actions/checkout leaves GITHUB_TOKEN in the Git config. Replace it with the token input.

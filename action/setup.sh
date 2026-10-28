@@ -27,8 +27,8 @@ base="https://github.com/osrim/niksi/releases/download/v$version"
 dir="$RUNNER_TEMP/niksi-$version"
 mkdir -p "$dir"
 cd "$dir"
-curl -fsSL --retry 3 -o "$archive" "$base/$archive"
-curl -fsSL --retry 3 -o checksums.txt "$base/checksums.txt"
+curl -fsSL --retry 3 -o "$archive" "$base/$archive" || fail "Could not download $base/$archive."
+curl -fsSL --retry 3 -o checksums.txt "$base/checksums.txt" || fail "Could not download $base/checksums.txt."
 awk -v file="$archive" '$2 == file' checksums.txt > expected
 [ -s expected ] || fail "checksums.txt of niksi $version has no line for $archive."
 if command -v sha256sum > /dev/null; then sha256sum -c expected; else shasum -a 256 -c expected; fi

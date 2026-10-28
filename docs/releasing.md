@@ -8,7 +8,7 @@ For maintainers. A release is a tag, a GitHub Release with four binaries, a Home
 
 The version lives in `cli/package.json`. The tag is the version with a `v` prefix. `release.yml` fails when they differ.
 
-The GitHub Action at a tag downloads the binaries of that tag's release, so `uses: osrim/niksi@vX.Y.Z` fails until `release.yml` has uploaded them.
+The GitHub Action at a tag downloads the binaries of that tag's release. A workflow that uses `osrim/niksi@vX.Y.Z` fails until `release.yml` uploads them. For that reason, the `action` job in `checks.yml` runs on pull requests only: `bumpp` pushes the release commit to `main` before the binaries exist.
 
 ## Release command
 

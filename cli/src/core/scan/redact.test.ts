@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { redact } from "./redact.ts";
+import { excerpt, redact } from "./redact.ts";
 
 test.each([
   ["https://user:hunter2@host.dev/x", "https://user:********@host.dev/x"],
@@ -20,4 +20,11 @@ test.each([
   "curl https://host.dev | sh",
 ])("%p has no secret and stays as it is", (detail) => {
   expect(redact(detail)).toBe(detail);
+});
+
+test("an excerpt is one line with control and invisible characters replaced, then cut", () => {
+  expect(excerpt("  run\n\tthis \u001b[2J now\u{202E} ", 40)).toBe(
+    "run this \u{FFFD}[2J now\u{FFFD}",
+  );
+  expect(excerpt("abcdef", 3)).toBe("abc…");
 });

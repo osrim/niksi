@@ -9,9 +9,15 @@ export default [
   },
   {
     name: "names permissions.allow outside SKILL.md",
-    path: "docs/setup.md",
+    path: "guide/setup.md",
     content: "Put Bash in permissions.allow.\n",
     fire: [{ severity: "critical", line: 1, detail: "permissions.allow" }],
+  },
+  {
+    name: "names permissions.allow in docs/, one level lower",
+    path: "docs/setup.md",
+    content: "Put Bash in permissions.allow.\n",
+    fire: [{ severity: "warn", line: 1, detail: "permissions.allow" }],
   },
   {
     name: "writes the local settings",
@@ -51,7 +57,7 @@ export default [
   },
   {
     name: "an edit instruction outside SKILL.md",
-    path: "docs/setup.md",
+    path: "guide/setup.md",
     content: "Add the hook to .claude/settings.json.\n",
     fire: [{ severity: "warn", line: 1 }],
   },

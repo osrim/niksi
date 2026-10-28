@@ -1,4 +1,4 @@
-import { codeFences } from "../skill/text.ts";
+import { mapMarkdown, type Span } from "../skill/markdown.ts";
 
 export const HOME = "~";
 
@@ -7,7 +7,7 @@ const HOME_SPELLING =
 
 export const mapHome = (text: string): string => text.replaceAll(HOME_SPELLING, HOME);
 
-// Code is a script line or a fence line, prose is Markdown text or inline code outside fences.
+// Code is a script line or a code block line, prose is other Markdown text and inline code.
 export type StatementKind = "code" | "comment" | "prose";
 
 export interface Substitution {
@@ -304,34 +304,39 @@ const codeSegments = (lines: Segment[]): Segment[] => {
   return current ? [...segments, current] : segments;
 };
 
-const INLINE_CODE = /(`+)(.+?)\1(?!`)/gu;
-
 const TABLE_ROW = /^\s*\|/u;
 
 // A table row's pipes separate cells, so only its inline code is shell text.
-const proseSegments = ({ text, line, index }: Segment): Segment[] => {
+const proseSegments = ({ text, line, index }: Segment, inline: Span[]): Segment[] => {
+  const end = index + text.length;
   const spans: Segment[] = [];
-  const rest = text.replaceAll(INLINE_CODE, (whole, ticks: string, body: string, at: number) => {
-    spans.push({ text: body, line, index: index + at + ticks.length });
-    return ";".padEnd(whole.length);
-  });
+  let rest = text;
+  for (const span of inline.filter((s) => s.start < end && s.end > index)) {
+    const from = Math.max(span.start, index) - index;
+    const to = Math.min(span.end, end) - index;
+    spans.push({ text: text.slice(from, to), line, index: index + from });
+    let first = from;
+    let past = to;
+    while (text[first - 1] === "`") first--;
+    while (text[past] === "`") past++;
+    rest = rest.slice(0, first) + ";".padEnd(past - first) + rest.slice(past);
+  }
   return TABLE_ROW.test(text) ? spans : [{ text: rest, line, index }, ...spans];
 };
 
 const markdownStatements = (text: string): Statement[] => {
   const lines = linesOf(text);
-  const fenced = new Set<number>();
+  const map = mapMarkdown(text);
   const statements: Statement[] = [];
-  for (const fence of codeFences(text)) {
-    for (let line = fence.startLine; line < fence.endLineExclusive; line += 1) fenced.add(line);
-    const count = fence.content.split("\n").length - 1;
-    const body = lines.slice(fence.startLine + 1, fence.startLine + 1 + count);
+  for (const block of map.codeBlocks) {
+    const body = lines.slice(block.line - 1, block.line - 1 + block.lines);
     for (const segment of codeSegments(body)) {
       statements.push(...segmentStatements(segment, true, "code"));
     }
   }
-  for (const line of lines.filter((_, i) => !fenced.has(i))) {
-    for (const segment of proseSegments(line)) {
+  const inline = map.spans("inline");
+  for (const line of lines.filter((segment) => !map.isCode(segment.index))) {
+    for (const segment of proseSegments(line, inline)) {
       statements.push(...segmentStatements(segment, false, "prose"));
     }
   }

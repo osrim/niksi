@@ -20,7 +20,7 @@ test("clean skill produces zero findings", () => {
 });
 
 test("invisible unicode is critical, per range", () => {
-  for (const ch of ["\u{E0041}", "​", "‮", "⁦"]) {
+  for (const ch of ["\u{E0041}", "\u{200B}", "\u{202E}", "\u{2066}"]) {
     const findings = scan(file("SKILL.md", `hello${ch}world`));
     expect(
       findings.some(
@@ -34,7 +34,7 @@ test("invisible unicode is critical, per range", () => {
 });
 
 test("a leading BOM is not flagged", () => {
-  expect(rules(file("SKILL.md", "﻿plain text"))).toEqual([]);
+  expect(rules(file("SKILL.md", "\u{FEFF}plain text"))).toEqual([]);
 });
 
 const severityOf = (rule: Finding["rule"], ...files: SkillFile[]) =>
@@ -399,7 +399,7 @@ test("secrets in finding details are masked", () => {
 });
 
 test("findings sort critical first", () => {
-  const findings = scan(file("SKILL.md", "see https://example.com plus ​ hidden"));
+  const findings = scan(file("SKILL.md", "see https://example.com plus\u{200B}hidden"));
   expect(findings[0]!.severity).toBe("critical");
 });
 

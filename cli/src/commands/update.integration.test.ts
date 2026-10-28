@@ -491,6 +491,22 @@ test("--source selects every skill from one source and checks no other source", 
   await expectListMatchesLock(fixture.project, fixture.lockPath);
 });
 
+test("--source with a local path selects the skills recorded in that directory", async () => {
+  const fixture = await setupMixedSources("by-source-path");
+  expect(fixture.before.own).toMatchObject({ source: "local:.", path: "skills/own" });
+
+  const result = await runCli(fixture.project, "update", "--source", "./skills", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.own?.integrity).not.toBe(fixture.before.own?.integrity);
+  expect(after.remote).toEqual(fixture.before.remote);
+  expect(
+    await readFile(join(fixture.project, ".claude", "skills", "own", "SKILL.md"), "utf8"),
+  ).toContain("version two");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
+});
+
 test("--source exits 1 when no installed skill comes from the source", async () => {
   const fixture = await setupMixedSources("by-source-none");
   const before = await readFile(fixture.lockPath, "utf8");

@@ -147,9 +147,9 @@ The store is a download cache. A lockfile entry installs without the network whe
 
 | field | meaning |
 | --- | --- |
-| `source` | `https://`, `ssh://`, or `file://` URL or `user@host:path` address of the source, or `local:` followed by its path. A directory inside the project root is recorded relative to it. One outside, or a symlink to one, is recorded by a path that other machines cannot resolve, so `add` asks first. |
-| `path` | Skill directory inside the source. |
-| `root` | Discovery root selected by a forge URL such as `https://github.com/o/r/tree/main/plugins/x`. Absent when `add` searches the whole source. Use a relative path with forward slashes and no empty, `.` or `..` segments. Absolute POSIX and Windows paths and backslashes are rejected. `update` checks dependencies within this directory. |
+| `source` | `https://`, `ssh://`, or `file://` URL or `user@host:path` address of the source, or `local:` followed by its path. In project scope, a local directory inside the project root is recorded as `local:.`, the project root. A local directory outside it, a symlink to one, or any local directory in global scope is recorded as `local:/`, the filesystem root. Other machines cannot resolve such a path, so in project scope `add` asks first. Entries recorded under the typed directory, such as `local:./skills/demo`, keep working. |
+| `path` | Skill directory inside the source. For a local source it is the same whichever directory you typed: `nik add ./skills/demo` and `nik add ./skills demo` both record `skills/demo`. |
+| `root` | Discovery root: the directory of a forge URL such as `https://github.com/o/r/tree/main/plugins/x`, or the local directory you typed. Absent when `add` searches the whole source. Use a relative path with forward slashes and no empty, `.` or `..` segments. Absolute POSIX and Windows paths and backslashes are rejected. `update` checks dependencies within this directory. |
 | `integrity` | sha256 of the installed skill files. `install` verifies every file against it. |
 | `track` | `auto` follows the latest stable tag or the branch. `pin` stays at the ref you typed. |
 | `commit` | Installed commit, as 40 or 64 lowercase hex characters. Absent for local sources. |

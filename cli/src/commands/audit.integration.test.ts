@@ -231,15 +231,15 @@ test("audit --json writes findings per skill and nothing else", async () => {
   expect(report.skills).toEqual([
     {
       name: "alpha",
-      source: `local:${source}`,
-      path: "alpha",
+      source: "local:/",
+      path: `${source.slice(1)}/alpha`,
       integrity: expect.stringMatching(/^sha256-/u),
       findings: [],
     },
     {
       name: "beta",
-      source: `local:${source}`,
-      path: "beta",
+      source: "local:/",
+      path: `${source.slice(1)}/beta`,
       integrity: expect.stringMatching(/^sha256-/u),
       findings: [
         {

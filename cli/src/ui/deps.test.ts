@@ -94,7 +94,7 @@ const linked = async (...agents: AgentId[]): Promise<Lockfile> => {
 test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
   reportNotInstalled(
     [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
-    undefined,
+    { source: "https://github.com/o/r", root: "plugins/x" },
     "project",
   );
   expect(printed()).toContain("primary mentions helper at SKILL.md:5. not installed.");
@@ -108,11 +108,22 @@ test("an ambiguous dependency appears in the add command by its path", () => {
       { from: "primary", name: "helper", file: "SKILL.md", line: 5 },
       { from: "primary", name: "twin", path: "b/twin", file: "SKILL.md", line: 6 },
     ],
-    "o/r@main",
+    { source: "https://github.com/o/r" },
     "project",
   );
   expect(printed()).toContain("primary mentions twin at SKILL.md:6. not installed.");
-  expect(printed()).toContain("Add them: nik add o/r@main helper b/twin\n");
+  expect(printed()).toContain("Add them: nik add https://github.com/o/r helper b/twin\n");
+});
+
+test("an ambiguous dependency path in the add command is relative to the discovery root", () => {
+  reportNotInstalled(
+    [{ from: "primary", name: "twin", path: "plugins/b/twin", file: "SKILL.md", line: 6 }],
+    { source: "https://github.com/o/r", branch: "main", root: "plugins" },
+    "project",
+  );
+  expect(printed()).toContain(
+    "Add them: nik add https://github.com/o/r/tree/main/plugins b/twin\n",
+  );
 });
 
 describe("reportUpdateDeps", () => {

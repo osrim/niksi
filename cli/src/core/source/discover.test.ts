@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { $ } from "bun";
-import { discoverSkills, selector } from "./discover.ts";
+import { discoverSkills, pathInRoot, selector } from "./discover.ts";
 
 let tmp: string;
 
@@ -190,4 +190,12 @@ test("a gitlink (submodule) named SKILL.md is not a skill", async () => {
   const sha = (await $`git -C ${dir} rev-parse HEAD`.text()).trim();
   const skills = await discoverSkills(dir, sha, "gitlink");
   expect(skills.map((skill) => skill.name)).toEqual(["real"]);
+});
+
+test("pathInRoot drops the discovery root from a path below it and keeps any other path", () => {
+  expect(pathInRoot("lib", "lib/a/tdd")).toBe("a/tdd");
+  expect(pathInRoot("lib", "lib/lib/a/tdd")).toBe("lib/a/tdd");
+  expect(pathInRoot("lib", "library/tdd")).toBe("library/tdd");
+  expect(pathInRoot("", "a/tdd")).toBe("a/tdd");
+  expect(pathInRoot(undefined, "a/tdd")).toBe("a/tdd");
 });

@@ -15,7 +15,7 @@ import { repoName } from "./coordinate.ts";
 import { resolveRevision, resolveUpstream, type Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Scope } from "../paths.ts";
-import type { Changes, Upstream, Source } from "./index.ts";
+import type { Anchored, Changes, Upstream, Source } from "./index.ts";
 
 const commitOf = (skill: InstalledSkill): string => {
   if (!skill.commit) throw new Error(`${skill.name}: lockfile entry has no commit`);
@@ -42,8 +42,8 @@ export class GitSource implements Source {
     return ensureClone(this.id);
   }
 
-  forScope(_scope: Scope): Source {
-    return this;
+  forScope(_scope: Scope): Anchored {
+    return { source: this, root: "" };
   }
 
   async resolve(userRef?: string): Promise<Revision> {

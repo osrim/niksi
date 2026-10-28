@@ -13,6 +13,9 @@ export interface DiscoveredSkill {
   ambiguous?: boolean;
 }
 
+export const pathInRoot = (root: string | undefined, path: string): string =>
+  root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+
 export const selector = (skill: DiscoveredSkill): string =>
   skill.ambiguous ? skill.path : skill.name;
 

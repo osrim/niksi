@@ -23,7 +23,10 @@ export const parseSourceSelector = (raw: string): SourceSelector => {
 export const describeSelector = (selector: SourceSelector): string =>
   selector.kind === "local" ? LOCAL_KEYWORD : selector.coordinate.repo;
 
-export const selectsSource = (selector: SourceSelector, sourceId: string): boolean =>
+export const selectsSource = (
+  selector: SourceSelector,
+  skill: { source: string; path: string },
+): boolean =>
   selector.kind === "local"
-    ? sourceId.startsWith(LOCAL_PREFIX)
-    : sourceMatches(sourceId, selector.coordinate);
+    ? skill.source.startsWith(LOCAL_PREFIX)
+    : sourceMatches(skill, selector.coordinate);

@@ -124,7 +124,7 @@ const sourceSelector = (value: unknown, names: string[]): SourceSelector | undef
 const fromSource = (lock: Lockfile, source: SourceSelector | undefined): Lockfile => {
   if (!source) return lock;
   const skills = Object.fromEntries(
-    Object.entries(lock.skills).filter(([, entry]) => selectsSource(source, entry.source)),
+    Object.entries(lock.skills).filter(([, entry]) => selectsSource(source, entry)),
   );
   if (Object.keys(skills).length === 0) {
     fail(`No recorded skill comes from ${describeSelector(source)}.`);

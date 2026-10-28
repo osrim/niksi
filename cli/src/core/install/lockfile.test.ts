@@ -292,6 +292,20 @@ test("isApproved matches only the exact (source, path, integrity) entry; the com
   expect(isApproved(moved, "tdd", at)).toBe(true);
 });
 
+test("isApproved matches a local skill by its directory, whichever shape recorded it", () => {
+  const prev = process.cwd();
+  process.chdir(tmp);
+  try {
+    const recorded = { ...entry, source: "local:./skills/demo", path: "" };
+    const lock: Lockfile = { lockfileVersion: 1, skills: { demo: recorded } };
+    const at = { source: "local:.", path: "skills/demo", integrity: recorded.integrity };
+    expect(isApproved(lock, "demo", at)).toBe(true);
+    expect(isApproved(lock, "demo", { ...at, path: "skills/other" })).toBe(false);
+  } finally {
+    process.chdir(prev);
+  }
+});
+
 test("isApproved does not see a entry from the other scope", async () => {
   const at = { source: entry.source, path: entry.path, integrity };
   await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });

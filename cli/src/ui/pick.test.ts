@@ -105,6 +105,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global" as const,
       agents: ["claude" as const],
       source: upstream,
+      root: "",
       rev,
     };
     try {
@@ -140,6 +141,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude", "universal"],
       source: upstream,
+      root: "",
       rev,
       options: { copy: false },
     });
@@ -156,6 +158,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude"],
       source: upstream,
+      root: "",
       rev,
       options: { copy: false },
     });
@@ -170,6 +173,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude"],
       source: upstream,
+      root: "",
       rev,
       options: { copy: false },
     });
@@ -185,10 +189,45 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude"],
       source: upstream,
+      root: "",
       rev,
       options: { copy: false },
     });
     expect(picked).toEqual({ skills: [renamed], extend: [], asked: false });
+  });
+
+  test("a path relative to the discovery root selects one of two skills sharing a name", async () => {
+    const first = skill({ name: "tdd", path: "skills/a/tdd", ambiguous: true });
+    const second = skill({ name: "tdd", path: "skills/b/tdd", ambiguous: true });
+    const picked = await pickSkillsToAdd({
+      skills: [first, second],
+      names: ["b/tdd"],
+      lock: emptyLock(),
+      scope: "global",
+      agents: ["claude"],
+      source: upstream,
+      root: "skills",
+      rev,
+      options: { copy: false },
+    });
+    expect(picked).toEqual({ skills: [second], extend: [], asked: false });
+  });
+
+  test("a path relative to the discovery root wins over the same path from the source root", async () => {
+    const outer = skill({ name: "outer", path: "lib/demo" });
+    const inner = skill({ name: "inner", path: "lib/lib/demo" });
+    const picked = await pickSkillsToAdd({
+      skills: [outer, inner],
+      names: ["lib/demo"],
+      lock: emptyLock(),
+      scope: "global",
+      agents: ["claude"],
+      source: upstream,
+      root: "lib",
+      rev,
+      options: { copy: false },
+    });
+    expect(picked).toEqual({ skills: [inner], extend: [], asked: false });
   });
 
   test("a path matching neither a path nor a last-segment name stops the run", async () => {
@@ -209,6 +248,7 @@ describe("pickSkillsToAdd", () => {
           scope: "global",
           agents: ["claude"],
           source: upstream,
+          root: "",
           rev,
           options: { copy: false },
         }),
@@ -241,6 +281,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude", "universal"],
       source: upstream,
+      root: "",
       rev,
       options: { copy: false },
     });
@@ -268,6 +309,7 @@ describe("pickSkillsToAdd", () => {
       scope: "global",
       agents: ["claude", "opencode"],
       source: upstream,
+      root: "",
       rev,
       options: { all: true, copy: true },
     });

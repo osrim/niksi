@@ -160,7 +160,7 @@ test("list identifies a path copy and JSON keeps source and destination paths di
   expect(json.exitCode).toBe(0);
   expect(json.stderr).toBe("");
   const row = JSON.parse(json.stdout).skills[0];
-  expect(row.path).toBe("demo");
+  expect(row.path).toBe(`${source.slice(1)}/demo`);
   expect(row.copyPath).toBe("custom-directory");
   expect(row.agents).toEqual([]);
   expect(row.links).toEqual([]);

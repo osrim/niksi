@@ -25,32 +25,36 @@ const usageMessage = (raw: string): string => {
   throw new Error(`${raw} parsed`);
 };
 
+const at = (source: string, path = "") => ({ source, path });
+
 test("local selects every local source and no Git source", () => {
   const selector = parseSourceSelector("local");
-  expect(selectsSource(selector, `local:${tmp}`)).toBe(true);
-  expect(selectsSource(selector, "local:./skills")).toBe(true);
-  expect(selectsSource(selector, "https://github.com/o/r")).toBe(false);
-  expect(selectsSource(selector, "file:///tmp/local")).toBe(false);
+  expect(selectsSource(selector, at(`local:${tmp}`))).toBe(true);
+  expect(selectsSource(selector, at("local:./skills"))).toBe(true);
+  expect(selectsSource(selector, at("https://github.com/o/r"))).toBe(false);
+  expect(selectsSource(selector, at("file:///tmp/local"))).toBe(false);
 });
 
 test("a GitHub coordinate selects only its repository", () => {
   const selector = parseSourceSelector("o/r");
-  expect(selectsSource(selector, "https://github.com/o/r")).toBe(true);
-  expect(selectsSource(selector, "https://github.com/o/other")).toBe(false);
-  expect(selectsSource(selector, `local:${tmp}`)).toBe(false);
+  expect(selectsSource(selector, at("https://github.com/o/r", "skills/tdd"))).toBe(true);
+  expect(selectsSource(selector, at("https://github.com/o/other"))).toBe(false);
+  expect(selectsSource(selector, at(`local:${tmp}`))).toBe(false);
 });
 
 test("a Git URL selects the source recorded with that URL", () => {
   const selector = parseSourceSelector("file:///tmp/repo");
-  expect(selectsSource(selector, "file:///tmp/repo")).toBe(true);
-  expect(selectsSource(selector, "https://github.com/o/r")).toBe(false);
+  expect(selectsSource(selector, at("file:///tmp/repo"))).toBe(true);
+  expect(selectsSource(selector, at("https://github.com/o/r"))).toBe(false);
 });
 
-test("a local path selects only the local source at that directory", () => {
-  const selector = parseSourceSelector(tmp);
-  expect(selectsSource(selector, `local:${tmp}`)).toBe(true);
-  expect(selectsSource(selector, `local:${join(tmp, "other")}`)).toBe(false);
-  expect(selectsSource(selector, `file://${tmp}`)).toBe(false);
+test("a local path selects every local skill in that directory or below it", () => {
+  const selector = parseSourceSelector(join(tmp, "skills"));
+  expect(selectsSource(selector, at(`local:${tmp}`, "skills/demo"))).toBe(true);
+  expect(selectsSource(selector, at(`local:${join(tmp, "skills")}`))).toBe(true);
+  expect(selectsSource(selector, at(`local:${tmp}`, "other/demo"))).toBe(false);
+  expect(selectsSource(selector, at(`local:${tmp}`, "skillset"))).toBe(false);
+  expect(selectsSource(selector, at(`file://${tmp}/skills`))).toBe(false);
 });
 
 test("a coordinate that names a skill, a ref, or a forge URL path is a usage error", () => {

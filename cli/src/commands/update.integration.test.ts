@@ -248,6 +248,20 @@ test("a skill added from a forge URL subtree keeps its root, and the dependency 
   }
 });
 
+const expectListMatchesLock = async (project: string, lockPath: string): Promise<void> => {
+  const skills = await readSkills(lockPath);
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  const rows: LockSkill[] = JSON.parse(listed.stdout).skills;
+  expect(rows.map((row) => row.name).toSorted()).toEqual(Object.keys(skills).toSorted());
+  for (const row of rows) {
+    expect(row).toMatchObject({ ...skills[String(row.name)], modified: false });
+  }
+};
+
+const publishedSkill = (project: string, name: string): Promise<string> =>
+  readFile(join(project, "published", name, "SKILL.md"), "utf8");
+
 const setupLocalGone = async (name: string): Promise<{ project: string; lockPath: string }> => {
   const project = join(tmp, `${name}-project`);
   await mkdir(join(project, ".git"), { recursive: true });
@@ -276,6 +290,8 @@ test.each([
     expect(after.kept?.integrity).not.toBe(before.kept?.integrity);
     const kept = join(fixture.project, ".claude", "skills", "kept", "SKILL.md");
     expect(await readFile(kept, "utf8")).toContain("version two");
+    expect(result.stdout).not.toContain("qa: up to date");
+    await expectListMatchesLock(fixture.project, fixture.lockPath);
   },
 );
 
@@ -292,6 +308,9 @@ test("a Git source that lost a named skill exits 1 after updating the rest", asy
   const after = await readSkills(fixture.lockPath);
   expect(after.dropped).toEqual(fixture.before.dropped);
   expect(after.kept?.commit).toBe(upstreamCommit);
+  expect(await publishedSkill(fixture.project, "dropped")).toContain("version one");
+  expect(await publishedSkill(fixture.project, "kept")).toContain("version two");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 });
 
 test("--all exits 1 when a source is unreachable, after updating the rest", async () => {
@@ -306,4 +325,27 @@ test("--all exits 1 when a source is unreachable, after updating the rest", asyn
   const after = await readSkills(fixture.lockPath);
   expect(after.lost).toEqual(lock.skills.lost);
   expect(after.kept?.commit).toBe(fixture.upstreamCommit);
+  expect(await publishedSkill(fixture.project, "lost")).toContain("version one");
+  expect(await publishedSkill(fixture.project, "kept")).toContain("version two");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
+});
+
+test("--all leaves out a pinned skill whose source is unreachable, naming it fails", async () => {
+  const fixture = await setupUpdate("pinned-unreachable", ["pinned"], ["pinned"], LINK, "@v1.0.0");
+  const lock = JSON.parse(await readFile(fixture.lockPath, "utf8"));
+  lock.skills.pinned.source = pathToFileURL(join(tmp, "pinned-unreachable-missing")).href;
+  const planted = `${JSON.stringify(lock, null, 2)}\n`;
+  await writeFile(fixture.lockPath, planted);
+  const installed = join(fixture.project, ".claude", "skills", "pinned", "SKILL.md");
+
+  for (const [args, exitCode] of [
+    [["--all"], 0],
+    [["pinned"], 1],
+  ] as const) {
+    const result = await runCli(fixture.project, "update", ...args, "--yes");
+    expect(result.exitCode).toBe(exitCode);
+    expect(await readFile(fixture.lockPath, "utf8")).toBe(planted);
+    expect(await readFile(installed, "utf8")).toContain("version one");
+  }
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 });

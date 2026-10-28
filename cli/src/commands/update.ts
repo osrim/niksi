@@ -18,6 +18,7 @@ import { displayLabel, shortId } from "../core/source/revision.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import {
   computeVerdicts,
+  requestedNames,
   selectUpdates,
   type MovedVerdict,
   type UpdatableVerdict,
@@ -100,8 +101,8 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
     () => computeVerdicts(skills, names),
     () => "Checked upstream sources",
   );
-  const requested = options.all && names.length === 0 ? skills.map((skill) => skill.name) : names;
-  const { moved, outdated } = reportVerdicts(verdicts, requested, scope);
+  const requested = requestedNames(skills, names, options.all ?? false) ?? [];
+  const { moved, outdated, upToDate } = reportVerdicts(verdicts, requested, scope);
   const candidates: UpdatableVerdict[] = [...moved, ...outdated];
 
   const destinationOf = (skill: InstalledSkill): Promise<Destination> =>
@@ -113,7 +114,9 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   }
 
   const selection = selectUpdates(candidates, names, options.all ?? false);
-  for (const name of selection.skipped) p.log.info(`${skillName(name)}: up to date`);
+  for (const name of selection.skipped.filter((skipped) => upToDate.includes(skipped))) {
+    p.log.info(`${skillName(name)}: up to date`);
+  }
 
   let selected = selection.selected;
   if (selection.needsPrompt) {

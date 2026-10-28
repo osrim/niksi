@@ -94,7 +94,7 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval]
 - A changed skill shows a diff stat. The full diff is in `Read files…` at the review questions. See [security-scan.md](security-scan.md#reading-files).
 - Candidates not selected are reported as still having an update available.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
-- A named skill fails when its source no longer has it, its source is unreachable, or its pinned ref was rewritten. `update` reports it, updates the rest, and exits `1`. With `--all` and no names, a failed enabled skill also exits `1`. When a local source no longer has the skill, the message names `nik remove`.
+- A named skill fails when its source no longer has it, its source is unreachable, or its pinned ref was rewritten. `update` reports it, updates the rest, and exits `1`. With `--all` and no names, a failed skill that is not pinned also exits `1`. When a local source no longer has the skill, the message names `nik remove`.
 - `update` reports missing dependencies but does not install them. If an entry
   has a `root`, both the check and the `nik add` command use that directory.
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.

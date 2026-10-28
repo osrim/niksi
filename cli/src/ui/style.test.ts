@@ -36,6 +36,12 @@ describe("colour level", () => {
     expect(out).toInclude("hello");
     expect(out).not.toInclude(ESC);
   });
+
+  test("piped output has no colour without NO_COLOR", async () => {
+    const out = (await probe({}, PAINT)).join("\n");
+    expect(out).toInclude("hello");
+    expect(out).not.toInclude(ESC);
+  });
 });
 
 describe("enforceColorPolicy", () => {

@@ -30,20 +30,15 @@ export const requireTTY = (question: string, remedy: string): void => {
   if (!isInteractive()) failNoTTY(question, remedy);
 };
 
-interface Spinner {
-  start: (message: string) => void;
-  stop: (message: string) => void;
-  error: (message: string) => void;
-  clear: () => void;
-}
+type Spinner = Pick<p.SpinnerResult, "start" | "stop" | "error" | "clear">;
 
 const noop = (): void => undefined;
 
 // Clack's spinner hides and shows the cursor even when stdout is piped.
 const lineSpinner = (): Spinner => ({
   start: noop,
-  stop: (message) => p.log.step(message),
-  error: (message) => p.log.message(message, { symbol: red(p.S_STEP_ERROR) }),
+  stop: (message = "") => p.log.step(message),
+  error: (message = "") => p.log.message(message, { symbol: red(p.S_STEP_ERROR) }),
   clear: noop,
 });
 

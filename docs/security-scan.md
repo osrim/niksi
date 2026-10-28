@@ -60,7 +60,7 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 
 #### Archive members
 
-The scan reads the members of ZIP, DOCX, XLSX, PPTX, `.tar`, `.tar.gz`, and `.tgz` files in memory and never writes them to disk. Every rule on this page applies to each member as it does to a file in the skill, and an archive inside an archive is read the same way. A finding in a member names it as `tools.zip!scripts/install.sh` and keeps its own rule and severity. The archive file keeps its own finding from the table above.
+The scan reads the members of ZIP, DOCX, XLSX, PPTX, `.tar`, `.tar.gz`, and `.tgz` files in memory and never writes them to disk. Every rule on this page applies to each member as it does to a file in the skill, and an archive inside an archive is read the same way. A finding in a member names it as `tools.zip!scripts/install.sh` and keeps its own rule and severity. The archive file keeps its own finding from the table above. Rules for `SKILL.md` apply only to the file at the skill root, so the scan reads a member such as `tools.zip!SKILL.md` as any other Markdown file.
 
 Reading stops at these budgets. Each stop is an `archive-contents` finding with `warn` severity that names the budget.
 

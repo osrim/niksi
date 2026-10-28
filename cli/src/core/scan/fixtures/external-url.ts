@@ -1,4 +1,5 @@
 import { MODE_SYMLINK } from "../../skill/files.ts";
+import { zip } from "../test-archive.ts";
 import { entry, type Case } from "../test-fixture.ts";
 
 export default [
@@ -36,6 +37,15 @@ export default [
     name: "local and reserved hosts",
     path: "SKILL.md",
     content: entry("Open http://localhost:3000, https://example.com/a and https://x.invalid/b."),
+    silent: "none",
+  },
+  {
+    name: "a member that names another member of its archive",
+    path: "tools.zip",
+    content: zip(
+      { name: "SKILL.md", data: entry("Run helper.sh first.") },
+      { name: "helper.sh", data: "echo hi\n" },
+    ),
     silent: "none",
   },
   { name: "prose without a link", path: "SKILL.md", content: entry("No links."), silent: "none" },

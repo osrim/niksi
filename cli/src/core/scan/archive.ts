@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, dirname, join, normalize } from "node:path";
 import { gunzipSync, inflateRawSync } from "node:zlib";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK, type SkillFile } from "../skill/files.ts";
 
@@ -7,8 +7,14 @@ export interface Unread {
   detail: string;
 }
 
+// `chain` holds the archive path, then each member path down to this one, such as
+// `["tools.zip", "docs.zip", "x.md"]`. `path` joins them with "!" for display.
+export interface Member extends SkillFile {
+  chain: string[];
+}
+
 export interface ArchiveContents {
-  members: SkillFile[];
+  members: Member[];
   unread: Unread[];
 }
 
@@ -22,8 +28,23 @@ const ZIP_EXTS = [".zip", ".docx", ".xlsx", ".pptx"];
 const GZIP_EXTS = [".tar.gz", ".tgz"];
 const TAR_EXTS = [".tar"];
 
+const isMember = (file: SkillFile): file is Member => "chain" in file;
+
+// A file on disk is one part, even when its name holds "!".
+export const pathParts = (file: SkillFile): string[] => (isMember(file) ? file.chain : [file.path]);
+
 // A member at the root of an archive, such as `tools.zip!plugin.json`, has no "/" before its name.
-export const fileName = (path: string): string => basename(path.slice(path.lastIndexOf("!") + 1));
+export const fileName = (file: SkillFile): string => basename(pathParts(file).at(-1)!);
+
+// A name in `tools.zip!docs/a.md` resolves inside that archive: `b.md` is `tools.zip!docs/b.md`.
+export const namedPaths = (file: SkillFile, name: string): string[] => {
+  const parts = pathParts(file);
+  const archive = parts
+    .slice(0, -1)
+    .map((part) => `${part}!`)
+    .join("");
+  return [join(dirname(parts.at(-1)!), name), name].map((path) => archive + normalize(path));
+};
 
 // The regex exists to find control characters.
 // oxlint-disable-next-line no-control-regex
@@ -196,7 +217,7 @@ const stop = (walk: Walk, file: string, budget: string): undefined => {
 };
 
 const isTooLarge = (error: unknown): boolean =>
-  (error as { code?: unknown }).code === "ERR_BUFFER_TOO_LARGE";
+  error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE";
 
 // The output cap stops a bomb while it inflates, whatever size its headers declare.
 const inflate = (
@@ -257,7 +278,8 @@ const memberContent = (walk: Walk, path: string, entry: Entry): Buffer | undefin
   }
 };
 
-const takeMember = (walk: Walk, path: string, entry: Entry): SkillFile | undefined => {
+const takeMember = (walk: Walk, chain: string[], entry: Entry): Member | undefined => {
+  const path = chain.join("!");
   if (walk.now() > walk.deadline)
     return stop(walk, path, `time budget of ${MAX_MS / 1000} seconds`);
   if (walk.members.length >= MAX_MEMBERS) {
@@ -267,7 +289,7 @@ const takeMember = (walk: Walk, path: string, entry: Entry): SkillFile | undefin
   const content = memberContent(walk, path, entry);
   if (!content) return undefined;
   walk.bytes += content.length;
-  return { path, mode: entry.mode, content };
+  return { path, chain, mode: entry.mode, content };
 };
 
 const readArchive = (walk: Walk, file: SkillFile, depth: number): void => {
@@ -278,7 +300,7 @@ const readArchive = (walk: Walk, file: SkillFile, depth: number): void => {
   }
   for (const entry of openArchive(walk, file)) {
     if (walk.stopped) return;
-    const member = takeMember(walk, `${file.path}!${showControl(entry.name)}`, entry);
+    const member = takeMember(walk, [...pathParts(file), showControl(entry.name)], entry);
     if (!member) continue;
     walk.members.push(member);
     readArchive(walk, member, depth + 1);

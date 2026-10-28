@@ -4,10 +4,12 @@ import { decodeText, isSymlink, MODE_EXEC, type SkillFile } from "../skill/files
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { codeFences, fencedLines, lineAt } from "../skill/text.ts";
+import { combine } from "./combine.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
+import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 
 export const RULES = {
-  "curl-pipe-shell": { help: "pipes a download into a shell" },
+  "curl-pipe-shell": { help: "runs downloaded code" },
   "base64-exec": { help: "decodes and runs base64" },
   "exfil-domain": { help: "known exfiltration endpoint" },
   "claude-settings": { help: "names agent settings or permissions" },
@@ -524,11 +526,6 @@ const deleteSeverity: Judge = ({ groups }) => {
 
 const PATTERN_RULES: PatternRule[] = [
   {
-    rule: "curl-pipe-shell",
-    severity: "critical",
-    pattern: /\b(curl|wget)\b[^\n|]*\|\s*(ba|z|da)?sh\b/gu,
-  },
-  {
     rule: "base64-exec",
     severity: "critical",
     pattern: new RegExp(
@@ -623,6 +620,236 @@ const suspiciousPatterns: Scanner = ({ files }) =>
     );
   });
 
+const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;
+const SHELLS = String.raw`(?:ba|z|da|k|a|fi)?sh`;
+const EVALUATORS = String.raw`iex|invoke-expression`;
+const INTERPRETERS = String.raw`${SHELLS}|python[\d.]*|node|bun|deno|perl|ruby|php|osascript|pwsh|powershell|${EVALUATORS}`;
+const DOWNLOADS = new RegExp(String.raw`(?<![\w-])(?:${DOWNLOADERS})(?![\w-])`, "iu");
+const DOWNLOADER = new RegExp(`^(?:${DOWNLOADERS})$`, "iu");
+const SHELL = new RegExp(`^${SHELLS}$`, "u");
+const INTERPRETER = new RegExp(`^(?:${INTERPRETERS})$`, "iu");
+const EVALUATOR = new RegExp(`^(?:${EVALUATORS})$`, "iu");
+const RUNS_ARGUMENT = /^(?:eval|source|\.|exec)$/u;
+const SHELL_CODE_FLAG = /^-[a-zA-Z]*c[a-zA-Z]*$/u;
+const SHELL_STDIN_FLAG = /^-[a-zA-Z]*s[a-zA-Z]*$/u;
+const CODE_FLAG = /^-(?:c|e|m|r|p|-eval|-print|command)$/iu;
+const EVAL_OF_DOWNLOAD = new RegExp(
+  String.raw`(?:${EXEC_SINK}|\bnew\s+Function\s*\()[^\n]*?(?:\burlopen|\brequests\.get|(?<![.\w])fetch)\s*\(|\b(?:${EVALUATORS})\b[^\n]*?\.downloadstring\s*\(|\.downloadstring\s*\([^\n]*?\|\s*(?:${EVALUATORS})\b`,
+  "iu",
+);
+const URLRETRIEVE = /\burlretrieve\s*\(/u;
+const RUNS_PYTHON = new RegExp(String.raw`\bsubprocess\.|${EXEC_SINK}`, "u");
+
+const bare = (word: string): string =>
+  word
+    .replace(/^[(!"'`]+/u, "")
+    .replace(/[,:;!?)"'`]+$/u, "")
+    .replace(/(?<=.)\.$/u, "");
+
+const commandName = (word: string): string => bare(word).replace(/^.*\//u, "") || bare(word);
+
+const isCodeFlag = (name: string, word: string): boolean =>
+  (SHELL.test(name) ? SHELL_CODE_FLAG : CODE_FLAG).test(word);
+
+const isCommandWord = (word: string): boolean => {
+  const name = commandName(word);
+  return (
+    DOWNLOADER.test(name) ||
+    INTERPRETER.test(name) ||
+    RUNS_ARGUMENT.test(name) ||
+    name === "chmod" ||
+    /^["'`]?(?:\.\/|\$\()/u.test(word)
+  );
+};
+
+// Prose and comments name the command after other words, as in "To install, run bash <(curl …)".
+const commandWords = (statement: Statement, command: Command): string[] => {
+  if (statement.kind === "code") return command.words;
+  const start = command.words.findIndex(isCommandWord);
+  return start === -1 ? [] : command.words.slice(start);
+};
+
+const commandText = (statement: Statement): string => {
+  if (statement.kind === "code") return statement.text;
+  const start = [...statement.text.matchAll(/\S+/gu)].find(([token]) =>
+    isCommandWord(mapHome(token)),
+  )?.index;
+  return statement.text.slice(start ?? 0);
+};
+
+const isDownload = (words: string[]): boolean => DOWNLOADER.test(commandName(words[0] ?? ""));
+
+// Prose words after an interpreter are not arguments unless they look like a path.
+const runsStdin = (words: string[], prose: boolean): boolean => {
+  const [command = "", ...args] = words;
+  const name = commandName(command);
+  if (!INTERPRETER.test(name)) return false;
+  if (EVALUATOR.test(name)) return true;
+  if (SHELL.test(name)) {
+    if (args.some((arg) => SHELL_STDIN_FLAG.test(arg))) return true;
+    // xargs supplies the command string after a trailing -c.
+    if (SHELL_CODE_FLAG.test(args.at(-1) ?? "")) return true;
+  }
+  if (args.some((arg) => isCodeFlag(name, arg))) return false;
+  const script = args.find((arg) => !arg.startsWith("-"));
+  return script === undefined || (prose && !/[./]/u.test(script));
+};
+
+const runsSubstitution = (words: string[], command: Command): boolean => {
+  const downloads = command.substitutions.filter((sub) => DOWNLOADS.test(sub.body));
+  if (downloads.length === 0) return false;
+  const [first = "", ...args] = words;
+  if (/^["'`]?(?:\$\(|`)/u.test(first)) return true;
+  const name = commandName(first);
+  if (RUNS_ARGUMENT.test(name)) return true;
+  if (!INTERPRETER.test(name)) return false;
+  return downloads.some((sub) => sub.kind === "<(" || args.some((arg) => isCodeFlag(name, arg)));
+};
+
+const feedsInterpreter = (statement: Statement): boolean => {
+  if (EVAL_OF_DOWNLOAD.test(statement.text)) return true;
+  const { commands } = statement;
+  const prose = statement.kind === "prose";
+  const download = commands.findIndex((command) => isDownload(commandWords(statement, command)));
+  if (download !== -1 && commands.slice(download + 1).some((c) => runsStdin(c.words, prose))) {
+    return true;
+  }
+  return commands.some((command) => runsSubstitution(commandWords(statement, command), command));
+};
+
+const asPath = (word: string): string | undefined => {
+  if (/^[a-z]+:\/\//iu.test(word)) {
+    try {
+      return new URL(word).pathname.split("/").at(-1) || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  const path = bare(word).replaceAll("\\", "/").replace(/^\.\//u, "");
+  return path && path !== "-" && !path.startsWith("&") && path !== "/dev/null" ? path : undefined;
+};
+
+const OUTPUT_LONG = /^(?:--output(?:-document)?|-outfile)(?:=(.*))?$/iu;
+const OUTPUT_SHORT = /^-[a-zA-Z]*?[oO](.*)$/u;
+const REDIRECT = /^1?>>?(.*)$/u;
+
+const downloadTargets = (words: string[]): string[] => {
+  if (!isDownload(words)) return [];
+  const targets: string[] = [];
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]!;
+    const flag = OUTPUT_LONG.exec(word) ?? (word.startsWith("--") ? null : OUTPUT_SHORT.exec(word));
+    const option = flag ?? REDIRECT.exec(word);
+    if (!option) continue;
+    const attached = option[1];
+    const value = attached || words[++i];
+    const path = value === undefined ? undefined : asPath(value);
+    if (path) targets.push(path);
+  }
+  return targets;
+};
+
+const EXEC_MODE = /\+[rwxXst]*x|^[0-7]{0,1}[0-7]*[1357][0-7]{0,2}$/u;
+
+const runTargets = (words: string[]): string[] => {
+  const [command = "", ...args] = words;
+  const name = commandName(command);
+  if (name === "chmod") {
+    const [mode = "", ...files] = args.filter((arg) => !/^-[RfvcH]+$/u.test(arg));
+    return EXEC_MODE.test(mode) ? files : [];
+  }
+  if (INTERPRETER.test(name) || RUNS_ARGUMENT.test(name)) {
+    if (args.some((arg) => isCodeFlag(name, arg))) return [];
+    const script = args.find((arg) => !arg.startsWith("-"));
+    return script === undefined ? [] : [script];
+  }
+  return command.includes("/") ? [command] : [];
+};
+
+interface Step {
+  statement: Statement;
+  line: number;
+  path: string;
+}
+
+const steps = (statements: Statement[], targets: (words: string[]) => string[]): Step[] =>
+  statements.flatMap((statement) =>
+    statement.commands.flatMap((command) =>
+      targets(commandWords(statement, command)).flatMap((target) => {
+        const path = asPath(target);
+        return path ? [{ statement, line: statement.line, path }] : [];
+      }),
+    ),
+  );
+
+interface Hit {
+  statements: Statement[];
+  detail: string;
+}
+
+const savedAndRun = (statements: Statement[]): Hit[] => {
+  const files = combine(steps(statements, downloadTargets), steps(statements, runTargets), {
+    related: (download, run) => download.path === run.path,
+  }).map(({ anchor, partner }) => [anchor.statement, partner.statement] as const);
+  const code = statements.filter((s) => s.kind !== "prose");
+  const python = combine(
+    code.filter((s) => URLRETRIEVE.test(s.text)),
+    code.filter((s) => RUNS_PYTHON.test(s.text) && !URLRETRIEVE.test(s.text)),
+  ).map(({ anchor, partner }) => [anchor, partner] as const);
+  return [...files, ...python].map(([download, run]) => ({
+    statements: [download, run],
+    detail: `${commandText(download)} → ${commandText(run)} (line ${run.line})`,
+  }));
+};
+
+const lower = (severity: Severity): Severity =>
+  STRENGTH[Math.max(STRENGTH.indexOf(severity) - 1, 0)]!;
+
+// Only Markdown prose explains a command; a prohibition anywhere else keeps full severity.
+const statementSeverity = (statement: Statement, text: string, explains: boolean): Severity => {
+  if (statement.kind === "comment") return lower("critical");
+  if (statement.kind !== "prose" || !explains) return "critical";
+  const start = statement.index + statement.text.length - commandText(statement).length;
+  return PROHIBITION.test(lineBefore(text, start)) ? "info" : "critical";
+};
+
+const weakest = (severities: Severity[]): Severity =>
+  severities.reduce((a, b) => (stronger(a, b) ? b : a));
+
+const downloadedCode: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = decodeText(file)?.text;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const explains = isMarkdown(file.path);
+    const prose = explains || extname(file.path).toLowerCase() === ".txt";
+    const statements = shellStatements(text, prose);
+    const hits: Hit[] = [
+      ...statements
+        .filter(feedsInterpreter)
+        .map((statement) => ({ statements: [statement], detail: commandText(statement) })),
+      ...savedAndRun(statements),
+    ].toSorted((a, b) => a.statements[0]!.index - b.statements[0]!.index);
+    let best: { hit: Hit; severity: Severity } | undefined;
+    for (const hit of hits) {
+      const severity = weakest(hit.statements.map((s) => statementSeverity(s, text, explains)));
+      if (!best || stronger(severity, best.severity)) best = { hit, severity };
+    }
+    if (!best) return [];
+    const detail = [
+      best.hit.detail,
+      ...(best.severity === "info" ? ["(in a warning)"] : []),
+      ...(hits.length > 1 ? [`(${hits.length} matches)`] : []),
+    ].join(" ");
+    return [
+      finding("curl-pipe-shell", {
+        severity: best.severity,
+        file: file.path,
+        line: best.hit.statements[0]!.line,
+        detail,
+      }),
+    ];
+  });
+
 // Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
 const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
 
@@ -710,6 +937,7 @@ export const defaultScanners: Scanner[] = [
   invisibleUnicode,
   frontmatterPrivileges,
   loadTimeExecution,
+  downloadedCode,
   suspiciousPatterns,
   urlInventory,
 ];

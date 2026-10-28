@@ -499,7 +499,29 @@ test("--source exits 1 when no installed skill comes from the source", async () 
 
   expect(result.exitCode).toBe(1);
   expect(await readFile(fixture.lockPath, "utf8")).toBe(before);
+  expect(await publishedSkill(fixture.project, "remote")).toContain("version one");
+  const own = join(fixture.project, ".claude", "skills", "own", "SKILL.md");
+  expect(await readFile(own, "utf8")).toContain("version one");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 });
+
+test.each([
+  { label: "no lockfile", lock: null },
+  { label: "an empty lockfile", lock: '{ "lockfileVersion": 1, "skills": {} }\n' },
+])(
+  "--source exits 1 with $label, where a plain update has nothing to do",
+  async ({ label, lock }) => {
+    const project = join(tmp, `by-source-${label.replaceAll(" ", "-")}`);
+    await mkdir(join(project, ".git"), { recursive: true });
+    if (lock) await writeFile(join(project, "niksi-lock.json"), lock);
+
+    expect((await runCli(project, "update", "--yes")).exitCode).toBe(0);
+    expect((await runCli(project, "update", "--source", "local", "--yes")).exitCode).toBe(1);
+    expect((await readdir(project)).toSorted()).toEqual(
+      lock ? [".git", "niksi-lock.json"] : [".git"],
+    );
+  },
+);
 
 test.each([
   { label: "with names", args: ["own", "--source", "local"], message: "not both" },

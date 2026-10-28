@@ -153,8 +153,9 @@ const updateScope = async (
 ): Promise<string> => {
   const { scope } = report;
   const loaded = await loadLock(scope);
-  if (Object.keys(loaded.lock.skills).length === 0) return emptyScopeMessage(scope);
-  const { enabled, disabled } = splitDisabled(fromSource(loaded.lock, source));
+  const scoped = fromSource(loaded.lock, source);
+  if (Object.keys(scoped.skills).length === 0) return emptyScopeMessage(scope);
+  const { enabled, disabled } = splitDisabled(scoped);
   const skills = installedSkills(enabled);
   const disabledNames = Object.keys(disabled.skills).toSorted();
   refuseDisabled(names, disabledNames, scope);

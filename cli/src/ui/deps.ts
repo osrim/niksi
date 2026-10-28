@@ -12,7 +12,9 @@ import {
 import { storedFiles } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
+import { fitsRefSuffix } from "../core/source/coordinate.ts";
 import { discoveryCoordinate, type Changes, type DiscoveryLocation } from "../core/source/index.ts";
+import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
@@ -53,6 +55,7 @@ export const reportNotInstalled = (
   missing: MissingDep[],
   discovered: DiscoveryLocation,
   scope: Scope,
+  ref?: string,
 ): void => {
   warnMentions(missing, "not installed");
   const coordinate = discoveryCoordinate(discovered);
@@ -63,7 +66,10 @@ export const reportNotInstalled = (
   const selectors = missing.map((dep) =>
     dep.path === undefined ? dep.name : pathInRoot(discovered.root, dep.path),
   );
-  p.log.info(`Add them: ${dim(`nik add ${coordinate} ${selectors.join(" ")}${scopeFlag(scope)}`)}`);
+  const at = ref === undefined ? "" : `@${ref}`;
+  p.log.info(
+    `Add them: ${dim(`nik add ${coordinate}${at} ${selectors.join(" ")}${scopeFlag(scope)}`)}`,
+  );
 };
 
 export interface OtherScopeLock {
@@ -118,6 +124,9 @@ const discoveryKey = ({ source, skill, upstream }: OutdatedVerdict): string =>
     skill.root,
   ]);
 
+const pinnedRef = ({ pinnedAs, commit }: Revision): string | undefined =>
+  pinnedAs !== undefined && fitsRefSuffix(pinnedAs) ? pinnedAs : commit;
+
 export const reportUpdateDeps = async (
   updated: UpdatedFiles[],
   lock: Lockfile,
@@ -140,6 +149,7 @@ export const reportUpdateDeps = async (
     }
     const inBatch = new Set(group.map((item) => item.verdict.skill.name));
     const missing = new Map<string, MissingDep>();
+    const mentionedByAuto = new Set<string>();
     for (const item of group) {
       const { destination } = await updateDestination(item.verdict.skill, scope, lock);
       const mentioned = missingDeps(
@@ -152,10 +162,27 @@ export const reportUpdateDeps = async (
         other,
         destination.kind === "path-copy" ? [] : destination.agents,
       );
-      for (const dep of remaining) missing.set(dep.name, dep);
+      for (const dep of remaining) {
+        missing.set(dep.name, dep);
+        if (item.verdict.skill.track !== "pin") mentionedByAuto.add(dep.name);
+      }
     }
-    if (missing.size > 0) {
-      reportNotInstalled([...missing.values()], skill, scope);
-    }
+    reportGroupHints(group, [...missing.values()], mentionedByAuto, scope);
+  }
+};
+
+const reportGroupHints = (
+  group: UpdatedFiles[],
+  missing: MissingDep[],
+  mentionedByAuto: Set<string>,
+  scope: Scope,
+): void => {
+  const location = group[0]!.verdict.skill;
+  const atLatest = missing.filter((dep) => mentionedByAuto.has(dep.name));
+  const atReviewed = missing.filter((dep) => !mentionedByAuto.has(dep.name));
+  if (atLatest.length > 0) reportNotInstalled(atLatest, location, scope);
+  if (atReviewed.length > 0) {
+    const { upstream } = group.find((item) => item.verdict.skill.track === "pin")!.verdict;
+    reportNotInstalled(atReviewed, location, scope, pinnedRef(upstream));
   }
 };

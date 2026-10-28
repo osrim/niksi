@@ -105,6 +105,13 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
   For remote sources, the command uses the recorded branch. If absent, it uses
   `pinnedAs`, `tag`, or `commit`, in that order. Without any of these, `update`
   reports that it cannot generate the command.
+- When only pinned skills mention a missing dependency, its `nik add` command
+  ends the coordinate with `@<ref>`, so the dependency lands at the revision you
+  reviewed. The ref is the new `pinnedAs` tag, or the commit when there is no
+  tag or the tag contains `@`, `/`, or `#`. In a forge URL, `@<ref>` takes
+  precedence over the branch in the path. A dependency that a skill tracking
+  `auto` mentions gets a command without `@ref`, so one source can print two
+  commands.
 - A dependency that the current scope records is not missing. An enabled
   dependency in the other scope counts only when a link or agent copy is present
   in every agent directory used by the updated skill. When it counts, `update`

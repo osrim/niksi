@@ -154,6 +154,30 @@ test("a pinned skill updates only when named", async () => {
   expect(await readFile(installed, "utf8")).toContain("version two");
 });
 
+test("a pinned update's dependency hint adds the dependency at the reviewed tag", async () => {
+  const fixture = await setupUpdate("pinned-deps", ["pinned"], [], LINK, "@v1.0.0");
+  await makeSkill(fixture.repo, "pinned", "Use /helper.\n");
+  await makeSkill(fixture.repo, "helper");
+  const reviewed = await commitAll(fixture.repo, "mention helper");
+  await tagHead(fixture.repo, "v1.2.0");
+
+  const updated = await runCli(fixture.project, "update", "pinned", "--yes");
+  expect(updated.exitCode).toBe(0);
+  const hint = /Add them: nik add (\S+) (.+)$/mu.exec(updated.stdout);
+  expect(hint?.slice(1)).toEqual([`${pathToFileURL(fixture.repo).href}@v1.2.0`, "helper"]);
+
+  await makeSkill(fixture.repo, "helper", "version three\n");
+  await commitAll(fixture.repo, "version three");
+  await tagHead(fixture.repo, "v1.3.0");
+  const pasted = await runCli(fixture.project, "add", hint![1]!, hint![2]!, ...LINK, "--yes");
+  expect(pasted.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).helper).toMatchObject({
+    commit: reviewed,
+    track: "pin",
+    pinnedAs: "v1.2.0",
+  });
+});
+
 test("updating a modified link skill discards the edits", async () => {
   const fixture = await setupUpdate("modified-link", ["edited"], ["edited"], LINK);
   const canonical = join(fixture.project, ".niksi", "skills", "edited", "SKILL.md");

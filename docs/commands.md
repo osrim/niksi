@@ -13,6 +13,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | `disable [...skills\|source]` | | Remove skills from disk and mark them disabled in `niksi-lock.json`. |
 | `enable [...skills\|source]` | | Restore disabled skills from `niksi-lock.json`. |
 | `prune` | | Delete unrecorded store entries. |
+| `completion <shell>` | | Print a shell completion script. |
 
 `nik --help` and `nik <command> --help` print usage. `nik --version` prints the version, platform, and Bun version.
 
@@ -289,12 +290,45 @@ nik prune [-y]
 
 `prune` never touches installed skills, agent links, copies, or any lockfile. The store is one directory for every scope, so `-g` and `-p` are unknown options and exit `2`. A positional argument exits `2`. A lockfile that does not parse stops the command before it deletes anything. `prune` reports and skips an entry that it cannot delete, and the command exits `1`.
 
+## `completion`
+
+```text
+nik completion <shell>
+```
+
+`completion` prints a completion script for `bash`, `zsh`, or `fish` to stdout. The Homebrew formula installs all three. With npm or a downloaded binary, load the script yourself:
+
+```sh
+# bash, in ~/.bashrc
+source <(nik completion bash)
+
+# zsh, in ~/.zshrc after compinit
+source <(nik completion zsh)
+
+# fish
+nik completion fish > ~/.config/fish/completions/nik.fish
+```
+
+The script completes command names, flags, `--agent` values, and file paths for `add`, `--path`, `--report`, and `--source`. For `update`, `remove`, `disable`, and `enable` it completes recorded skill names from the lockfile of the scope the command would use, so `-g` and `-p` on the command line count:
+
+| command | completes |
+| --- | --- |
+| `update`, `disable` | enabled skills |
+| `enable` | disabled skills |
+| `remove` | every recorded skill |
+
+To read skill names, the script runs `nik __complete-skills`, a hidden helper that reads the lockfile, never writes, and prints nothing when the lockfile cannot be read. The helper is not a compatibility contract, so don't call it from your own scripts.
+
+A saved script doesn't pick up new commands and flags. Save it again after you upgrade `niksi`.
+
+An unknown shell exits `2`.
+
 ## Flags
 
 | flag | commands | effect |
 | --- | --- | --- |
-| `-g`, `--global` | all but `prune` | Use global scope. |
-| `-p`, `--project` | all but `prune` | Use project scope. |
+| `-g`, `--global` | all but `prune` and `completion` | Use global scope. |
+| `-p`, `--project` | all but `prune` and `completion` | Use project scope. |
 | `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
 | `-a`, `--all` | `add`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
 | `-y`, `--yes` | `add`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings. |

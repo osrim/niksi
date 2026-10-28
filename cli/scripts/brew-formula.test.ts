@@ -30,6 +30,7 @@ test("renderFormula points each platform at its tagged asset", () => {
   expect(formula).toContain("on_linux do");
   expect(formula).not.toContain("depends_on :macos");
   expect(formula).toContain('bin.install "nik"');
+  expect(formula).toContain('generate_completions_from_executable(bin/"nik", "completion")');
   expect(formula).toContain("ski was renamed to niksi. The command is now nik.");
   expect(() => renderFormula("0.1.0", `${ARM}  niksi-darwin-arm64.tar.gz\n`)).toThrow("x64");
 });

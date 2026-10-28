@@ -46,6 +46,8 @@ brew install osrim/tap/niksi
 
 Or download a binary from the [latest release](https://github.com/osrim/niksi/releases/latest) and put it on your `PATH`.
 
+Homebrew installs shell completions for bash, zsh, and fish. For other installs, see [`nik completion`](docs/commands.md#completion).
+
 ### Requirements
 
 - macOS or Linux. There is no Windows build yet.
@@ -98,6 +100,7 @@ nik install
 | `nik audit`                     | Scan installed skills with the current rules.                          |
 | `nik disable`, `nik enable`     | Disable and enable recorded skills. No new review.                     |
 | `nik prune`                     | Delete unrecorded store entries.                                       |
+| `nik completion <shell>`        | Print a completion script for bash, zsh, or fish.                      |
 
 A coordinate is `owner/repo`, `owner/repo/path/to/skill`, `owner/repo@v1.2.0` to pin a ref, a forge URL, a Git URL, or a local directory. See [docs/commands.md](docs/commands.md) for more information.
 

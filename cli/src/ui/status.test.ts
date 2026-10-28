@@ -124,6 +124,11 @@ describe("reportVerdicts", () => {
     expect(output.text()).toBe("");
   });
 
+  test("a gone skill from a Git source does not suggest remove", () => {
+    reportVerdicts([{ kind: "gone", ...base() }], ["tdd"], "global");
+    expect(output.text()).not.toContain("nik remove");
+  });
+
   test.each<{ verdict: UpdateVerdict; message: string; named: number; unnamed: number }>([
     {
       verdict: { kind: "unreachable", error: "cannot reach r", ...base() },
@@ -133,8 +138,14 @@ describe("reportVerdicts", () => {
     },
     {
       verdict: { kind: "gone", ...base() },
-      message: "tdd: source no longer has skills/tdd. Skipped.",
-      named: 0,
+      message: "tdd: source no longer has skills/tdd.",
+      named: 1,
+      unnamed: 0,
+    },
+    {
+      verdict: { kind: "gone", ...base(), source: sourceFor("local:/src") },
+      message: "tdd: source no longer has skills/tdd.\n│  Run nik remove tdd -g to remove it.",
+      named: 1,
       unnamed: 0,
     },
     {

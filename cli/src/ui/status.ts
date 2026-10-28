@@ -45,30 +45,35 @@ export const warnLeftover = (name: string, path: string): void => {
   logWarn(`${skillName(name)}: could not remove ${tildify(path)}\nDelete it yourself.`);
 };
 
+const FAILED_KINDS = new Set<UpdateVerdict["kind"]>(["unreachable", "gone", "rewritten"]);
+
 export const reportVerdicts = (
   verdicts: UpdateVerdict[],
-  names: string[],
+  requested: string[],
   scope: Scope,
 ): { moved: MovedVerdict[]; outdated: OutdatedVerdict[] } => {
   const moved: MovedVerdict[] = [];
   const outdated: OutdatedVerdict[] = [];
   for (const verdict of verdicts) {
     const { skill } = verdict;
+    if (FAILED_KINDS.has(verdict.kind) && requested.includes(skill.name)) process.exitCode = 1;
     switch (verdict.kind) {
       case "unreachable":
         logError(`${skillName(skill.name)}: no upstream. ${verdict.error}`);
-        if (names.includes(skill.name)) process.exitCode = 1;
         break;
       case "gone": {
         const what = skill.path ? `no longer has ${skill.path}` : "no longer has this skill";
-        warn(`${skillName(skill.name)}: source ${what}. Skipped.`);
+        const remedy =
+          verdict.source.kind === "local"
+            ? `\nRun ${dim(`nik remove ${skill.name}${scopeFlag(scope)}`)} to remove it.`
+            : "";
+        logError(`${skillName(skill.name)}: source ${what}.${remedy}`);
         break;
       }
       case "rewritten":
         logError(
           `${skillName(skill.name)}: pinned ref "${verdict.pinnedAs}" was rewritten. ${shortId({ commit: verdict.expected })} → ${shortId({ commit: verdict.actual })}.\nReinstall to accept it.`,
         );
-        if (names.includes(skill.name)) process.exitCode = 1;
         break;
       case "pinned":
         p.log.info(

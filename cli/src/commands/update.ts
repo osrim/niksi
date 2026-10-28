@@ -100,7 +100,8 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
     () => computeVerdicts(skills, names),
     () => "Checked upstream sources",
   );
-  const { moved, outdated } = reportVerdicts(verdicts, names, scope);
+  const requested = options.all && names.length === 0 ? skills.map((skill) => skill.name) : names;
+  const { moved, outdated } = reportVerdicts(verdicts, requested, scope);
   const candidates: UpdatableVerdict[] = [...moved, ...outdated];
 
   const destinationOf = (skill: InstalledSkill): Promise<Destination> =>

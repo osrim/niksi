@@ -630,6 +630,7 @@ const SHELL = new RegExp(`^${SHELLS}$`, "u");
 const INTERPRETER = new RegExp(`^(?:${INTERPRETERS})$`, "iu");
 const EVALUATOR = new RegExp(`^(?:${EVALUATORS})$`, "iu");
 const RUNS_ARGUMENT = /^(?:eval|source|\.|exec)$/u;
+const RUN_SUBCOMMAND = /^(?:bun|deno)$/iu;
 const SHELL_CODE_FLAG = /^-[a-zA-Z]*c[a-zA-Z]*$/u;
 const SHELL_STDIN_FLAG = /^-[a-zA-Z]*s[a-zA-Z]*$/u;
 const CODE_FLAG = /^-(?:c|e|m|r|p|-eval|-print|command)$/iu;
@@ -691,7 +692,10 @@ const runsStdin = (words: string[], prose: boolean): boolean => {
     if (SHELL_CODE_FLAG.test(args.at(-1) ?? "")) return true;
   }
   if (args.some((arg) => isCodeFlag(name, arg))) return false;
-  const script = args.find((arg) => !arg.startsWith("-"));
+  // `bun run -` and `deno run -` read the script from stdin; `bun run format` runs a package script.
+  const operands = RUN_SUBCOMMAND.test(name) && args[0] === "run" ? args.slice(1) : args;
+  if (operands[0] === "-") return true;
+  const script = operands.find((arg) => !arg.startsWith("-"));
   return script === undefined || (prose && !/[./]/u.test(script));
 };
 

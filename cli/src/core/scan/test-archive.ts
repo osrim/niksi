@@ -87,13 +87,15 @@ export interface TarEntry {
   link?: string;
   mode?: number;
   prefix?: string;
+  // Raw size field, for headers a real tar would never write.
+  sizeField?: string;
 }
 
 const tarHeader = (entry: TarEntry, size: number): Buffer => {
   const header = Buffer.alloc(512);
   header.write(entry.name, 0, 100);
   header.write(`${(entry.mode ?? 0o644).toString(8).padStart(7, "0")}\0`, 100);
-  header.write(`${size.toString(8).padStart(11, "0")}\0`, 124);
+  header.write(entry.sizeField ?? `${size.toString(8).padStart(11, "0")}\0`, 124);
   header.write("        ", 148);
   header.write(entry.type ?? "0", 156);
   header.write(entry.link ?? "", 157, 100);

@@ -130,8 +130,11 @@ const field = (header: Buffer, start: number, length: number): string => {
   return raw.toString("utf8", 0, nul === -1 ? raw.length : nul);
 };
 
+// Digits only: parseInt reads "-1000" as a negative size, which stalls the header walk.
 const octal = (header: Buffer, start: number, length: number): number => {
-  const value = Number.parseInt(field(header, start, length).trim() || "0", 8);
+  const digits = field(header, start, length).trim();
+  if (!/^[0-7]*$/u.test(digits)) throw new Error("broken tar header");
+  const value = Number.parseInt(digits || "0", 8);
   if (!Number.isSafeInteger(value)) throw new Error("broken tar header");
   return value;
 };

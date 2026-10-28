@@ -140,6 +140,16 @@ test("names an archive it cannot read", () => {
   expect(unread.every((u) => u.detail.startsWith("archive could not be read: "))).toBe(true);
 });
 
+test("names a tar whose header has a negative size", () => {
+  const { members, unread } = readArchives([
+    file("neg.tar", tar({ name: "a.sh", sizeField: "-0000001000" })),
+  ]);
+
+  expect(members).toEqual([]);
+  expect(unread.map((u) => u.file)).toEqual(["neg.tar"]);
+  expect(unread[0]?.detail).toStartWith("archive could not be read: ");
+});
+
 const names = (prefix: string, count: number): string[] =>
   Array.from({ length: count }, (_, i) => `${prefix}${i}.txt`);
 

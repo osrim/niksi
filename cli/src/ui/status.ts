@@ -22,6 +22,14 @@ export const emptyScopeMessage = async (scope: Scope): Promise<string> => {
   return `${base} ${count} in ${other} scope. ${hint}.`;
 };
 
+export const sourceGone = (path: string): string => `source no longer has ${path || "this skill"}`;
+
+export const removeHint = (name: string, scope: Scope): string => {
+  // From the home directory, a command without -p acts on the global scope.
+  const flag = scope === "global" ? "-g" : "-p";
+  return `Run ${dim(`nik remove ${name} ${flag}`)} to remove it.`;
+};
+
 export const reportModified = (names: string[], remedy: string): void => {
   warn(
     [
@@ -47,12 +55,8 @@ export const warnLeftover = (name: string, path: string): void => {
 };
 
 const goneMessage = ({ skill, source }: GoneVerdict, scope: Scope): string => {
-  const what = skill.path ? `no longer has ${skill.path}` : "no longer has this skill";
-  // From the home directory, a command without -p acts on the global scope.
-  const flag = scope === "global" ? "-g" : "-p";
-  const remedy =
-    source.kind === "local" ? `\nRun ${dim(`nik remove ${skill.name} ${flag}`)} to remove it.` : "";
-  return `${skillName(skill.name)}: source ${what}.${remedy}`;
+  const remedy = source.kind === "local" ? `\n${removeHint(skill.name, scope)}` : "";
+  return `${skillName(skill.name)}: ${sourceGone(skill.path)}.${remedy}`;
 };
 
 export const reportVerdicts = (

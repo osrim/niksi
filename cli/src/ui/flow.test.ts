@@ -316,16 +316,16 @@ describe("restoring a recorded skill", () => {
   );
 
   test.each([true, false])(
-    "a deleted local source fails the same way whether the store holds the recorded content: %p",
+    "a gone local source fails the same way whether the store holds the recorded content: %p",
     async (stored) => {
-      const entry = await localEntry(`deleted-${stored}`, stored);
+      const entry = await localEntry(`gone-${stored}`, stored);
       await rm(join(root, "skills", entry.name), { recursive: true });
 
       const error = await restoreSkill(entry, "project", ["claude"]).catch((e: unknown) => e);
 
       const printed = reported(entry, error, "global");
-      expect(printed).toContain(`${entry.name}: source no longer has ${entry.name}`);
-      expect(printed).toContain(`nik remove ${entry.name} -g`);
+      expect(printed).toContain(`${entry.name}: source no longer has ${entry.name}.`);
+      expect(printed).toContain(`Run nik remove ${entry.name} -g to remove it.`);
       expect(await readdir(join(root, ".niksi", "skills")).catch(() => [])).not.toContain(
         entry.name,
       );
@@ -336,8 +336,8 @@ describe("restoring a recorded skill", () => {
     const entry = recorded("local", "local:/skills");
     const mismatch = new IntegrityError("sha256-a", "sha256-b");
 
-    expect(reported(entry, mismatch)).toContain("`nik update local`");
-    expect(reported(entry, mismatch, "global")).toContain("`nik update local -g`");
+    expect(reported(entry, mismatch)).toContain("Run nik update local to review");
+    expect(reported(entry, mismatch, "global")).toContain("Run nik update local -g to review");
     expect(reported(entry, mismatch)).not.toContain("nik add");
   });
 

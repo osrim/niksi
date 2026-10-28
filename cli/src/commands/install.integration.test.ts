@@ -92,8 +92,8 @@ test("a fresh checkout installs every entry with --agent claude --yes", async ()
 test.each([
   ["changed", false],
   ["changed", true],
-  ["deleted", false],
-  ["deleted", true],
+  ["gone", false],
+  ["gone", true],
 ] as const)(
   "a %s local source skips that entry, installs the rest, and exits 1 (shared store: %p)",
   async (state, sharedStore) => {

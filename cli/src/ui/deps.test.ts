@@ -186,6 +186,7 @@ describe("reportUpdateDeps", () => {
     ["a tag that cannot follow @", { pinnedAs: "primary@v2.0.0", tag: "primary@v2.0.0" }],
     ["a tag with a slash", { pinnedAs: "release/2", tag: "release/2" }],
     ["a tag with a hash", { pinnedAs: "v2#1", tag: "v2#1" }],
+    ["a tag that a shell expands", { pinnedAs: "v2.0.0+$USER", tag: "v2.0.0+$USER" }],
   ])("a pinned group with %s carries the reviewed commit", async (_, ref) => {
     await reportUpdateDeps(
       [

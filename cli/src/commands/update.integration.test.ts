@@ -176,6 +176,13 @@ test("a pinned update's dependency hint adds the dependency at the reviewed tag"
     track: "pin",
     pinnedAs: "v1.2.0",
   });
+  const helper = await readFile(
+    join(fixture.project, ".claude", "skills", "helper", "SKILL.md"),
+    "utf8",
+  );
+  expect(helper).toContain("# helper");
+  expect(helper).not.toContain("version three");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 });
 
 test("updating a modified link skill discards the edits", async () => {

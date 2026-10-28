@@ -12,7 +12,6 @@ import {
 import { storedFiles } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
-import { fitsRefSuffix } from "../core/source/coordinate.ts";
 import { discoveryCoordinate, type Changes, type DiscoveryLocation } from "../core/source/index.ts";
 import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
@@ -124,8 +123,11 @@ const discoveryKey = ({ source, skill, upstream }: OutdatedVerdict): string =>
     skill.root,
   ]);
 
+// The hint is pasted unquoted, and parseCoordinate must read the ref back after @.
+const PASTABLE_REF = /^[\w.+-]+$/u;
+
 const pinnedRef = ({ pinnedAs, commit }: Revision): string | undefined =>
-  pinnedAs !== undefined && fitsRefSuffix(pinnedAs) ? pinnedAs : commit;
+  pinnedAs !== undefined && PASTABLE_REF.test(pinnedAs) ? pinnedAs : commit;
 
 export const reportUpdateDeps = async (
   updated: UpdatedFiles[],

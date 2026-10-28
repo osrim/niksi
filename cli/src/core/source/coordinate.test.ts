@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { resolve } from "node:path";
 import { USAGE_ERROR } from "../usage.ts";
-import { fitsRefSuffix, parseCoordinate, parseSource, repoName } from "./coordinate.ts";
+import { parseCoordinate, parseSource, repoName } from "./coordinate.ts";
 
 test("owner/repo shorthand expands to a GitHub URL", () => {
   expect(parseCoordinate("owner/repo")).toEqual({
@@ -23,23 +23,6 @@ test("segments past the repo are the skill, and @ref pins it", () => {
     skill: "tdd",
     ref: "v1.2.0",
   });
-});
-
-const readBack = (ref: string): string | undefined => {
-  try {
-    return parseCoordinate(`owner/repo@${ref}`).ref;
-  } catch {
-    return undefined;
-  }
-};
-
-test("fitsRefSuffix accepts only a ref that parseCoordinate reads back after @", () => {
-  expect(fitsRefSuffix("v1.2.0")).toBe(true);
-  expect(readBack("v1.2.0")).toBe("v1.2.0");
-  for (const ref of ["tdd@v1.2.0", "release/2", "v2#1"]) {
-    expect(fitsRefSuffix(ref)).toBe(false);
-    expect(readBack(ref)).not.toBe(ref);
-  }
 });
 
 test("# is refused as a usage error naming the path form", () => {

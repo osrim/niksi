@@ -37,9 +37,6 @@ const splitRef = (input: string): { base: string; ref?: string } => {
   return { base: input };
 };
 
-// splitRef reads a ref after the last @ only when no / follows it, and parseCoordinate rejects #.
-export const fitsRefSuffix = (ref: string): boolean => /^[^@/#]+$/u.test(ref);
-
 const TREE_MARKERS = new Set(["tree", "blob", "blame", "raw", "src"]);
 const REF_MARKERS = new Set(["commit", "commits", "releases", "tags"]);
 const FILE_MARKERS = new Set(["blob", "blame", "raw"]);

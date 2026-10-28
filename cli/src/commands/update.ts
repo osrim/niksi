@@ -19,6 +19,12 @@ import { tildify, type Scope } from "../core/paths.ts";
 import type { Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
+import {
+  describeSelector,
+  parseSourceSelector,
+  selectsSource,
+  type SourceSelector,
+} from "../core/source/selector.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import {
   computeVerdicts,
@@ -59,6 +65,7 @@ export const help: CommandHelp = {
     "$ nik update",
     "$ nik up grilling prototype",
     "$ nik update --all -y",
+    "$ nik update --source local -y",
     "$ nik update -g",
   ],
 };
@@ -66,15 +73,24 @@ export const help: CommandHelp = {
 interface UpdateOptions extends ScopeOptions, ReviewOptions {
   all?: boolean;
   report?: unknown;
+  source?: unknown;
+}
+
+interface Selection {
+  names: string[];
+  source: SourceSelector | undefined;
+  all: boolean;
 }
 
 export const run = async (names: string[], options: UpdateOptions): Promise<void> => {
+  const source = sourceSelector(options.source, names);
   const reportPath = await reportTarget(options.report);
   p.intro("nik update");
   const scope = resolveScope(options, p.log.warn) ?? "project";
   await migrateIfLegacy(scope);
   const report: UpdateReport = { scope, updated: [], blocked: [], skipped: [], upToDate: [] };
-  const outro = await updateScope(names, options, report);
+  const selection = { names, source, all: source !== undefined || (options.all ?? false) };
+  const outro = await updateScope(selection, options, report);
   if (reportPath) await writeReport(reportPath, report);
   p.outro(outro);
 };
@@ -89,14 +105,38 @@ const writeReport = async (path: string, report: UpdateReport): Promise<void> =>
   }
 };
 
-const reportTarget = async (value: unknown): Promise<string | undefined> => {
+const singleValue = (value: unknown, flag: string): string | undefined => {
   if (value === undefined) return undefined;
   // cac parses a numeric value as a number and a repeated option as an array.
   if (typeof value !== "string" && typeof value !== "number") {
-    throw usageError("Pass --report once.");
+    throw usageError(`Pass ${flag} once.`);
   }
-  if (value === "") throw usageError("Pass a file to --report.");
-  const path = resolve(String(value));
+  return String(value);
+};
+
+const sourceSelector = (value: unknown, names: string[]): SourceSelector | undefined => {
+  const raw = singleValue(value, "--source");
+  if (raw === undefined) return undefined;
+  if (names.length > 0) throw usageError("Pass skill names or --source, not both.");
+  return parseSourceSelector(raw);
+};
+
+const fromSource = (lock: Lockfile, source: SourceSelector | undefined): Lockfile => {
+  if (!source) return lock;
+  const skills = Object.fromEntries(
+    Object.entries(lock.skills).filter(([, entry]) => selectsSource(source, entry.source)),
+  );
+  if (Object.keys(skills).length === 0) {
+    fail(`No recorded skill comes from ${describeSelector(source)}.`);
+  }
+  return { ...lock, skills };
+};
+
+const reportTarget = async (value: unknown): Promise<string | undefined> => {
+  const raw = singleValue(value, "--report");
+  if (raw === undefined) return undefined;
+  if (raw === "") throw usageError("Pass a file to --report.");
+  const path = resolve(raw);
   if (!(await stat(dirname(path)).catch(() => null))?.isDirectory()) {
     throw usageError(`Report directory not found: ${tildify(dirname(path))}`);
   }
@@ -107,16 +147,17 @@ const reportTarget = async (value: unknown): Promise<string | undefined> => {
 };
 
 const updateScope = async (
-  names: string[],
+  { names, source, all }: Selection,
   options: UpdateOptions,
   report: UpdateReport,
 ): Promise<string> => {
   const { scope } = report;
   const loaded = await loadLock(scope);
-  const { enabled, disabled } = splitDisabled(loaded.lock);
+  const scoped = fromSource(loaded.lock, source);
+  if (Object.keys(scoped.skills).length === 0) return emptyScopeMessage(scope);
+  const { enabled, disabled } = splitDisabled(scoped);
   const skills = installedSkills(enabled);
   const disabledNames = Object.keys(disabled.skills).toSorted();
-  if (skills.length === 0 && disabledNames.length === 0) return emptyScopeMessage(scope);
   refuseDisabled(names, disabledNames, scope);
   reportDisabled(disabledNames, scope);
   report.skipped.push(...disabledNames.map((name) => ({ kind: "disabled" as const, name })));
@@ -137,12 +178,12 @@ const updateScope = async (
     () => "Checked upstream sources",
   );
   recordVerdicts(report, verdicts);
-  const requested = requestedNames(skills, names, options.all ?? false) ?? [];
+  const requested = requestedNames(skills, names, all) ?? [];
   const { moved, outdated, upToDate } = reportVerdicts(verdicts, requested, scope);
   const candidates: UpdatableVerdict[] = [...moved, ...outdated];
   if (candidates.length === 0) return "Nothing to update.";
 
-  const selected = await chooseUpdates(candidates, names, options.all ?? false, upToDate, report);
+  const selected = await chooseUpdates(candidates, names, all, upToDate, report);
   if (selected.length === 0) return "Nothing selected.";
   if (selected.some((verdict) => verdict.kind === "outdated")) logSourceCaution();
   const prepared = await previewAndReview(selected, scope, options, report);

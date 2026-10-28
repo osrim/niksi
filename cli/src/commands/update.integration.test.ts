@@ -34,6 +34,7 @@ type LockSkills = Record<string, LockSkill>;
 interface UpdateFixture {
   project: string;
   lockPath: string;
+  repo: string;
   before: LockSkills;
   upstreamCommit: string;
 }
@@ -89,7 +90,7 @@ const setupUpdate = async (
   await writeFile(join(repo, "README.md"), "version two\n");
   const upstreamCommit = await commitAll(repo, "version two");
   await tagHead(repo, "v1.1.0");
-  return { project, lockPath, before, upstreamCommit };
+  return { project, repo, lockPath, before, upstreamCommit };
 };
 
 test("naming one skill leaves every other candidate unchanged", async () => {
@@ -441,4 +442,99 @@ test("--all leaves out a pinned skill whose source is unreachable, naming it fai
     expect(await readFile(installed, "utf8")).toContain("version one");
   }
   await expectListMatchesLock(fixture.project, fixture.lockPath);
+});
+
+const setupMixedSources = async (name: string): Promise<UpdateFixture> => {
+  const fixture = await setupUpdate(name, ["remote"], ["remote"]);
+  await makeSkill(join(fixture.project, "skills"), "own", "version one\n");
+  const added = await runCli(fixture.project, "add", "./skills", "--all", ...LINK, "--yes");
+  expect(added.exitCode).toBe(0);
+  await makeSkill(join(fixture.project, "skills"), "own", "version two\n");
+  return { ...fixture, before: await readSkills(fixture.lockPath) };
+};
+
+test("--source selects every skill from one source and checks no other source", async () => {
+  const fixture = await setupMixedSources("by-source");
+  const own = join(fixture.project, ".claude", "skills", "own", "SKILL.md");
+  const lockBefore = await readFile(fixture.lockPath, "utf8");
+
+  const unconfirmed = await runCli(fixture.project, "update", "--source", "local");
+  expect(unconfirmed.exitCode).toBe(2);
+  expect(unconfirmed.stderr).toContain("Pass -y to proceed.");
+  expect(await readFile(fixture.lockPath, "utf8")).toBe(lockBefore);
+
+  const git = await runCli(
+    fixture.project,
+    "update",
+    "--source",
+    pathToFileURL(fixture.repo).href,
+    "--yes",
+  );
+  expect(git.exitCode).toBe(0);
+  let after = await readSkills(fixture.lockPath);
+  expect(after.remote?.commit).toBe(fixture.upstreamCommit);
+  expect(after.own).toEqual(fixture.before.own);
+  expect(await publishedSkill(fixture.project, "remote")).toContain("version two");
+  expect(await readFile(own, "utf8")).toContain("version one");
+
+  const lock = JSON.parse(await readFile(fixture.lockPath, "utf8"));
+  lock.skills.remote.source = pathToFileURL(join(tmp, "by-source-missing")).href;
+  await writeFile(fixture.lockPath, `${JSON.stringify(lock, null, 2)}\n`);
+
+  const local = await runCli(fixture.project, "update", "--source", "local", "--yes");
+  expect(local.exitCode).toBe(0);
+  after = await readSkills(fixture.lockPath);
+  expect(after.remote).toEqual(lock.skills.remote);
+  expect(after.own?.integrity).not.toBe(fixture.before.own?.integrity);
+  expect(await readFile(own, "utf8")).toContain("version two");
+  expect(local.stdout).not.toContain("no upstream");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
+});
+
+test("--source exits 1 when no installed skill comes from the source", async () => {
+  const fixture = await setupMixedSources("by-source-none");
+  const before = await readFile(fixture.lockPath, "utf8");
+
+  const result = await runCli(fixture.project, "update", "--source", "o/r", "--yes");
+
+  expect(result.exitCode).toBe(1);
+  expect(await readFile(fixture.lockPath, "utf8")).toBe(before);
+  expect(await publishedSkill(fixture.project, "remote")).toContain("version one");
+  const own = join(fixture.project, ".claude", "skills", "own", "SKILL.md");
+  expect(await readFile(own, "utf8")).toContain("version one");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
+});
+
+test.each([
+  { label: "no lockfile", lock: null },
+  { label: "an empty lockfile", lock: '{ "lockfileVersion": 1, "skills": {} }\n' },
+])(
+  "--source exits 1 with $label, where a plain update has nothing to do",
+  async ({ label, lock }) => {
+    const project = join(tmp, `by-source-${label.replaceAll(" ", "-")}`);
+    await mkdir(join(project, ".git"), { recursive: true });
+    if (lock) await writeFile(join(project, "niksi-lock.json"), lock);
+
+    expect((await runCli(project, "update", "--yes")).exitCode).toBe(0);
+    expect((await runCli(project, "update", "--source", "local", "--yes")).exitCode).toBe(1);
+    expect((await readdir(project)).toSorted()).toEqual(
+      lock ? [".git", "niksi-lock.json"] : [".git"],
+    );
+  },
+);
+
+test.each([
+  { label: "with names", args: ["own", "--source", "local"], message: "not both" },
+  { label: "with a skill path", args: ["--source", "o/r/own"], message: "o/r/own" },
+  {
+    label: "with a forge URL path",
+    args: ["--source", "https://github.com/o/r/tree/main/skills"],
+    message: "names a skill or ref inside a source",
+  },
+  { label: "twice", args: ["--source", "local", "--source", "o/r"], message: "once" },
+])("--source $label exits 2 before checking upstream", async ({ args, message }) => {
+  const result = await runCli(tmp, "update", ...args, "--yes");
+
+  expect(result.exitCode).toBe(2);
+  expect(result.stderr).toContain(message);
 });

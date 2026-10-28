@@ -85,18 +85,20 @@ Link entries install to the agents you pass with `--agent`, or to the saved or d
 ## `update`
 
 ```text
-nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval] [--report <file>]
+nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-skip-critical-approval] [--report <file>]
 ```
 
 `update` checks every installed skill against its source, then shows and scans changed files before writing.
 
-- Without names or `--all`, it opens a picker of every skill with an available update.
+- Without names, `--all`, or `--source`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
+- `--source <coordinate>` selects the skills from one source as `--all` selects them from the scope. It leaves out pinned skills. `update` checks only that source upstream. The coordinate is `owner/repo`, a Git URL, or a local path. `--source local` selects every local source. To select a directory named `local`, pass `./local`. `--all` with `--source` selects the same skills as `--source` alone.
+- `--source` exits `2` when you pass it twice, pass it with skill names, or give it a coordinate with a skill segment, a forge URL path, or `@ref`. A source with no recorded skills exits `1`.
 - Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
 - A changed skill shows a diff stat. The full diff is in `Read files…` at the review questions. See [security-scan.md](security-scan.md#reading-files).
 - Candidates not selected are reported as still having an update available.
 - A pinned tag or branch that now resolves to a different commit is reported and never updated automatically.
-- A named skill fails when its source no longer has it, its source is unreachable, or its pinned ref was rewritten. `update` reports it, updates the rest, and exits `1`. With `--all` and no names, a failed skill that is not pinned also exits `1`. When a local source no longer has the skill, the message names `nik remove`.
+- A named skill fails when its source no longer has it, its source is unreachable, or its pinned ref was rewritten. `update` reports it, updates the rest, and exits `1`. With `--all` or `--source` and no names, a failed skill that is not pinned also exits `1`. When a local source no longer has the skill, the message names `nik remove`.
 - `update` reports missing dependencies but does not install them. If an entry
   has a `root`, both the check and the `nik add` command use that directory.
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
@@ -109,7 +111,7 @@ nik update [...skills] [-g|-p] [-a] [-y] [--dangerous-skip-critical-approval] [-
   names that scope. Path copies follow the same rule as `add`.
 - Updating a modified skill discards your edits. Run `nik install` to restore the locked files instead.
 - `update` compares and updates each path copy at its recorded project-relative destination.
-- `update` does not check disabled skills. It names them in one info line. If you name a disabled skill, `update` exits `1` and names `nik enable`.
+- `update` does not check disabled skills. It names them in one info line. With `--source`, it names only the disabled skills from that source. If you name a disabled skill, `update` exits `1` and names `nik enable`.
 - `--report <file>` writes a Markdown review of the run. See [Update report](#update-report).
 
 ### Update report
@@ -354,6 +356,13 @@ For reviewed sources whose critical findings you accept, use CI to keep a reposi
 nik add owner/skills --all --yes --copy --path ./custom-directory --dangerous-skip-critical-approval
 nik update --all --yes --dangerous-skip-critical-approval
 git diff --exit-code niksi-lock.json ./custom-directory
+```
+
+To record the new integrity of a project's own skills after an edit, update only local sources. Git sources keep their own review cadence:
+
+```sh
+nik update --source local --yes
+git diff --quiet niksi-lock.json || git commit -m "chore: record skill integrity" niksi-lock.json
 ```
 
 To open a pull request for updates, write a report and use it as the body. Without `--dangerous-skip-critical-approval`, a skill with critical findings stays at its recorded revision and the command exits `3`. The report lists it under **Needs a person**, so the pull request still carries the other updates:

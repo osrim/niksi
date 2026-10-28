@@ -1,10 +1,11 @@
-import { isAbsolute, normalize, join, dirname, basename, extname } from "node:path";
+import { isAbsolute, normalize, join, dirname, extname } from "node:path";
 import { LinkifyIt } from "linkify-it";
 import { decodeText, isSymlink, MODE_EXEC, MODE_FILE, type SkillFile } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
+import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { combine } from "./combine.ts";
 import { demotes } from "./context.ts";
 import { hiddenHtml } from "./hidden-html.ts";
@@ -42,13 +43,14 @@ export const RULES = {
   symlink: { help: "ships a symlink" },
   executable: { help: "ships an executable" },
   archive: { help: "ships an archive" },
+  "archive-contents": { help: "archive not fully scanned" },
   binary: { help: "ships a binary" },
   "external-url": { help: "links to an external host" },
 } as const;
 
 export type Rule = keyof typeof RULES;
 
-const finding = (
+export const finding = (
   rule: Rule,
   fields: Omit<Finding, "rule" | "help">,
   help: string = RULES[rule].help,
@@ -144,7 +146,7 @@ const fileFlags: Scanner = ({ files }) => {
         );
       }
     }
-    if (AGENT_CONFIG_FILES.has(basename(file.path))) {
+    if (AGENT_CONFIG_FILES.has(fileName(file))) {
       findings.push(
         finding("agent-config", {
           severity: "critical",
@@ -568,7 +570,7 @@ const proseContext = (file: SkillFile, text: string): ProseContext => {
   return {
     map,
     afterProhibition: (index) => !map.isCode(index) && PROHIBITION.test(lineBefore(text, index)),
-    demoted: demotes(file.path, map),
+    demoted: demotes(pathParts(file), map),
   };
 };
 
@@ -911,10 +913,7 @@ interface Link {
 const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] => {
   const namesBundledFile = (name: string): boolean => {
     const path = name.split(/[?#]/u)[0]!.toLowerCase();
-    return (
-      bundled.has(normalize(join(dirname(file.path.toLowerCase()), path))) ||
-      bundled.has(normalize(path))
-    );
+    return namedPaths(file, path).some((named) => bundled.has(named.toLowerCase()));
   };
   return (linkify.match(text) ?? []).flatMap((link) => {
     let url: URL;
@@ -936,7 +935,7 @@ const urlInventory: Scanner = ({ files }) => {
   const bundled = new Set(files.map((file) => file.path.toLowerCase()));
   const links = new Map<string, Link>();
   for (const file of files) {
-    if (isSymlink(file.mode) || LOCK_FILES.has(basename(file.path))) continue;
+    if (isSymlink(file.mode) || LOCK_FILES.has(fileName(file))) continue;
     const text = decodeText(file)?.text;
     if (text === undefined) continue;
     for (const link of fileLinks(file, text, bundled)) {

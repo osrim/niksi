@@ -56,6 +56,23 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Binary PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, or ICO file whose first bytes match its extension | `info` |
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters | See [Invisible characters](#invisible-characters) |
+| Archive that the scan could not read in full | `warn` |
+
+#### Archive members
+
+The scan reads the members of ZIP, DOCX, XLSX, PPTX, `.tar`, `.tar.gz`, and `.tgz` files in memory and never writes them to disk. Every rule on this page applies to each member as it does to a file in the skill, and an archive inside an archive is read the same way. A finding in a member names it as `tools.zip!scripts/install.sh` and keeps its own rule and severity. The archive file keeps its own finding from the table above. Rules for `SKILL.md` apply only to the file at the skill root, so the scan reads a member such as `tools.zip!SKILL.md` as any other Markdown file.
+
+Reading stops at these budgets. Each stop is an `archive-contents` finding with `warn` severity that names the budget.
+
+| budget | limit | counted over | not read |
+| --- | --- | --- | --- |
+| depth | 3 nested archives | each chain of nested archives | an archive nested 4 deep |
+| members | 1,000 | all archives in the skill | the rest |
+| inflated size | 25 MiB | all archives in the skill | the rest |
+| ratio | 100:1, inflated to compressed | each ZIP member, or a whole `.tar.gz` or `.tgz` | that member or archive |
+| time | 5 seconds | all archives in the skill | the rest |
+
+An encrypted member, a ZIP member compressed with a method other than store or deflate, a tar entry that is not a file, directory, or symlink, and an archive that cannot be parsed are also `archive-contents: warn`. Other formats, such as `.7z`, `.rar`, `.bz2`, `.xz`, and a `.gz` that is not a tarball, get only the archive finding.
 
 ### Invisible characters
 

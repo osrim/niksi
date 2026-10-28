@@ -1,6 +1,25 @@
 import { expect, test } from "bun:test";
+import { cac } from "cac";
 import { completionSpec, parseShell } from "./spec.ts";
-import { fixtureCli } from "./test-fixture.ts";
+
+const fixtureCli = () => {
+  const cli = cac("nik");
+  cli
+    .command("add <coordinate> [...skills]", "Add skills")
+    .option("-g, --global", "Use global scope")
+    .option("--agent <id>", "Agents to install to: universal, claude")
+    .option("--path <directory>", "Write below a root")
+    .option("--report <file>", "Write a report");
+  cli
+    .command("remove [...skills]", "Remove skills")
+    .alias("rm")
+    .option("-g, --global", "Use global scope");
+  cli.command("completion <shell>", "Print a completion script");
+  cli.command("prune", "Delete store entries");
+  cli.help();
+  cli.version("1.0.0");
+  return cli;
+};
 
 const spec = completionSpec(fixtureCli());
 const command = (name: string) => spec.commands.find((entry) => entry.name === name)!;

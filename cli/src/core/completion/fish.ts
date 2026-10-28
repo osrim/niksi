@@ -64,9 +64,16 @@ function __nik_using
 end
 
 function __nik_skills
-    set -l tokens (__nik_tokens)
-    set -l at (contains -i -- (__nik_command) $tokens)
-    command nik ${SKILLS_HELPER} $argv[1] $tokens[(math $at + 1)..-1] 2>/dev/null
+    set -l words
+    set -l found
+    for token in (__nik_tokens)[2..-1]
+        if test -z "$found"; and not string match -q -- '-*' $token
+            set found 1
+        else
+            set -a words $token
+        end
+    end
+    command nik ${SKILLS_HELPER} $argv[1] $words 2>/dev/null
 end
 
 complete -c nik -f

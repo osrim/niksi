@@ -49,14 +49,20 @@ export const zshScript = (spec: CompletionSpec): string => `#compdef nik
 # zsh completion for nik. Save it as _nik in a directory on $fpath, or load it with: source <(nik completion zsh)
 
 # _arguments passes compadd options first and the nik command last.
+# _nik_words keeps the words before the cursor, because _arguments drops those before the command.
 _nik_skills() {
-  local -a skills
-  skills=(\${(f)"$(command nik ${SKILLS_HELPER} $argv[-1] \${words[2,CURRENT-1]} 2>/dev/null)"})
+  local -a skills words_but_command
+  local word found
+  for word in $_nik_words; do
+    if [[ -z $found && $word != -* ]]; then found=1; else words_but_command+=($word); fi
+  done
+  skills=(\${(f)"$(command nik ${SKILLS_HELPER} $argv[-1] $words_but_command 2>/dev/null)"})
   compadd "\${@[1,-2]}" -a skills
 }
 
 _nik() {
   local curcontext=$curcontext state line
+  local -a _nik_words=(\${words[2,CURRENT-1]})
   local -a commands=(
 ${spec.commands.map((command) => `    ${quote(`${command.name}:${command.description}`)}`).join("\n")}
   )
@@ -69,6 +75,14 @@ ${spec.rootFlags.map((flag) => `    ${flagSpec(flag, "(- *)")} \\`).join("\n")}
       _describe -t commands 'nik command' commands
       ;;
     argument)
+      while [[ $words[1] == -* ]] && (( CURRENT > 1 )); do
+        shift words
+        (( CURRENT-- ))
+      done
+      if (( CURRENT == 1 )); then
+        _describe -t commands 'nik command' commands
+        return
+      fi
       case $words[1] in
 ${spec.commands.map((command) => commandArm(command, spec.agents)).join("\n")}
       esac

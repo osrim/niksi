@@ -1,24 +1,62 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cac } from "cac";
+import type { CompletionFlag, CompletionSpec } from "./spec.ts";
 
-export const fixtureCli = () => {
-  const cli = cac("nik");
-  cli
-    .command("add <coordinate> [...skills]", "Add skills")
-    .option("-g, --global", "Use global scope")
-    .option("--agent <id>", "Agents to install to: universal, claude")
-    .option("--path <directory>", "Write below a root")
-    .option("--report <file>", "Write a report");
-  cli
-    .command("remove [...skills]", "Remove skills")
-    .alias("rm")
-    .option("-g, --global", "Use global scope");
-  cli.command("completion <shell>", "Print a completion script");
-  cli.command("prune", "Delete store entries");
-  cli.help();
-  cli.version("1.0.0");
-  return cli;
+const help: CompletionFlag = {
+  short: "h",
+  long: "help",
+  value: "none",
+  description: "Display this message",
+};
+const global: CompletionFlag = {
+  short: "g",
+  long: "global",
+  value: "none",
+  description: "Use global scope",
+};
+
+export const fixtureSpec: CompletionSpec = {
+  commands: [
+    {
+      name: "add",
+      aliases: [],
+      description: "Add skills",
+      flags: [
+        global,
+        { long: "agent", value: "agent", description: "Agents to install to: universal, claude" },
+        { long: "path", value: "directory", description: "Write below a root" },
+        { long: "report", value: "file", description: "Write a report" },
+        help,
+      ],
+      positional: "files",
+    },
+    {
+      name: "remove",
+      aliases: ["rm"],
+      description: "Remove skills",
+      flags: [global, help],
+      positional: "skills",
+    },
+    {
+      name: "completion",
+      aliases: [],
+      description: "Print a completion script",
+      flags: [help],
+      positional: "shells",
+    },
+    {
+      name: "prune",
+      aliases: [],
+      description: "Delete store entries",
+      flags: [help],
+      positional: "none",
+    },
+  ],
+  rootFlags: [
+    help,
+    { short: "v", long: "version", value: "none", description: "Display version number" },
+  ],
+  agents: ["universal", "claude", "qwen", "cursor"],
 };
 
 export const writeNik = async (bin: string, body: string): Promise<void> => {
@@ -31,7 +69,10 @@ export const writeNik = async (bin: string, body: string): Promise<void> => {
 export const stubNik = async (dir: string): Promise<{ bin: string; argsFile: string }> => {
   const bin = join(dir, "bin");
   const argsFile = join(dir, "stub-args");
-  await writeNik(bin, `printf '%s\\n' "$@" > '${argsFile}'\nprintf 'grilling\\ntdd\\n'`);
+  await writeNik(
+    bin,
+    `printf '%s\\n' "$@" > '${argsFile}'\nprintf 'grilling\\ntdd\\nthe writing whip\\n'`,
+  );
   return { bin, argsFile };
 };
 

@@ -29,7 +29,7 @@ const positionalLines = (command: CompletionCommand): string[] => {
   switch (command.positional) {
     case "skills":
       return [
-        `      [[ $cur == -* ]] || words=$(command nik ${SKILLS_HELPER} ${command.name} "\${COMP_WORDS[@]:at+1:COMP_CWORD-at-1}" 2>/dev/null)`,
+        `      [[ $cur == -* ]] || { _nik_skills ${command.name} "\${COMP_WORDS[@]:1:at-1}" "\${COMP_WORDS[@]:at+1:COMP_CWORD-at-1}"; return; }`,
       ];
     case "shells":
       return [`      words="${SHELLS.join(" ")}"`];
@@ -59,6 +59,16 @@ _nik_files() {
   compopt -o filenames 2>/dev/null
   local IFS=$'\\n'
   COMPREPLY=($(compgen "$1" -- "$cur"))
+}
+
+# Skill names may hold spaces, so each name stays one quoted candidate.
+_nik_skills() {
+  local name quoted
+  COMPREPLY=()
+  while IFS= read -r name; do
+    printf -v quoted '%q' "$name"
+    [[ $quoted == "$cur"* ]] && COMPREPLY+=("$quoted")
+  done < <(command nik ${SKILLS_HELPER} "$@" 2>/dev/null)
 }
 
 _nik() {

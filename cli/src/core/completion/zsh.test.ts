@@ -3,8 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnTerminal } from "../../test-cli.ts";
-import { completionSpec } from "./spec.ts";
-import { fixtureCli, stubNik } from "./test-fixture.ts";
+import { fixtureSpec, stubNik } from "./test-fixture.ts";
 import { zshScript } from "./zsh.ts";
 
 let tmp: string;
@@ -13,7 +12,7 @@ let stub: { bin: string; argsFile: string };
 beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), "nik-zsh-"));
   stub = await stubNik(tmp);
-  await writeFile(join(tmp, "_nik"), zshScript(completionSpec(fixtureCli())));
+  await writeFile(join(tmp, "_nik"), zshScript(fixtureSpec));
 });
 
 afterAll(() => rm(tmp, { recursive: true, force: true }));
@@ -66,6 +65,9 @@ test.skipIf(!Bun.which("zsh"))(
       { type: "nik add x --agent qw", shows: "--agent qwen " },
       { type: "nik completion ", shows: "bash  fish  zsh" },
       { type: "nik rm -g g", shows: "nik rm -g grilling " },
+      { type: "nik rm th", shows: "nik rm the\\ writing\\ whip " },
+      { type: "nik -g pr", shows: "nik -g prune " },
+      { type: "nik -g rm gr", shows: "nik -g rm grilling " },
     ];
     expect(await completeInZsh(steps)).toEqual(steps.map((step) => step.shows));
     expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([

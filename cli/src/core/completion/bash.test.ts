@@ -3,8 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bashScript } from "./bash.ts";
-import { completionSpec } from "./spec.ts";
-import { bashCompleter, fixtureCli, stubNik } from "./test-fixture.ts";
+import { bashCompleter, fixtureSpec, stubNik } from "./test-fixture.ts";
 
 let tmp: string;
 let stub: { bin: string; argsFile: string };
@@ -14,7 +13,7 @@ beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), "nik-bash-"));
   stub = await stubNik(tmp);
   script = join(tmp, "nik.bash");
-  await writeFile(script, bashScript(completionSpec(fixtureCli())));
+  await writeFile(script, bashScript(fixtureSpec));
   await mkdir(join(tmp, "skills-dir"));
   await writeFile(join(tmp, "skills-file"), "");
   complete = bashCompleter(script, {
@@ -54,7 +53,11 @@ test("completes agent ids after --agent and paths after a file flag", async () =
 });
 
 test("asks nik for skill names with the canonical command and the words typed after it", async () => {
-  expect(await complete("rm", "-g", "grilling", "")).toEqual(["grilling", "tdd"]);
+  expect(await complete("rm", "-g", "grilling", "")).toEqual([
+    "grilling",
+    "tdd",
+    "the\\ writing\\ whip",
+  ]);
   expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([
     "__complete-skills",
     "remove",
@@ -62,7 +65,18 @@ test("asks nik for skill names with the canonical command and the words typed af
     "grilling",
     "",
   ]);
-  expect(await complete("remove", "t")).toEqual(["tdd"]);
+  expect(await complete("remove", "t")).toEqual(["tdd", "the\\ writing\\ whip"]);
+  expect(await complete("remove", "the\\ w")).toEqual(["the\\ writing\\ whip"]);
+});
+
+test("passes a scope flag typed before the command to the skills helper", async () => {
+  await complete("-g", "rm", "");
+  expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([
+    "__complete-skills",
+    "remove",
+    "-g",
+    "",
+  ]);
 });
 
 test("completes shells, files for a coordinate, and nothing where no argument fits", async () => {

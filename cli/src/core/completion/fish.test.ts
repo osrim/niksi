@@ -3,8 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fishScript } from "./fish.ts";
-import { completionSpec } from "./spec.ts";
-import { fixtureCli, stubNik } from "./test-fixture.ts";
+import { fixtureSpec, stubNik } from "./test-fixture.ts";
 
 let tmp: string;
 let stub: { bin: string; argsFile: string };
@@ -14,7 +13,7 @@ beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), "nik-fish-"));
   stub = await stubNik(tmp);
   script = join(tmp, "nik.fish");
-  await writeFile(script, fishScript(completionSpec(fixtureCli())));
+  await writeFile(script, fishScript(fixtureSpec));
   await mkdir(join(tmp, "skills-dir"));
   await writeFile(join(tmp, "skills-file"), "");
 });
@@ -60,11 +59,30 @@ test.skipIf(!hasFish)("completes a command's flags and their values", async () =
 test.skipIf(!hasFish)(
   "asks nik for skill names with the words typed after the command",
   async () => {
-    expect(await complete("nik rm -g ")).toEqual(["grilling", "tdd"]);
+    expect(await complete("nik rm -g ")).toEqual(["grilling", "tdd", "the writing whip"]);
     expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([
       "__complete-skills",
       "remove",
       "-g",
+      "",
+    ]);
+  },
+);
+
+test.skipIf(!hasFish)(
+  "passes scope flags typed before the command to the skills helper",
+  async () => {
+    await complete("nik -g rm ");
+    expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([
+      "__complete-skills",
+      "remove",
+      "-g",
+      "",
+    ]);
+    await complete("nik rm ");
+    expect((await readFile(stub.argsFile, "utf8")).split("\n")).toEqual([
+      "__complete-skills",
+      "remove",
       "",
     ]);
   },

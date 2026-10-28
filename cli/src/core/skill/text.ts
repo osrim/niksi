@@ -27,7 +27,7 @@ export const codeFences = (text: string): Fence[] =>
       : [];
   });
 
-export const fencedLines = (text: string): Set<number> => {
+const fencedLines = (text: string): Set<number> => {
   const lines = new Set<number>();
   for (const fence of codeFences(text)) {
     for (let line = fence.startLine; line < fence.endLineExclusive; line += 1) lines.add(line);

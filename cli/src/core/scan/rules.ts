@@ -1,11 +1,17 @@
 import { isAbsolute, normalize, join, dirname, basename, extname } from "node:path";
 import { LinkifyIt } from "linkify-it";
-import { decodeText, isSymlink, MODE_EXEC, type SkillFile } from "../skill/files.ts";
+import { decodeText, isSymlink, MODE_EXEC, MODE_FILE, type SkillFile } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
-import { codeFences, fencedLines, lineAt } from "../skill/text.ts";
+import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
+import { codeFences, lineAt } from "../skill/text.ts";
 import { combine } from "./combine.ts";
+import { demotes } from "./context.ts";
+import { hiddenHtml } from "./hidden-html.ts";
+import { invisibleCharacters } from "./invisible.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
+import { remoteInstructions } from "./remote-instructions.ts";
+import { lower, stronger } from "./severity.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 
 export const RULES = {
@@ -19,6 +25,8 @@ export const RULES = {
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
   "invisible-unicode": { help: "invisible characters" },
+  "hidden-html": { help: "text a reader does not see" },
+  "remote-instructions": { help: "fetches instructions to follow" },
   "allowed-tools": { help: "pre-approves tools for itself" },
   "disallowed-tools": { help: "takes a tool away from the agent" },
   hooks: { help: "runs a configured command" },
@@ -149,45 +157,17 @@ const fileFlags: Scanner = ({ files }) => {
   return findings;
 };
 
-const INVISIBLE_RANGES = [
-  { lo: 0xe0000, hi: 0xe007f, name: "Unicode tag" },
-  { lo: 0x200b, hi: 0x200d, name: "zero-width" },
-  { lo: 0xfeff, hi: 0xfeff, name: "zero-width no-break space" },
-  { lo: 0x202a, hi: 0x202e, name: "bidi override" },
-  { lo: 0x2066, hi: 0x2069, name: "bidi isolate" },
-];
-
-const invisibleUnicode: Scanner = ({ files }) => {
-  const findings: Finding[] = [];
-  for (const file of files) {
-    const text = decodeText(file)?.text;
-    if (text === undefined) continue;
-    const hits: string[] = [];
-    let index = 0;
-    for (const ch of text) {
-      const codepoint = ch.codePointAt(0)!;
-      // A leading U+FEFF is a byte-order mark.
-      if (!(codepoint === 0xfeff && index === 0)) {
-        const range = INVISIBLE_RANGES.find(
-          (candidate) => codepoint >= candidate.lo && codepoint <= candidate.hi,
-        );
-        if (range) hits.push(`U+${codepoint.toString(16).toUpperCase()} (${range.name})`);
-      }
-      index++;
-    }
-    if (hits.length > 0) {
-      const sample = [...new Set(hits)].slice(0, 5).join(", ");
-      findings.push(
-        finding("invisible-unicode", {
-          severity: "critical",
-          file: file.path,
-          detail: `${hits.length} invisible character(s): ${sample}`,
-        }),
-      );
-    }
-  }
-  return findings;
-};
+// A media file's bytes decode to stray code points, and agents do not read it as text.
+const invisibleUnicode: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = isMedia(file) ? undefined : decodeText(file)?.text;
+    if (text === undefined) return [];
+    const injections = [...text.matchAll(PROMPT_INJECTION)].map((match) => ({
+      line: lineAt(text, match.index),
+    }));
+    const found = invisibleCharacters(text, injections);
+    return found ? [finding("invisible-unicode", { file: file.path, ...found })] : [];
+  });
 
 const BENIGN_FIELDS = new Set([
   "name",
@@ -378,6 +358,9 @@ const frontmatterInventory = (frontmatter: Record<string, unknown>, file: string
 
 const isMarkdown = (path: string): boolean => extname(path).toLowerCase() === ".md";
 
+const isProse = (path: string): boolean =>
+  isMarkdown(path) || extname(path).toLowerCase() === ".txt";
+
 const isEntry = (path: string): boolean => path === "SKILL.md";
 
 const frontmatterPrivileges: Scanner = ({ files }) => {
@@ -524,6 +507,9 @@ const deleteSeverity: Judge = ({ groups }) => {
   return sudo || important ? "critical" : "info";
 };
 
+const PROMPT_INJECTION =
+  /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/giu;
+
 const PATTERN_RULES: PatternRule[] = [
   {
     rule: "base64-exec",
@@ -553,8 +539,7 @@ const PATTERN_RULES: PatternRule[] = [
   {
     rule: "prompt-injection",
     severity: "warn",
-    pattern:
-      /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/giu,
+    pattern: PROMPT_INJECTION,
   },
   {
     rule: "destructive",
@@ -564,26 +549,34 @@ const PATTERN_RULES: PatternRule[] = [
   },
 ];
 
-const STRENGTH: Severity[] = ["info", "warn", "critical"];
-
-const stronger = (a: Severity, b: Severity): boolean => STRENGTH.indexOf(a) > STRENGTH.indexOf(b);
+const lowerIf = (demoted: boolean, severity: Severity): Severity =>
+  demoted ? lower(severity) : severity;
 
 const PROHIBITION =
   /\b(never|do not|don't|must not|should not|avoid|refuses? (requests? )?to)\s+((ever\s+)?(run|execute|use|call|invoke|type|paste|pipe|ignore|pass)(ing)?\s+(\w+\s+with\s+)?)?[`'"]?$/iu;
 
-// Only Markdown prose explains a command; code and scripts run it.
-const prohibitionTest = (file: SkillFile, text: string): ((index: number) => boolean) => {
-  if (!isMarkdown(file.path)) return () => false;
-  const fenced = fencedLines(text);
-  return (index) =>
-    !fenced.has(lineAt(text, index) - 1) && PROHIBITION.test(lineBefore(text, index));
+interface ProseContext {
+  map?: MarkdownMap;
+  afterProhibition: (index: number) => boolean;
+  demoted: (index: number) => boolean;
+}
+
+// Only Markdown prose explains or demotes a command; code and scripts run it.
+const proseContext = (file: SkillFile, text: string): ProseContext => {
+  if (!isMarkdown(file.path)) return { afterProhibition: () => false, demoted: () => false };
+  const map = mapMarkdown(text);
+  return {
+    map,
+    afterProhibition: (index) => !map.isCode(index) && PROHIBITION.test(lineBefore(text, index)),
+    demoted: demotes(file.path, map),
+  };
 };
 
 const patternFinding = (
   { rule, severity, pattern }: PatternRule,
   file: SkillFile,
   text: string,
-  afterProhibition: (index: number) => boolean,
+  { afterProhibition, demoted }: ProseContext,
 ): Finding | undefined => {
   const judge = typeof severity === "function" ? severity : () => severity;
   let count = 0;
@@ -593,7 +586,7 @@ const patternFinding = (
     if (!judged) continue;
     count++;
     const quiet = afterProhibition(match.index);
-    const current = quiet ? "info" : judged;
+    const current = quiet ? "info" : lowerIf(demoted(match.index), judged);
     if (!best || stronger(current, best.severity)) best = { match, severity: current, quiet };
   }
   if (!best) return undefined;
@@ -614,10 +607,8 @@ const suspiciousPatterns: Scanner = ({ files }) =>
   files.flatMap((file) => {
     const text = decodeText(file)?.text;
     if (text === undefined) return [];
-    const afterProhibition = prohibitionTest(file, text);
-    return PATTERN_RULES.flatMap(
-      (rule) => patternFinding(rule, file, text, afterProhibition) ?? [],
-    );
+    const context = proseContext(file, text);
+    return PATTERN_RULES.flatMap((rule) => patternFinding(rule, file, text, context) ?? []);
   });
 
 const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;
@@ -809,15 +800,15 @@ const savedAndRun = (statements: Statement[]): Hit[] => {
   }));
 };
 
-const lower = (severity: Severity): Severity =>
-  STRENGTH[Math.max(STRENGTH.indexOf(severity) - 1, 0)]!;
-
-// Only Markdown prose explains a command; a prohibition anywhere else keeps full severity.
-const statementSeverity = (statement: Statement, text: string, explains: boolean): Severity => {
-  if (statement.kind === "comment") return lower("critical");
-  if (statement.kind !== "prose" || !explains) return "critical";
-  const start = statement.index + statement.text.length - commandText(statement).length;
-  return PROHIBITION.test(lineBefore(text, start)) ? "info" : "critical";
+// A comment or reference prose drops one level. Prose is never a comment, so the drops never stack.
+const statementSeverity = (statement: Statement, context: ProseContext): Severity => {
+  if (statement.kind === "code") return "critical";
+  if (statement.kind === "prose") {
+    const start = statement.index + statement.text.length - commandText(statement).length;
+    if (context.afterProhibition(start)) return "info";
+    if (!context.demoted(start)) return "critical";
+  }
+  return lower("critical");
 };
 
 const weakest = (severities: Severity[]): Severity =>
@@ -827,8 +818,8 @@ const downloadedCode: Scanner = ({ files }) =>
   files.flatMap((file) => {
     const text = decodeText(file)?.text;
     if (text === undefined || isSymlink(file.mode)) return [];
-    const explains = isMarkdown(file.path);
-    const prose = explains || extname(file.path).toLowerCase() === ".txt";
+    const context = proseContext(file, text);
+    const prose = isProse(file.path);
     const statements = shellStatements(text, prose);
     const hits: Hit[] = [
       ...statements
@@ -838,7 +829,7 @@ const downloadedCode: Scanner = ({ files }) =>
     ].toSorted((a, b) => a.statements[0]!.index - b.statements[0]!.index);
     let best: { hit: Hit; severity: Severity } | undefined;
     for (const hit of hits) {
-      const severity = weakest(hit.statements.map((s) => statementSeverity(s, text, explains)));
+      const severity = weakest(hit.statements.map((s) => statementSeverity(s, context)));
       if (!best || stronger(severity, best.severity)) best = { hit, severity };
     }
     if (!best) return [];
@@ -855,6 +846,34 @@ const downloadedCode: Scanner = ({ files }) =>
         detail,
       }),
     ];
+  });
+
+const remoteInstructionText: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = isProse(file.path) ? decodeText(file)?.text : undefined;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const { map, demoted } = proseContext(file, text);
+    const found = remoteInstructions(text, map, demoted);
+    return found ? [finding("remote-instructions", { file: file.path, ...found })] : [];
+  });
+
+const TEXT_SCANNERS = [downloadedCode, suspiciousPatterns, remoteInstructionText];
+
+// Hidden text scans as a plain text file: no Markdown prose context can demote it.
+const scanHiddenText = (body: string): Finding[] =>
+  TEXT_SCANNERS.flatMap((scan) =>
+    scan({
+      name: "hidden",
+      files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
+    }),
+  );
+
+const hiddenText: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = isMarkdown(file.path) ? decodeText(file)?.text : undefined;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const found = hiddenHtml(text, mapMarkdown(text).hidden, scanHiddenText);
+    return found ? [finding("hidden-html", { file: file.path, ...found })] : [];
   });
 
 // Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
@@ -944,7 +963,7 @@ export const defaultScanners: Scanner[] = [
   invisibleUnicode,
   frontmatterPrivileges,
   loadTimeExecution,
-  downloadedCode,
-  suspiciousPatterns,
+  ...TEXT_SCANNERS,
+  hiddenText,
   urlInventory,
 ];

@@ -84,10 +84,22 @@ test("add with flags writes a link, a canonical copy, and a lockfile entry", asy
   });
 });
 
+const listedRow = async (root: string): Promise<Record<string, unknown>> => {
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  return JSON.parse(listed.stdout).skills[0];
+};
+
 test("both coordinates for one local skill record one source, path, and store entry", async () => {
   const root = await project("coordinates", "demo");
   await addLink(root, "demo");
   const bySkill = (await readSkills(root))["demo"];
+  expect(await listedRow(root)).toMatchObject({
+    name: "demo",
+    source: "local:.",
+    path: "skills/demo",
+    root: "skills/demo",
+  });
   expect((await runCli(root, "remove", "demo", "--yes")).exitCode).toBe(0);
 
   const result = await runCli(root, "add", "./skills", "demo", "-p", "--agent", "claude", "--yes");
@@ -95,6 +107,12 @@ test("both coordinates for one local skill record one source, path, and store en
   expect(result.exitCode).toBe(0);
   expect(bySkill).toMatchObject({ source: "local:.", path: "skills/demo", root: "skills/demo" });
   expect((await readSkills(root))["demo"]).toEqual({ ...bySkill, root: "skills" });
+  expect(await listedRow(root)).toMatchObject({
+    name: "demo",
+    source: "local:.",
+    path: "skills/demo",
+    root: "skills",
+  });
   const store = join(tmp, "niksi-home", "store");
   expect(existsSync(join(store, "local_._skills_demo"))).toBe(false);
   expect(existsSync(join(store, "local_._skills"))).toBe(false);

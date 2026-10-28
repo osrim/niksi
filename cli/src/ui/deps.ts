@@ -1,6 +1,6 @@
 import * as p from "@clack/prompts";
 import { missingDeps, referrersTo, type MissingDep } from "../core/skill/deps.ts";
-import type { DiscoveredSkill } from "../core/source/discover.ts";
+import { pathInRoot, type DiscoveredSkill } from "../core/source/discover.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { emptyLock, readLock, splitDisabled, type Lockfile } from "../core/install/lockfile.ts";
 import type { AgentId } from "../core/install/agents.ts";
@@ -12,7 +12,7 @@ import {
 import { storedFiles } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
-import { discoveryCoordinate, type Changes } from "../core/source/index.ts";
+import { discoveryCoordinate, type Changes, type DiscoveryLocation } from "../core/source/index.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
@@ -51,17 +51,19 @@ export const warnReferrers = async (
 
 export const reportNotInstalled = (
   missing: MissingDep[],
-  coordinate: string | undefined,
+  discovered: DiscoveryLocation,
   scope: Scope,
 ): void => {
   warnMentions(missing, "not installed");
+  const coordinate = discoveryCoordinate(discovered);
   if (coordinate === undefined) {
     warn("Cannot generate a rooted add command without a source revision.");
     return;
   }
-  p.log.info(
-    `Add them: ${dim(`nik add ${coordinate} ${missing.map((dep) => dep.path ?? dep.name).join(" ")}${scopeFlag(scope)}`)}`,
+  const selectors = missing.map((dep) =>
+    dep.path === undefined ? dep.name : pathInRoot(discovered.root, dep.path),
   );
+  p.log.info(`Add them: ${dim(`nik add ${coordinate} ${selectors.join(" ")}${scopeFlag(scope)}`)}`);
 };
 
 export interface OtherScopeLock {
@@ -153,7 +155,7 @@ export const reportUpdateDeps = async (
       for (const dep of remaining) missing.set(dep.name, dep);
     }
     if (missing.size > 0) {
-      reportNotInstalled([...missing.values()], discoveryCoordinate(skill), scope);
+      reportNotInstalled([...missing.values()], skill, scope);
     }
   }
 };

@@ -3,7 +3,7 @@ import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
 import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
-import { discoveryCoordinate, type Source } from "../core/source/index.ts";
+import type { Source } from "../core/source/index.ts";
 import type { Revision } from "../core/source/revision.ts";
 import { clackDecisions, type Decisions, type DependencyOffer } from "./decisions.ts";
 import {
@@ -89,7 +89,7 @@ const expandDependencies = async (
     if (!interactive) {
       reportNotInstalled(
         missing,
-        discoveryCoordinate({ source: request.source.id, root: request.root, ...request.rev }),
+        { source: request.source.id, root: request.root, ...request.rev },
         request.scope,
       );
       return;

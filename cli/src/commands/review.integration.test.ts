@@ -116,6 +116,27 @@ test("a non-interactive subtree add prints a dependency command that preserves t
   }
 });
 
+test("a pasted dependency command adds the linked skill, not a nested one with the same path", async () => {
+  const project = join(tmp, "nested-paths-project");
+  const lib = join(project, "lib");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(lib, "parent", "Read [it](../a/tdd/SKILL.md).\n");
+  await makeSkill(join(lib, "a"), "tdd", "Linked.\n");
+  await makeSkill(join(lib, "lib", "a"), "tdd", "Nested.\n");
+  const flags = ["-p", "--agent", "claude", "--yes"];
+
+  const added = await runCli(project, "add", lib, "parent", ...flags);
+  expect(added.exitCode).toBe(0);
+  const hint = /Add them: nik add (\S+) (.+)$/mu.exec(added.stdout);
+  expect(hint?.slice(1)).toEqual([lib, "a/tdd"]);
+
+  const pasted = await runCli(project, "add", hint![1]!, hint![2]!, ...flags);
+  expect(pasted.exitCode).toBe(0);
+  const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
+  expect(lock.skills.tdd).toMatchObject({ source: "local:.", path: "lib/a/tdd", root: "lib" });
+  expect(await readFile(join(project, ".niksi/skills/tdd/SKILL.md"), "utf8")).toContain("Linked.");
+});
+
 test("a non-interactive review keeps exit codes 2 and 3 and never starts a pager", async () => {
   const project = join(tmp, "codes-project");
   const source = join(tmp, "codes-source");

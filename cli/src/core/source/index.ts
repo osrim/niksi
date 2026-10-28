@@ -128,9 +128,12 @@ export const coordinateFor = (sourceId: string): string =>
     ? resolve(projectRoot(), sourceId.slice(LOCAL_PREFIX.length))
     : sourceId;
 
-export const discoveryCoordinate = (
-  skill: Pick<InstalledSkill, "source" | "branch" | "root" | "pinnedAs" | "tag" | "commit">,
-): string | undefined => {
+export type DiscoveryLocation = Pick<
+  InstalledSkill,
+  "source" | "branch" | "root" | "pinnedAs" | "tag" | "commit"
+>;
+
+export const discoveryCoordinate = (skill: DiscoveryLocation): string | undefined => {
   const coordinate = coordinateFor(skill.source);
   if (!skill.root) return coordinate;
   if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);

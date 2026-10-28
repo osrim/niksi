@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 import { basename, join } from "node:path";
 import type { AgentId } from "../core/install/agents.ts";
-import { selector, type DiscoveredSkill } from "../core/source/discover.ts";
+import { pathInRoot, selector, type DiscoveredSkill } from "../core/source/discover.ts";
 import { occupiedAgents } from "../core/install/link.ts";
 import {
   lackingAgents,
@@ -44,9 +44,6 @@ const groupOptionsBySource = <T>(
   return groups;
 };
 
-const underRoot = (root: string, path: string): string =>
-  root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
-
 const matching = (skills: DiscoveredSkill[], given: string, root: string): DiscoveredSkill[] => {
   for (const path of [join(root, given), given]) {
     const byPath = skills.filter((skill) => skill.path === path);
@@ -74,7 +71,7 @@ const requireKnown = (
   if (shared.length > 0) {
     const paths = skills
       .filter((skill) => skill.ambiguous && shared.includes(skill.name))
-      .map((skill) => underRoot(root, skill.path));
+      .map((skill) => pathInRoot(root, skill.path));
     fail(
       `${shared.join(", ")} has more than one match. Pass a path:\n${paths.map((path) => `  ${path}`).join("\n")}`,
     );

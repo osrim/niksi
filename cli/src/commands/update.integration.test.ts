@@ -1,5 +1,14 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -153,6 +162,89 @@ test("updating a modified link skill discards the edits", async () => {
   expect(result.exitCode).toBe(0);
   expect(await readFile(canonical, "utf8")).toContain("version two");
   expect((await readSkills(fixture.lockPath)).edited?.commit).toBe(fixture.upstreamCommit);
+});
+
+test("--report writes the updated, blocked, and skipped skills as Markdown", async () => {
+  const fixture = await setupUpdate("report", ["clean", "risky", "blocked", "moved", "kept"], []);
+  const repo = join(tmp, "report-source");
+  for (const name of ["clean", "risky", "blocked", "kept"]) {
+    await makeSkill(repo, name, "version three\n");
+  }
+  await writeFile(join(repo, "risky", "run.sh"), "echo hi\n");
+  await chmod(join(repo, "risky", "run.sh"), 0o755);
+  await writeFile(join(repo, "blocked", "hooks.json"), "{}\n");
+  const upstream = (await commitAll(repo, "version three")).slice(0, 8);
+  await tagHead(repo, "v1.2.0");
+  const from = fixture.before.clean!.commit!.slice(0, 8);
+
+  const result = await runCli(
+    fixture.project,
+    "update",
+    "clean",
+    "risky",
+    "blocked",
+    "moved",
+    "--yes",
+    "--report",
+    "update.md",
+  );
+
+  expect(result.exitCode).toBe(3);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.clean?.commit?.slice(0, 8)).toBe(upstream);
+  expect(after.blocked).toEqual(fixture.before.blocked);
+  const report = await readFile(join(fixture.project, "update.md"), "utf8");
+  const range = `\`v1.0.0\` (\`${from}\`) → \`v1.2.0\` (\`${upstream}\`)`;
+  expect(report).toStartWith(
+    [
+      "## nik update (project)",
+      "",
+      "### Updated",
+      "",
+      "#### `moved`",
+      "",
+      range,
+      "",
+      "No file changes.",
+    ].join("\n"),
+  );
+  expect(report).toContain(
+    ["#### `clean`", "", range, "", "```text", " SKILL.md | 2 +-"].join("\n"),
+  );
+  expect(report).toMatch(/#### `risky`[^#]+Warn:\n\n- `executable` \([^)]+\) in `run.sh`/u);
+  expect(report).toContain(
+    "### Needs a person\n\nCritical findings block these skills until someone approves them in a terminal: `nik update blocked`.",
+  );
+  expect(report).toMatch(/#### `blocked`[^#]+Critical:\n\n- `agent-config` [^\n]+`hooks.json`/u);
+  expect(report).toContain("### Not updated\n\n- `kept`: update available, not selected\n");
+});
+
+test("--report records a run with nothing to update", async () => {
+  const fixture = await setupUpdate("report-none", ["fresh"], []);
+  await runCli(fixture.project, "update", "--all", "--yes");
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", "none.md");
+
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(join(fixture.project, "none.md"), "utf8")).toBe(
+    "## nik update (project)\n\n### Up to date\n\n`fresh`\n",
+  );
+});
+
+test("--report into a missing directory or onto a directory exits 2 before checking upstream", async () => {
+  const fixture = await setupUpdate("report-missing", ["kept"], ["kept"]);
+  const before = await readFile(fixture.lockPath, "utf8");
+
+  const cases: [string, string][] = [
+    ["no/such.md", "Report directory not found:"],
+    [".", "Pass a file to --report, not a directory:"],
+  ];
+  for (const [target, message] of cases) {
+    const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", target);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain(message);
+    expect(await readFile(fixture.lockPath, "utf8")).toBe(before);
+  }
 });
 
 test("a moved-only run without selection does not write the lockfile", async () => {

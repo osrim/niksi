@@ -69,6 +69,7 @@ const buildCli = (): CAC => {
     .option("-a, --all", "Select all outdated skills")
     .option("-y, --yes", "Skip ordinary confirmations")
     .option("--dangerous-skip-critical-approval", "Skip approval for critical findings. Dangerous.")
+    .option("--report <file>", "Write a Markdown review report of the run")
     .action(async (skills, options) => (await LOADERS.update()).run(skills, options));
   cli
     .command("remove [...skills]", "Remove installed skills")

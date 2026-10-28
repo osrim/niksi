@@ -32,6 +32,7 @@ cli/src/
     paths.ts         XDG roots, project root, lockfile path
     suggest.ts       command typo suggestions
     update-check.ts  latest release version check
+    update-report.ts Markdown report of an update run
     usage.ts         usage error type
     source/          coordinates, Git and local sources, revisions, upstream
     skill/           files, frontmatter, integrity, dependency mentions
@@ -101,7 +102,7 @@ reported with the `nik add` command that adds them.
 
 Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 
-New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes` and `dangerousSkipCriticalApproval`. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. Only `blocked`, a critical finding without a terminal or the dangerous flag, sets exit code `3`.
+New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes` and `dangerousSkipCriticalApproval`. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. `reviewSkills` also returns the findings of each skill, which `update` passes to its report. Only `blocked`, a critical finding without a terminal or the dangerous flag, sets exit code `3`.
 
 `add` and `update` ask their write confirmation through `confirmWrite` in `ui/gate.ts`, not `confirm`. The gate questions and `confirmWrite` offer `Read files…`, which passes the reviewed skills to `ui/pager.ts`. The pager module builds the session text from pure helpers and pipes it to the pager.
 

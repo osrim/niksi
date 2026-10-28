@@ -23,6 +23,7 @@ interface GateResult<T> {
   approved: T[];
   declined: T[];
   blocked: T[];
+  findings: Map<string, Finding[]>;
 }
 
 const FRONTMATTER_KEYS = ["description", "allowed-tools"];
@@ -53,12 +54,14 @@ export const reviewSkills = async <T extends Reviewable>(
   options: ReviewOptions,
   decisions: Decisions = clackDecisions,
 ): Promise<GateResult<T>> => {
-  const result: GateResult<T> = { approved: [], declined: [], blocked: [] };
+  const result: GateResult<T> = { approved: [], declined: [], blocked: [], findings: new Map() };
   for (const entry of selection) {
     const { name, files } = entry;
     p.note(renderNote(files), `${skillName(name)}: ${files.length} file(s)`);
     for (const warning of entry.warnings ?? []) logWarn(warning);
-    const outcome = await reviewSkill(entry, options, decisions);
+    const findings = runScanners({ name, files });
+    result.findings.set(name, findings);
+    const outcome = await reviewSkill(entry, findings, options, decisions);
     if (outcome === "pass") {
       result.approved.push(entry);
     } else {
@@ -81,10 +84,10 @@ export const stopsOn = (
 
 const reviewSkill = async (
   entry: PagedSkill,
+  findings: Finding[],
   options: ReviewOptions,
   decisions: Decisions,
 ): Promise<GateOutcome> => {
-  const findings = runScanners({ name: entry.name, files: entry.files });
   logFindings(entry.name, findings);
   const stop = stopsOn(findings, options);
   if (!stop) return "pass";

@@ -105,7 +105,7 @@ test.each([
     const checkedOut = await checkout(origin, `${state}-checkout-${sharedStore}`);
     const { root } = checkedOut;
     const run = sharedStore ? runCli : checkedOut.run;
-    const stored = await readdir(join(tmp, "niksi-home", "store", "local_._skills_changed"));
+    const stored = await readdir(join(tmp, "niksi-home", "store", "local_."));
     expect(stored.some((entry) => entry.startsWith("changed@"))).toBe(true);
     if (state === "changed") await makeSkill(join(root, "skills"), "changed", "tampered\n");
     else await rm(join(root, "skills", "changed"), { recursive: true });

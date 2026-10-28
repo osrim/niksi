@@ -24,12 +24,17 @@ export interface Changes {
   patch: string;
 }
 
+export interface Anchored {
+  source: Source;
+  root: string;
+}
+
 export interface Source {
   readonly kind: SourceKind;
   readonly display: string;
   readonly id: string;
 
-  forScope(scope: Scope): Source;
+  forScope(scope: Scope): Anchored;
   resolve(userRef?: string): Promise<Revision>;
   upstream(skill: InstalledSkill): Promise<Upstream>;
   discover(rev: string | undefined, root?: string): Promise<DiscoveredSkill[]>;
@@ -71,6 +76,26 @@ export const resolveCoordinate = async (
   return { rev, skills: await source.discover(rev.commit, dir), dir, ref };
 };
 
+export interface ScopedCoordinate {
+  source: Source;
+  root: string;
+  skills: DiscoveredSkill[];
+}
+
+export const scopeCoordinate = (
+  source: Source,
+  scope: Scope,
+  found: { root: string; skills: DiscoveredSkill[] },
+): ScopedCoordinate => {
+  const anchored = source.forScope(scope);
+  const inAnchor = (path: string): string => [anchored.root, path].filter(Boolean).join("/");
+  return {
+    source: anchored.source,
+    root: inAnchor(found.root),
+    skills: found.skills.map((skill) => ({ ...skill, path: inAnchor(skill.path) })),
+  };
+};
+
 const realOrGiven = (path: string): string => {
   try {
     return realpathSync(path);
@@ -79,14 +104,23 @@ const realOrGiven = (path: string): string => {
   }
 };
 
-export const insideProject = (dir: string): boolean => {
-  const rel = relative(realOrGiven(projectRoot()), realOrGiven(dir));
+const within = (parent: string, child: string): boolean => {
+  const rel = relative(realOrGiven(parent), realOrGiven(child));
   return !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
 };
 
-export const localSourceId = (dir: string, scope: Scope): string => {
-  if (scope === "global" || !insideProject(dir)) return `${LOCAL_PREFIX}${dir}`;
-  return `${LOCAL_PREFIX}./${relative(projectRoot(), dir)}`;
+export const insideProject = (dir: string): boolean => within(projectRoot(), dir);
+
+export const localAnchor = (
+  dir: string,
+  scope: Scope,
+): { dir: string; id: string; root: string } => {
+  const anchor = scope === "project" && insideProject(dir) ? realOrGiven(projectRoot()) : "/";
+  return {
+    dir: anchor,
+    id: `${LOCAL_PREFIX}${anchor === "/" ? "/" : "."}`,
+    root: relative(anchor, realOrGiven(dir)),
+  };
 };
 
 export const coordinateFor = (sourceId: string): string =>
@@ -106,8 +140,22 @@ export const discoveryCoordinate = (
   return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;
 };
 
-export const sourceMatches = (sourceId: string, coordinate: Coordinate): boolean =>
+interface Located {
+  source: string;
+  path: string;
+}
+
+const isLocal = (skill: Located): boolean => skill.source.startsWith(LOCAL_PREFIX);
+
+const localDir = (skill: Located): string =>
+  realOrGiven(join(coordinateFor(skill.source), skill.path));
+
+export const sameSkill = (a: Located, b: Located): boolean =>
+  isLocal(a) && isLocal(b)
+    ? localDir(a) === localDir(b)
+    : a.source === b.source && a.path === b.path;
+
+export const sourceMatches = (skill: Located, coordinate: Coordinate): boolean =>
   coordinate.kind === "local"
-    ? sourceId.startsWith(LOCAL_PREFIX) &&
-      realOrGiven(coordinateFor(sourceId)) === realOrGiven(coordinate.repo)
-    : sourceId === coordinate.repo;
+    ? isLocal(skill) && within(coordinate.repo, localDir(skill))
+    : skill.source === coordinate.repo;

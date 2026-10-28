@@ -18,6 +18,7 @@ import type { ScopeOptions } from "../core/install/scope.ts";
 import {
   insideProject,
   resolveCoordinate,
+  scopeCoordinate,
   sourceForCoordinate,
   type ResolvedCoordinate,
   type Source,
@@ -106,7 +107,7 @@ export const run = async (
   const source = sourceForCoordinate(parsed);
   const fetched = await resolveSource(source, parsed);
   if (!fetched) return;
-  const { rev, skills, root } = fetched;
+  const { rev } = fetched;
 
   await migrateIfLegacy(options.global ? "global" : "project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
@@ -118,11 +119,12 @@ export const run = async (
     return;
   }
   await migrateIfLegacy(scope);
-  const scopedSource = source.forScope(scope);
+  const { source: scopedSource, skills, root } = scopeCoordinate(source, scope, fetched);
 
   const loaded = await loadLock(scope);
   const picked = await pickSkillsToAdd({
     skills,
+    root,
     names,
     lock: loaded.lock,
     scope,
@@ -328,8 +330,8 @@ const extendSkill = async (
   const applied = await applySkill(
     {
       name: skill.name,
-      source: context.source.id,
-      path: skill.path,
+      source: entry.source,
+      path: entry.path,
       root: entry.root,
       revision: entry,
       integrity: entry.integrity,

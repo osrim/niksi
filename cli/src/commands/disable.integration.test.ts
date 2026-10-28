@@ -61,7 +61,11 @@ test("disable removes the link and canonical copy, keeps the entry, and rebuilds
   expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(false);
   expect(existsSync(join(project, ".niksi", "skills", "alpha"))).toBe(false);
   const lock = await readLockJson(project);
-  expect(lock["alpha"]).toMatchObject({ disabled: true, path: "alpha" });
+  expect(lock["alpha"]).toMatchObject({
+    disabled: true,
+    source: "local:/",
+    path: `${source.slice(1)}/alpha`,
+  });
   expect(await readFile(exclude, "utf8")).not.toContain(".claude/skills/alpha");
 
   const enabled = await runCli(project, "enable", "alpha", "-y", "--agent", "claude");

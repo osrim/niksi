@@ -1,5 +1,5 @@
 import * as p from "@clack/prompts";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import type { AgentId } from "../core/install/agents.ts";
 import { selector, type DiscoveredSkill } from "../core/source/discover.ts";
 import { occupiedAgents } from "../core/install/link.ts";
@@ -15,7 +15,7 @@ import { integrityOf } from "../core/skill/integrity.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
 import { parseSource, type Coordinate } from "../core/source/coordinate.ts";
-import { sourceMatches, type Source } from "../core/source/index.ts";
+import { sameSkill, sourceMatches, type Source } from "../core/source/index.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
 import type { UpdatableVerdict } from "../core/source/upstream.ts";
 import { USAGE_ERROR } from "../core/usage.ts";
@@ -44,15 +44,24 @@ const groupOptionsBySource = <T>(
   return groups;
 };
 
-const matching = (skills: DiscoveredSkill[], given: string): DiscoveredSkill[] => {
-  const byPath = skills.filter((skill) => skill.path === given);
-  if (byPath.length > 0) return byPath;
+const underRoot = (root: string, path: string): string =>
+  root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+
+const matching = (skills: DiscoveredSkill[], given: string, root: string): DiscoveredSkill[] => {
+  for (const path of [join(root, given), given]) {
+    const byPath = skills.filter((skill) => skill.path === path);
+    if (byPath.length > 0) return byPath;
+  }
   const name = basename(given);
   return skills.filter((skill) => !skill.ambiguous && skill.name === name);
 };
 
-const requireKnown = (source: string, names: string[], skills: DiscoveredSkill[]): void => {
-  const unknown = names.filter((name) => matching(skills, name).length === 0);
+const requireKnown = (
+  source: string,
+  names: string[],
+  { skills, root }: Pick<AddSelection, "skills" | "root">,
+): void => {
+  const unknown = names.filter((name) => matching(skills, name, root).length === 0);
   if (unknown.length === 0) return;
 
   const shared = [
@@ -65,7 +74,7 @@ const requireKnown = (source: string, names: string[], skills: DiscoveredSkill[]
   if (shared.length > 0) {
     const paths = skills
       .filter((skill) => skill.ambiguous && shared.includes(skill.name))
-      .map((skill) => skill.path);
+      .map((skill) => underRoot(root, skill.path));
     fail(
       `${shared.join(", ")} has more than one match. Pass a path:\n${paths.map((path) => `  ${path}`).join("\n")}`,
     );
@@ -185,6 +194,7 @@ interface Picked {
 
 interface AddSelection {
   skills: DiscoveredSkill[];
+  root: string;
   names: string[];
   lock: Lockfile;
   scope: Scope;
@@ -206,7 +216,7 @@ const approvedMissingAgentsByPath = async (
   const { skills, lock, scope, agents, source, rev } = selection;
   const candidates = skills.filter((skill) => {
     const entry = lock.skills[skill.name];
-    return entry !== undefined && entry.source === source.id && entry.path === skill.path;
+    return entry !== undefined && sameSkill(entry, { source: source.id, path: skill.path });
   });
   if (candidates.length === 0) return new Map();
   const pairs = await withSpinner(
@@ -237,15 +247,23 @@ const extendRow = (skill: DiscoveredSkill, scope: Scope, missing: AgentId[]): Pi
   return mark === undefined ? { skill, why: `not in ${missing.join(", ")}` } : { skill, mark };
 };
 
+const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined => {
+  if (source.kind === "local") {
+    return sameSkill(entry, { source: source.id, path })
+      ? undefined
+      : join(entry.source, entry.path);
+  }
+  return entry.source === source.id ? undefined : friendlySource(entry.source);
+};
+
 export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> => {
   const { skills, names, lock, scope, agents, source, options } = selection;
   const held = (skill: DiscoveredSkill): Held | undefined => {
     const entry = lock.skills[skill.name];
     if (entry === undefined) return undefined;
     const command = "nik remove";
-    if (entry.source !== source.id) {
-      return { why: `installed from ${friendlySource(entry.source)}`, command };
-    }
+    const elsewhere = installedElsewhere(entry, source, skill.path);
+    if (elsewhere) return { why: `installed from ${elsewhere}`, command };
     if (entry.disabled) return { why: "disabled", command: "nik enable" };
     if ((entry.copy === true) !== options.copy) {
       return { why: `installed as a ${entry.copy ? "copy" : "link"}`, command };
@@ -282,8 +300,8 @@ export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> 
   };
 
   if (names.length > 0) {
-    requireKnown(source.id, names, skills);
-    const requested = [...new Set(names.flatMap((name) => matching(skills, name)))];
+    requireKnown(source.id, names, selection);
+    const requested = [...new Set(names.flatMap((name) => matching(skills, name, selection.root)))];
     requireDistinct(requested);
     for (const skill of requested) {
       const why = held(skill);
@@ -408,7 +426,7 @@ const expandSources = (args: string[], lock: Lockfile, recorded: string[]): stri
       continue;
     }
     const coordinate = parseSourceOrFail(arg);
-    const matched = recorded.filter((name) => sourceMatches(lock.skills[name]!.source, coordinate));
+    const matched = recorded.filter((name) => sourceMatches(lock.skills[name]!, coordinate));
     if (matched.length === 0) unknown.push(arg);
     names.push(...matched);
   }

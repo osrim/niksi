@@ -54,6 +54,15 @@ test("fetchFiles names a skill path that is not there", async () => {
   ).rejects.toThrow(`no such directory: ${join(tmp, "repo", "skills", "ghost")}`);
 });
 
+test("a local source anchored at the filesystem root discovers only below the root", async () => {
+  const root = join(tmp, "repo", "skills").slice(1);
+  const skills = await new LocalSource("/").discover(undefined, root);
+
+  expect(skills.map(({ name, path }) => ({ name, path }))).toEqual([
+    { name: "demo", path: `${root}/demo` },
+  ]);
+});
+
 test("splitTree joins every segment into the skill directory", async () => {
   expect(await new LocalSource(join(tmp, "repo")).splitTree(["skills", "demo"])).toEqual({
     dir: "skills/demo",

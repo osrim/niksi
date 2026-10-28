@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   readlink,
   realpath,
@@ -75,11 +76,60 @@ test("add with flags writes a link, a canonical copy, and a lockfile entry", asy
   );
   const { demo } = await readSkills(root);
   expect(demo).toEqual({
-    source: "local:./skills/demo",
-    path: "",
+    source: "local:.",
+    path: "skills/demo",
+    root: "skills/demo",
     integrity: expect.stringMatching(/^sha256-/u),
     track: "auto",
   });
+});
+
+test("both coordinates for one local skill record one source, path, and store entry", async () => {
+  const root = await project("coordinates", "demo");
+  await addLink(root, "demo");
+  const bySkill = (await readSkills(root))["demo"];
+  expect((await runCli(root, "remove", "demo", "--yes")).exitCode).toBe(0);
+
+  const result = await runCli(root, "add", "./skills", "demo", "-p", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect(bySkill).toMatchObject({ source: "local:.", path: "skills/demo", root: "skills/demo" });
+  expect((await readSkills(root))["demo"]).toEqual({ ...bySkill, root: "skills" });
+  const store = join(tmp, "niksi-home", "store");
+  expect(existsSync(join(store, "local_._skills_demo"))).toBe(false);
+  expect(existsSync(join(store, "local_._skills"))).toBe(false);
+  expect((await readdir(join(store, "local_."))).some((entry) => entry.startsWith("demo@"))).toBe(
+    true,
+  );
+});
+
+test("an entry recorded under the typed directory keeps working", async () => {
+  const root = await project("typed-directory", "legacy");
+  await addLink(root, "legacy");
+  const { legacy } = await readSkills(root);
+  const recorded = {
+    source: "local:./skills/legacy",
+    path: "",
+    integrity: legacy!["integrity"],
+    track: "auto",
+  };
+  const lock = `${JSON.stringify({ lockfileVersion: 1, skills: { legacy: recorded } }, null, 2)}\n`;
+  await writeFile(join(root, "niksi-lock.json"), lock);
+  await rm(join(root, ".niksi"), { recursive: true });
+  await rm(join(root, ".claude"), { recursive: true });
+
+  const installed = await runCli(root, "install", "--agent", "claude", "--yes");
+  expect(installed.exitCode).toBe(0);
+  expect(await isLink(join(root, ".claude", "skills", "legacy"))).toBe(true);
+
+  const added = await runCli(root, "add", "./skills", "legacy", "-p", "--agent", "claude", "--yes");
+  expect(added.exitCode).toBe(0);
+  expect(await readSkills(root)).toEqual({ legacy: recorded });
+
+  const disabled = await runCli(root, "disable", "./skills", "--yes");
+  expect(disabled.exitCode).toBe(0);
+  expect(await readSkills(root)).toEqual({ legacy: { ...recorded, disabled: true } });
+  expect(existsSync(join(root, ".claude", "skills", "legacy"))).toBe(false);
 });
 
 test("prompted add asks for the scope and the agents, then links", async () => {
@@ -236,8 +286,9 @@ test("list --json reports link and agent-copy entries, modified and missing", as
   const [copiedRow, linkedRow] = listed.skills;
   expect(linkedRow).toEqual({
     name: "linked",
-    source: "local:./skills/linked",
-    path: "",
+    source: "local:.",
+    path: "skills/linked",
+    root: "skills/linked",
     integrity: expect.stringMatching(/^sha256-/u),
     track: "auto",
     modified: true,
@@ -246,8 +297,9 @@ test("list --json reports link and agent-copy entries, modified and missing", as
   });
   expect(copiedRow).toEqual({
     name: "copied",
-    source: "local:./skills/copied",
-    path: "",
+    source: "local:.",
+    path: "skills/copied",
+    root: "skills/copied",
     integrity: expect.stringMatching(/^sha256-/u),
     track: "auto",
     copy: true,

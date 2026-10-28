@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AGENT_IDS, type AgentId } from "./agents.ts";
 import { effectiveLockPath, type Scope } from "../paths.ts";
 import { pathCopyTarget } from "./path-copy.ts";
+import { sameSkill } from "../source/index.ts";
 
 export interface LockEntry {
   source: string;
@@ -61,12 +62,7 @@ export const isApproved = (
   content: { source: string; path: string; integrity: string },
 ): boolean => {
   const entry = lock.skills[name];
-  return (
-    entry !== undefined &&
-    entry.source === content.source &&
-    entry.path === content.path &&
-    entry.integrity === content.integrity
-  );
+  return entry !== undefined && sameSkill(entry, content) && entry.integrity === content.integrity;
 };
 
 interface SerializedEntry {

@@ -296,8 +296,12 @@ test("an interactive add offers a skill that a relative Markdown link names, and
     expect(existsSync(join(project, ".claude", "skills", name, "SKILL.md"))).toBe(true);
   }
   const lock = JSON.parse(await readFile(join(project, "niksi-lock.json"), "utf8"));
-  expect(lock.skills["full-send"]).toMatchObject({ path: "skills/send-it" });
-  expect(lock.skills["full-stop"]).toMatchObject({ path: "skills/full-stop" });
+  expect(lock.skills["full-send"]).toMatchObject({
+    source: "local:.",
+    path: "vendor/skills/send-it",
+    root: "vendor",
+  });
+  expect(lock.skills["full-stop"]).toMatchObject({ path: "vendor/skills/full-stop" });
   const listed = await runCli(project, "list", "--json");
   expect(listed.exitCode).toBe(0);
   expect(JSON.parse(listed.stdout).skills.map((skill: { name: string }) => skill.name)).toEqual([

@@ -92,7 +92,7 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 
 - Without names, `--all`, or `--source`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
-- `--source <coordinate>` selects the skills from one source as `--all` selects them from the scope. It leaves out pinned skills. `update` checks only that source upstream. The coordinate is `owner/repo`, a Git URL, or a local path. `--source local` selects every local source. To select a directory named `local`, pass `./local`. `--all` with `--source` selects the same skills as `--source` alone.
+- `--source <coordinate>` selects the skills from one source as `--all` selects them from the scope. It leaves out pinned skills. `update` checks only that source upstream. The coordinate is `owner/repo`, a Git URL, or a local path. A local path selects every recorded skill in that directory or below it. `--source local` selects every local source. To select a directory named `local`, pass `./local`. `--all` with `--source` selects the same skills as `--source` alone.
 - `--source` exits `2` when you pass it twice, pass it with skill names, or give it a coordinate with a skill segment, a forge URL path, or `@ref`. A source with no recorded skills exits `1`.
 - Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
 - A changed skill shows a diff stat. The full diff is in `Read files…` at the review questions. See [security-scan.md](security-scan.md#reading-files).
@@ -247,7 +247,7 @@ nik disable [...skills|source] [-g|-p] [-a] [-y]
 
 `disable` deletes the links or copies of the selected skills, as `remove` does. It then sets `disabled: true` on each lockfile entry. The entry keeps its source, path, revision, integrity, and placement. `disable` also removes the patterns of a link from `.git/info/exclude`.
 
-- Positional arguments are skill names. An argument that contains `/` names a source: `owner/repo`, a Git URL, or a local path. It selects every recorded skill from that source. A source with a skill segment or `@ref` exits `2`.
+- Positional arguments are skill names. An argument that contains `/` names a source: `owner/repo`, a Git URL, or a local path. It selects every recorded skill from that source. A local path selects every recorded skill in that directory or below it. A source with a skill segment or `@ref` exits `2`.
 - An unknown name, or a source with no recorded skills, exits `1`. The message lists the recorded skills.
 - `--all` selects every enabled skill. Without names or `--all`, a picker opens. It groups skills by source. A group header selects the whole source.
 - A skill that is already disabled prints `name: already disabled`. `disable` drops it from the batch.

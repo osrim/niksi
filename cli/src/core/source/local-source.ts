@@ -8,7 +8,14 @@ import { integrityOf } from "../skill/integrity.ts";
 import type { Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Scope } from "../paths.ts";
-import { localSourceId, LOCAL_PREFIX, type Changes, type Upstream, type Source } from "./index.ts";
+import {
+  localAnchor,
+  LOCAL_PREFIX,
+  type Anchored,
+  type Changes,
+  type Upstream,
+  type Source,
+} from "./index.ts";
 
 const NO_REVISION: Revision = { track: "auto" };
 
@@ -26,8 +33,9 @@ export class LocalSource implements Source {
     return path ? join(this.dir, path) : this.dir;
   }
 
-  forScope(scope: Scope): Source {
-    return new LocalSource(this.dir, localSourceId(this.dir, scope));
+  forScope(scope: Scope): Anchored {
+    const anchor = localAnchor(this.dir, scope);
+    return { source: new LocalSource(anchor.dir, anchor.id), root: anchor.root };
   }
 
   private async requireDir(path = ""): Promise<string> {
@@ -61,13 +69,13 @@ export class LocalSource implements Source {
   }
 
   async discover(_rev: string | undefined, root = ""): Promise<DiscoveredSkill[]> {
-    const dir = await this.requireDir();
-    const files = await readDirFiles(dir);
-    const contentByPath = new Map(files.map((file) => [file.path, file.content]));
+    const files = await readDirFiles(await this.requireDir(root));
+    const prefix = root ? `${root}/` : "";
+    const contentByPath = new Map(files.map((file) => [prefix + file.path, file.content]));
     return discoverIn(
-      files.map((file) => file.path),
+      [...contentByPath.keys()],
       (paths) => Promise.resolve(paths.map((path) => contentByPath.get(path) ?? Buffer.alloc(0))),
-      basename(dir),
+      basename(this.dir),
       root,
     );
   }

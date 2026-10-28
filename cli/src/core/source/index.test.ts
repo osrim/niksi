@@ -6,10 +6,13 @@ import {
   coordinateFor,
   discoveryCoordinate,
   insideProject,
-  localSourceId,
   LOCAL_PREFIX,
+  resolveCoordinate,
+  sameSkill,
+  scopeCoordinate,
   sourceFor,
   sourceForCoordinate,
+  sourceMatches,
 } from "./index.ts";
 import { readDirFiles } from "../skill/files.ts";
 import { integrityOf } from "../skill/integrity.ts";
@@ -141,34 +144,102 @@ test("insideProject holds for the root and its children, not for siblings, paren
   }
 });
 
-test("localSourceId is relative inside the project, absolute outside and global", () => {
+const inProject = async <T>(run: () => Promise<T> | T): Promise<T> => {
   const prev = process.cwd();
   process.chdir(dir);
   try {
-    expect(localSourceId(join(dir, "skills", "alpha"), "project")).toBe(
-      `${LOCAL_PREFIX}./skills/alpha`,
-    );
-    expect(localSourceId(dir, "project")).toBe(`${LOCAL_PREFIX}./`);
-    expect(localSourceId("/elsewhere/skill", "project")).toBe(`${LOCAL_PREFIX}/elsewhere/skill`);
-    expect(localSourceId(join(dir, "skills", "alpha"), "global")).toBe(
-      `${LOCAL_PREFIX}${join(dir, "skills", "alpha")}`,
-    );
+    return await run();
   } finally {
     process.chdir(prev);
   }
+};
+
+const scoped = async (typed: string, scope: "project" | "global") => {
+  const source = sourceForCoordinate({ repo: typed, kind: "local" });
+  const found = await resolveCoordinate(source, { repo: typed, kind: "local" });
+  return scopeCoordinate(source, scope, { root: found.dir, skills: found.skills });
+};
+
+test("both coordinates for one project skill scope to one source id and path", async () => {
+  const [skillDir, parentDir] = await inProject(() =>
+    Promise.all([
+      scoped(join(dir, "skills", "alpha"), "project"),
+      scoped(join(dir, "skills"), "project"),
+    ]),
+  );
+
+  expect(skillDir.source.id).toBe(`${LOCAL_PREFIX}.`);
+  expect(skillDir.root).toBe("skills/alpha");
+  expect(skillDir.skills.map(({ name, path }) => ({ name, path }))).toEqual([
+    { name: "alpha", path: "skills/alpha" },
+  ]);
+  expect(parentDir.source.id).toBe(`${LOCAL_PREFIX}.`);
+  expect(parentDir.root).toBe("skills");
+  expect(parentDir.skills.map(({ name, path }) => ({ name, path }))).toEqual([
+    { name: "alpha", path: "skills/alpha" },
+    { name: "beta", path: "skills/beta" },
+  ]);
+  expect(await parentDir.source.fetchFiles(undefined, "skills/alpha")).toEqual(
+    await readDirFiles(join(dir, "skills", "alpha")),
+  );
 });
 
-test("a project-scoped local source records its project-relative id", () => {
-  const prev = process.cwd();
-  process.chdir(dir);
-  try {
-    expect(
-      sourceForCoordinate({ repo: join(dir, "skills", "alpha"), kind: "local" }).forScope("project")
-        .id,
-    ).toBe(`${LOCAL_PREFIX}./skills/alpha`);
-  } finally {
-    process.chdir(prev);
+test("the project root itself scopes to an empty discovery root", async () => {
+  const result = await inProject(() => scoped(dir, "project"));
+
+  expect(result.source.id).toBe(`${LOCAL_PREFIX}.`);
+  expect(result.root).toBe("");
+  expect(result.skills.map((skill) => skill.path)).toEqual(["skills/alpha", "skills/beta"]);
+});
+
+test("global scope and directories outside the project anchor at the filesystem root", async () => {
+  const absolute = join(dir, "skills").slice(1);
+  for (const result of [
+    await inProject(() => scoped(join(dir, "skills", "alpha"), "global")),
+    await scoped(join(dir, "skills", "alpha"), "project"),
+  ]) {
+    expect(result.source.id).toBe(`${LOCAL_PREFIX}/`);
+    expect(result.root).toBe(`${absolute}/alpha`);
+    expect(result.skills.map((skill) => skill.path)).toEqual([`${absolute}/alpha`]);
   }
+  const parent = await inProject(() => scoped(join(dir, "skills"), "global"));
+  expect(parent.source.id).toBe(`${LOCAL_PREFIX}/`);
+  expect(parent.root).toBe(absolute);
+  expect(parent.skills.map((skill) => skill.path)).toEqual([
+    `${absolute}/alpha`,
+    `${absolute}/beta`,
+  ]);
+});
+
+test("sameSkill compares local skills by directory and remote skills by source and path", async () => {
+  await inProject(() => {
+    const anchored = { source: `${LOCAL_PREFIX}.`, path: "skills/alpha" };
+    expect(sameSkill(anchored, { source: `${LOCAL_PREFIX}./skills/alpha`, path: "" })).toBe(true);
+    expect(sameSkill(anchored, { source: `${LOCAL_PREFIX}./skills`, path: "alpha" })).toBe(true);
+    expect(
+      sameSkill(anchored, { source: `${LOCAL_PREFIX}/`, path: join(dir, "skills/alpha").slice(1) }),
+    ).toBe(true);
+    expect(sameSkill(anchored, { source: `${LOCAL_PREFIX}.`, path: "skills/beta" })).toBe(false);
+    expect(sameSkill(anchored, { source: "file:///skills/alpha", path: "" })).toBe(false);
+  });
+  const remote = { source: "https://github.com/o/r", path: "skills/alpha" };
+  expect(sameSkill(remote, { ...remote })).toBe(true);
+  expect(sameSkill(remote, { ...remote, path: "alpha" })).toBe(false);
+});
+
+test("a local coordinate selects every recorded skill in its directory, whatever the shape", async () => {
+  await inProject(() => {
+    const skills = parseCoordinate("./skills");
+    const alpha = parseCoordinate("./skills/alpha");
+    const anchored = { source: `${LOCAL_PREFIX}.`, path: "skills/alpha" };
+    const old = { source: `${LOCAL_PREFIX}./skills/beta`, path: "" };
+    expect(sourceMatches(anchored, skills)).toBe(true);
+    expect(sourceMatches(old, skills)).toBe(true);
+    expect(sourceMatches(anchored, alpha)).toBe(true);
+    expect(sourceMatches(old, alpha)).toBe(false);
+    expect(sourceMatches(anchored, parseCoordinate("./skills/alp"))).toBe(false);
+    expect(sourceMatches({ source: "https://github.com/o/r", path: "" }, skills)).toBe(false);
+  });
 });
 
 test("coordinateFor turns a recorded id back into something nik add accepts", async () => {

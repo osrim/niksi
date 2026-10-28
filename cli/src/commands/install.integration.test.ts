@@ -89,18 +89,24 @@ test("a fresh checkout installs every entry with --agent claude --yes", async ()
   expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
 });
 
-test.each([false, true])(
-  "a changed local source skips that entry, installs the rest, and exits 1 (shared store: %p)",
-  async (sharedStore) => {
-    const origin = await project(`mismatch-origin-${sharedStore}`, "changed", "intact");
+test.each([
+  ["changed", false],
+  ["changed", true],
+  ["deleted", false],
+  ["deleted", true],
+] as const)(
+  "a %s local source skips that entry, installs the rest, and exits 1 (shared store: %p)",
+  async (state, sharedStore) => {
+    const origin = await project(`${state}-origin-${sharedStore}`, "changed", "intact");
     await addLink(origin, "./skills/changed");
     await addLink(origin, "./skills/intact");
-    const checkedOut = await checkout(origin, `mismatch-checkout-${sharedStore}`);
+    const checkedOut = await checkout(origin, `${state}-checkout-${sharedStore}`);
     const { root } = checkedOut;
     const run = sharedStore ? runCli : checkedOut.run;
     const stored = await readdir(join(tmp, "niksi-home", "store", "local_._skills_changed"));
     expect(stored.some((entry) => entry.startsWith("changed@"))).toBe(true);
-    await makeSkill(join(root, "skills"), "changed", "tampered\n");
+    if (state === "changed") await makeSkill(join(root, "skills"), "changed", "tampered\n");
+    else await rm(join(root, "skills", "changed"), { recursive: true });
     const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
 
     const result = await run(root, "install", "--agent", "claude", "--yes");

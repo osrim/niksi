@@ -37,9 +37,16 @@ export const fetchSkillFiles = (
     (fetched) => `Fetched ${fetched.length} skill(s) from ${source.display}`,
   );
 
-class SourceChangedError extends Error {
-  constructor() {
-    super("source changed since niksi-lock.json");
+class LocalSourceError extends Error {
+  constructor(
+    readonly gone: boolean,
+    path: string,
+  ) {
+    super(
+      gone
+        ? `source no longer has ${path || "this skill"}`
+        : "source changed since niksi-lock.json",
+    );
   }
 }
 
@@ -51,8 +58,9 @@ export const restoreSkill = async (
   const destination = await installDestination(entry, scope, agents);
   const source = sourceFor(entry.source);
   // The store may still hold the recorded content after the local source moved on.
-  if (source.kind === "local" && (await source.upstream(entry)).outdated) {
-    throw new SourceChangedError();
+  if (source.kind === "local") {
+    const { gone, outdated } = await source.upstream(entry);
+    if (gone || outdated) throw new LocalSourceError(gone, entry.path);
   }
   return applySkill(
     {
@@ -74,8 +82,11 @@ export const reportRestoreError = (entry: InstalledSkill, scope: Scope, error: u
     sourceFor(entry.source).kind === "local"
       ? `Run \`nik update ${name}${scopeFlag(scope)}\` to review the new content.`
       : "Run `nik add` to re-review the content.";
-  if (error instanceof SourceChangedError) {
-    logError(`${skillName(name)}: ${error.message}\n${fix}`);
+  if (error instanceof LocalSourceError) {
+    const remedy = error.gone
+      ? `Restore the source or run \`nik remove ${name}${scopeFlag(scope)}\`.`
+      : fix;
+    logError(`${skillName(name)}: ${error.message}\n${remedy}`);
     return;
   }
   if (!(error instanceof IntegrityError)) {

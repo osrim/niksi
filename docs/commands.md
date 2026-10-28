@@ -72,7 +72,7 @@ nik install [-g|-p] [-y] [--agent <id>]
 
 `install` does not scan. `add` or `update` reviewed every entry, and `install` verifies each file against the recorded integrity before writing it. An entry whose content does not match is skipped and the command exits `1`.
 
-For a local source, `install` reads the source directory even when the store holds the recorded content. If the source changed since `niksi-lock.json`, `install` skips the entry, names `nik update <skill>`, and exits `1`.
+For a local source, `install` reads the source directory even when the store holds the recorded content. If the source changed since `niksi-lock.json`, `install` skips the entry, names `nik update <skill>`, and exits `1`. If the source no longer has the skill, `install` skips the entry, names `nik remove <skill>`, and exits `1`.
 
 Restoring a modified skill discards your edits, so `install` asks first. Without a terminal it keeps the edits and installs the other entries. `--yes` restores without asking.
 
@@ -239,7 +239,7 @@ nik disable [...skills|source] [-g|-p] [-a] [-y]
 nik enable [...skills|source] [-g|-p] [-a] [-y] [--agent <id>]
 ```
 
-`enable` clears the mark and restores each skill as `install` does. It reads the store or the source and checks the recorded integrity. A local source must still match the recorded integrity, as in `install`. It does not review, scan, or check dependencies.
+`enable` clears the mark and restores each skill as `install` does. It reads the store or the source and checks the recorded integrity. A local source must still have the skill and match the recorded integrity, as in `install`. It does not review, scan, or check dependencies.
 
 - Select skills and sources as in `disable`. `--all` selects every disabled skill. A skill that is already enabled prints `name: already enabled`.
 - Link entries need agents. `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt. Agent copies and path copies restore to their recorded agents or destination root. A selection with no link entries selects no agents.
@@ -323,7 +323,7 @@ install -m 755 nik /usr/local/bin/nik
 nik install --agent claude --yes
 ```
 
-Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json`. Run `nik update <skill>` and commit the lockfile. `CI` disables the update notice and its release check.
+Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. `CI` disables the update notice and its release check.
 
 `nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
 
@@ -340,7 +340,7 @@ git diff --exit-code niksi-lock.json ./custom-directory
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json`. In `audit`, also a warn finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `audit`, also a warn finding. |
 | `2` | Invalid usage, or a prompt had no terminal and no flag. |
 | `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill. |
 | `130` | Cancelled. |

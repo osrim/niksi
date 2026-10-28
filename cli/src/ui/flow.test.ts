@@ -315,6 +315,23 @@ describe("restoring a recorded skill", () => {
     },
   );
 
+  test.each([true, false])(
+    "a deleted local source fails the same way whether the store holds the recorded content: %p",
+    async (stored) => {
+      const entry = await localEntry(`deleted-${stored}`, stored);
+      await rm(join(root, "skills", entry.name), { recursive: true });
+
+      const error = await restoreSkill(entry, "project", ["claude"]).catch((e: unknown) => e);
+
+      const printed = reported(entry, error, "global");
+      expect(printed).toContain(`${entry.name}: source no longer has ${entry.name}`);
+      expect(printed).toContain(`nik remove ${entry.name} -g`);
+      expect(await readdir(join(root, ".niksi", "skills")).catch(() => [])).not.toContain(
+        entry.name,
+      );
+    },
+  );
+
   test("an integrity mismatch in a local skill suggests nik update in its scope", () => {
     const entry = recorded("local", "local:/skills");
     const mismatch = new IntegrityError("sha256-a", "sha256-b");

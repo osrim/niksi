@@ -680,6 +680,12 @@ const commandText = (statement: Statement): string => {
 
 const isDownload = (words: string[]): boolean => DOWNLOADER.test(commandName(words[0] ?? ""));
 
+// `bun run x.ts` and `deno run -A x.ts` name the script after the `run` subcommand.
+const scriptOperand = (name: string, args: string[]): string | undefined =>
+  (RUN_SUBCOMMAND.test(name) && args[0] === "run" ? args.slice(1) : args).find(
+    (arg) => !arg.startsWith("-"),
+  );
+
 // Prose words after an interpreter are not arguments unless they look like a path.
 const runsStdin = (words: string[], prose: boolean): boolean => {
   const [command = "", ...args] = words;
@@ -692,10 +698,7 @@ const runsStdin = (words: string[], prose: boolean): boolean => {
     if (SHELL_CODE_FLAG.test(args.at(-1) ?? "")) return true;
   }
   if (args.some((arg) => isCodeFlag(name, arg))) return false;
-  // `bun run -` and `deno run -` read the script from stdin; `bun run format` runs a package script.
-  const operands = RUN_SUBCOMMAND.test(name) && args[0] === "run" ? args.slice(1) : args;
-  if (operands[0] === "-") return true;
-  const script = operands.find((arg) => !arg.startsWith("-"));
+  const script = scriptOperand(name, args);
   return script === undefined || (prose && !/[./]/u.test(script));
 };
 
@@ -764,7 +767,7 @@ const runTargets = (words: string[]): string[] => {
   }
   if (INTERPRETER.test(name) || RUNS_ARGUMENT.test(name)) {
     if (args.some((arg) => isCodeFlag(name, arg))) return [];
-    const script = args.find((arg) => !arg.startsWith("-"));
+    const script = scriptOperand(name, args);
     return script === undefined ? [] : [script];
   }
   return command.includes("/") ? [command] : [];

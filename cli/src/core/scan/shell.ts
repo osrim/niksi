@@ -284,13 +284,17 @@ const linesOf = (text: string): Segment[] => {
 const CONTINUED = /(?<!\\)(?:\\\\)*\\$/u;
 const COMMENT_LINE = /^\s*(?:#|\/\/)/u;
 
+// A comment runs to the end of its line, so a backslash inside one does not continue it.
+const endsInComment = (text: string): boolean =>
+  COMMENT_LINE.test(text) || split(text, true).commentAt !== undefined;
+
 const codeSegments = (lines: Segment[]): Segment[] => {
   const segments: Segment[] = [];
   let current: Segment | undefined;
   for (const { text, line, index } of lines) {
     if (current) current.text += text.trimStart();
     else current = { text, line, index };
-    if (CONTINUED.test(text) && !COMMENT_LINE.test(text)) {
+    if (CONTINUED.test(text) && !endsInComment(current.text)) {
       current.text = current.text.slice(0, -1);
       continue;
     }

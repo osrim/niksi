@@ -202,6 +202,21 @@ test("enable restores a reviewed skill without a file list, findings, or review"
   expect((await readLockJson(project))["risky"]!["disabled"]).toBeUndefined();
 });
 
+test("enable keeps a skill disabled and exits 1 when its local source changed", async () => {
+  const { project, source } = await setup("enable-changed");
+  await makeSkill(source, "alpha");
+  await addLink(project, source, "alpha");
+  expect((await runCli(project, "disable", "alpha", "-y")).exitCode).toBe(0);
+  await makeSkill(source, "alpha", "edited\n");
+
+  const enabled = await runCli(project, "enable", "alpha", "-y", "--agent", "claude");
+
+  expect(enabled.exitCode).toBe(1);
+  expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(false);
+  expect(existsSync(join(project, ".niksi", "skills", "alpha"))).toBe(false);
+  expect((await readLockJson(project))["alpha"]!["disabled"]).toBe(true);
+});
+
 test("disable and enable on the wrong state report it and exit 0", async () => {
   const { project, source } = await setup("already");
   await makeSkill(source, "alpha");

@@ -11,7 +11,10 @@ import type { SkillFile } from "../core/skill/files.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import { ensureClone, git } from "../core/source/git.ts";
 import { GitSource } from "../core/source/git-source.ts";
-import { fetchSkillFiles, land } from "./flow.ts";
+import type { InstalledSkill } from "../core/install/destination.ts";
+import type { Scope } from "../core/paths.ts";
+import { IntegrityError, materialize } from "../core/install/store.ts";
+import { fetchSkillFiles, land, reportRestoreError, restoreSkill } from "./flow.ts";
 import { captureEnv } from "../test-env.ts";
 import { captureOutput } from "../test-output.ts";
 
@@ -252,5 +255,98 @@ describe.skipIf(process.getuid?.() === 0)("land after filesystem changes", () =>
     );
     expect(leftover).toBeDefined();
     expect(printed).toContain(leftover!);
+  });
+});
+
+const recorded = (name: string, source: string): InstalledSkill => ({
+  name,
+  source,
+  path: name,
+  integrity: integrityOf(version("v1\n")),
+  track: "auto",
+});
+
+const reported = (entry: InstalledSkill, error: unknown, scope: Scope = "project"): string => {
+  const output = captureOutput();
+  try {
+    reportRestoreError(entry, scope, error);
+  } finally {
+    output.restore();
+  }
+  return output.text();
+};
+
+describe("restoring a recorded skill", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = join(tmp, "restore");
+    await mkdir(join(root, ".git"), { recursive: true });
+    process.chdir(root);
+  });
+
+  afterEach(() => {
+    process.exitCode = 0;
+  });
+
+  const localEntry = async (name: string, stored: boolean): Promise<InstalledSkill> => {
+    const dir = join(root, "skills", name);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "SKILL.md"), "v1\n");
+    const integrity = integrityOf(version("v1\n"));
+    if (stored) await materialize("local:./skills", name, version("v1\n"), integrity);
+    await writeFile(join(dir, "SKILL.md"), "v2\n");
+    return { name, source: "local:./skills", path: name, integrity, track: "auto" };
+  };
+
+  test.each([true, false])(
+    "a changed local source fails the same way whether the store holds the recorded content: %p",
+    async (stored) => {
+      const entry = await localEntry(`changed-${stored}`, stored);
+
+      const error = await restoreSkill(entry, "project", ["claude"]).catch((e: unknown) => e);
+
+      const printed = reported(entry, error);
+      expect(printed).toContain(`${entry.name}: source changed since niksi-lock.json`);
+      expect(printed).toContain(`nik update ${entry.name}`);
+      expect(await readdir(join(root, ".niksi", "skills")).catch(() => [])).not.toContain(
+        entry.name,
+      );
+    },
+  );
+
+  test.each([true, false])(
+    "a gone local source fails the same way whether the store holds the recorded content: %p",
+    async (stored) => {
+      const entry = await localEntry(`gone-${stored}`, stored);
+      await rm(join(root, "skills", entry.name), { recursive: true });
+
+      const error = await restoreSkill(entry, "project", ["claude"]).catch((e: unknown) => e);
+
+      const printed = reported(entry, error, "global");
+      expect(printed).toContain(`${entry.name}: source no longer has ${entry.name}.`);
+      expect(printed).toContain(`Run nik remove ${entry.name} -g to remove it.`);
+      expect(await readdir(join(root, ".niksi", "skills")).catch(() => [])).not.toContain(
+        entry.name,
+      );
+    },
+  );
+
+  test("an integrity mismatch in a local skill suggests nik update in its scope", () => {
+    const entry = recorded("local", "local:/skills");
+    const mismatch = new IntegrityError("sha256-a", "sha256-b");
+
+    expect(reported(entry, mismatch)).toContain("Run nik update local to review");
+    expect(reported(entry, mismatch, "global")).toContain("Run nik update local -g to review");
+    expect(reported(entry, mismatch)).not.toContain("nik add");
+  });
+
+  test("an integrity mismatch in a git skill suggests nik add", () => {
+    const entry = recorded("remote", "https://example.com/o/r.git");
+
+    const printed = reported(entry, new IntegrityError("sha256-a", "sha256-b"));
+
+    expect(printed).toContain("source files do not match niksi-lock.json");
+    expect(printed).toContain("nik add");
   });
 });

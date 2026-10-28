@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { cac, type CAC } from "cac";
+import { completeSkills, SKILLS_HELPER } from "./core/completion/skills.ts";
 import { USAGE_ERROR } from "./core/usage.ts";
 import { nearest } from "./core/suggest.ts";
 import { startUpdateCheck } from "./core/update-check.ts";
@@ -20,6 +21,7 @@ const LOADERS = {
   disable: () => import("./commands/disable.ts"),
   enable: () => import("./commands/enable.ts"),
   prune: () => import("./commands/prune.ts"),
+  completion: () => import("./commands/completion.ts"),
 };
 
 type CommandName = keyof typeof LOADERS;
@@ -118,6 +120,9 @@ const buildCli = (): CAC => {
     .command("prune", "Delete unrecorded store entries")
     .option("-y, --yes", "Confirm deletion")
     .action(async (options) => (await LOADERS.prune()).run(options));
+  cli
+    .command("completion <shell>", "Print a shell completion script: bash, zsh, or fish")
+    .action(async (shell) => (await LOADERS.completion()).run(shell, cli));
 
   cli.help((sections) => {
     if (matchedHelp) applyCommandHelp(sections, matchedHelp);
@@ -142,6 +147,11 @@ const printNotice = async (notice: Promise<string | null>): Promise<void> => {
 
 try {
   const argv = process.argv;
+  if (argv[2] === SKILLS_HELPER) {
+    const [command = "", ...words] = argv.slice(3);
+    for (const name of await completeSkills(command, words)) console.log(name);
+    process.exit(0);
+  }
   const cli = buildCli();
   cli.parse(argv, { run: false });
   const notice = startUpdateCheck(

@@ -9,7 +9,7 @@ index.ts -> commands -> ui -> core
                     \------> core
 ```
 
-- `index.ts` registers commands, renders root help, starts the update check for every run, and turns argument and top-level errors into exit codes.
+- `index.ts` registers commands, renders root help, starts the update check for every run, and turns argument and top-level errors into exit codes. It answers the hidden `__complete-skills` helper before it parses arguments, so the helper never starts the update check.
 - `commands/` owns each command's policy and sequence. A prompt or spinner used by one command only may live in that command.
 - `ui/` holds terminal behavior shared by commands: prompts, the review gate, reports, styling, per-skill progress, and exit status for UI failures.
 - `core/` implements behavior with no terminal input, terminal output, or process exit.
@@ -25,9 +25,10 @@ cli/src/
   test-cli.ts        CLI runners and fixtures, tests only
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
-  commands/          add, install, update, remove, list, audit, disable, enable, prune
+  commands/          add, install, update, remove, list, audit, disable, enable, prune, completion
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
+    completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
     suggest.ts       command typo suggestions

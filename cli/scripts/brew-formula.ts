@@ -47,6 +47,7 @@ ${onSystem(release, "linux")}
 
   def install
     bin.install "nik"
+    generate_completions_from_executable(bin/"nik", "completion")
   end
 
   def caveats

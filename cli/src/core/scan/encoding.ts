@@ -4,7 +4,7 @@ import type { Finding, Severity } from "./index.ts";
 
 const SCRIPT_EXTS = new Set([".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".cjs", ".ts"]);
 
-const isScriptOrMarkdown = (file: SkillFile): boolean => {
+export const isScriptOrMarkdown = (file: SkillFile): boolean => {
   const ext = extname(file.path).toLowerCase();
   return ext === ".md" || SCRIPT_EXTS.has(ext) || startsWithShebang(file);
 };

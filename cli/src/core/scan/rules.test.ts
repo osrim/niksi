@@ -399,6 +399,27 @@ test("secrets in finding details are masked", () => {
   );
 });
 
+test("a URL password longer than the detail is masked before the detail is cut", () => {
+  const password = "p".repeat(240);
+  const findings = scan(
+    file("scripts/npm.sh", `npm config set registry https://user:${password}@npm.x.invalid\n`),
+    file("scripts/pip.sh", `pip install -i https://user:${password}@pkgs.x.invalid/simple foo\n`),
+    file(
+      "package.json",
+      JSON.stringify({ scripts: { postinstall: `curl https://user:${password}@x.invalid/a` } }),
+    ),
+  );
+  expect(
+    findings
+      .filter((f) => f.rule === "dependency-source" || f.rule === "install-hook")
+      .map((f) => [f.file, f.detail]),
+  ).toEqual([
+    ["scripts/npm.sh", "npm config set registry https://user:********@npm.x.invalid"],
+    ["scripts/pip.sh", "pip install -i https://user:********@pkgs.x.invalid/simple foo"],
+    ["package.json", "postinstall: curl https://user:********@x.invalid/a"],
+  ]);
+});
+
 test("findings sort critical first", () => {
   const findings = scan(file("SKILL.md", "see https://example.com plus\u{200B}hidden"));
   expect(findings[0]!.severity).toBe("critical");

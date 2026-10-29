@@ -1,7 +1,7 @@
-import type { ProseJudge } from "./context.ts";
+import { judgeStatement, type ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { matchDetail } from "./redact.ts";
-import { lower, strongest } from "./severity.ts";
+import { strongest } from "./severity.ts";
 import { mapHome, type Command, type Statement } from "./shell.ts";
 
 // Paths are matched after mapHome, so `~` stands for every home spelling.
@@ -118,23 +118,21 @@ export interface PersistenceMatch {
   severity: Severity;
   line: number;
   statement: Statement;
-  prohibited: boolean;
+  quiet: boolean;
 }
 
 export const persistenceMatches = (
   statements: Statement[],
-  { afterProhibition, demoted }: ProseJudge,
+  judge: ProseJudge,
 ): PersistenceMatch[] =>
   statements.flatMap((statement) => {
-    const prose = statement.kind === "prose";
-    const prohibited = prose && afterProhibition(statement.index);
-    const lowered = statement.kind === "comment" || (prose && demoted(statement.index));
+    const { quiet, judged } = judgeStatement(statement, judge);
     return statement.commands.flatMap((command, index) =>
       commandMatches(statement, command, index).map((severity) => ({
-        severity: prohibited ? "info" : lowered ? lower(severity) : severity,
+        severity: judged(severity),
         line: statement.line,
         statement,
-        prohibited,
+        quiet,
       })),
     );
   });
@@ -149,6 +147,6 @@ export const persistence = (
   return {
     severity: best.severity,
     line: best.line,
-    detail: matchDetail(best.statement.text, best.prohibited, found.length),
+    detail: matchDetail(best.statement.text, best.quiet, found.length),
   };
 };

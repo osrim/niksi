@@ -44,6 +44,7 @@ import {
 import { injections, promptInjection } from "./prompt-injection.ts";
 import { judgePhrases, proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
+import { reverseShell } from "./reverse-shell.ts";
 import { silentExec } from "./silent-exec.ts";
 import { lower, stronger, strongest } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
@@ -52,6 +53,7 @@ import { mapHome, shellStatements, type Command, type Statement } from "./shell.
 export const RULES = {
   "curl-pipe-shell": { help: "runs downloaded code" },
   "base64-exec": { help: "decodes and runs hidden code" },
+  "reverse-shell": { help: "opens a shell to a remote host" },
   "exfil-domain": { help: "known exfiltration endpoint" },
   "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
@@ -819,6 +821,10 @@ const base64ExecText = textRule("base64-exec", (file, text) =>
   base64Exec(text, shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
 
+const reverseShellText = textRule("reverse-shell", (file, text) =>
+  reverseShell(text, shellStatements(text, isProse(file.path)), proseContext(file, text)),
+);
+
 const credentialPathText = textRule("credential-paths", (file, text) =>
   credentialPaths(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
@@ -884,6 +890,7 @@ const urlCredentialText = textRule("url-credentials", (_file, text) => urlCreden
 const TEXT_SCANNERS = [
   downloadedCode,
   base64ExecText,
+  reverseShellText,
   suspiciousPatterns,
   remoteInstructionText,
   credentialPathText,

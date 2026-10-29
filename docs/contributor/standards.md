@@ -63,6 +63,7 @@ The local scan may gain rules and widen existing ones. Every new or widened rule
 - It ships with at least one fire case and one silent case in `cli/src/core/scan/fixtures/<rule>.ts`.
 - `critical` needs strong evidence: code runs, data leaves the machine, content is hidden, or a documented combination of signals.
 - A rule that reads prose starts at `warn`. It reaches `critical` only through a documented combination, hidden content, or the frontmatter `description`.
+- A command in Markdown is code, not prose, and may reach `critical` like the same line in a script. A command is a code span or code block, a statement that starts with a command or follows a pipe, or a command name followed by an operand that looks like a path. A sentence that only names a command, such as "the mkfs command formats a disk", stays prose.
 - An unfamiliar host alone is never a finding.
 - A rule may port a technique from another scanner, but copies rule text or data only under a license that allows it. Write niksi's own regex for a technique from a Semgrep rule.
 

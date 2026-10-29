@@ -38,6 +38,30 @@ export default [
     fire: [{ severity: "critical", line: 1 }],
   },
   {
+    name: "hex escapes printed into sh",
+    path: "scripts/run.sh",
+    content: "printf '\\x63\\x75\\x72\\x6c' | sh\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "Python exec of a chr join",
+    path: "scripts/run.py",
+    content: 'exec("".join(map(chr, [105, 109])))\n',
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "JavaScript eval of String.fromCharCode",
+    path: "scripts/run.js",
+    content: "eval(String.fromCharCode(99, 117));\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "a certificate decoded into a file",
+    path: "SKILL.md",
+    content: entry('echo "$CERT_B64" | base64 -d > cert.pem'),
+    silent: "none",
+  },
+  {
     name: "base64 decoded into a file",
     path: "SKILL.md",
     content: entry("base64 -d cert.b64 > cert.pem"),

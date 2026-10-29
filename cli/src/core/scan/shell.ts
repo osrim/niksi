@@ -19,6 +19,8 @@ export interface Command {
   text: string;
   // Unquoted, with wrappers and leading assignments skipped and home spellings mapped.
   words: string[];
+  // The skipped wrappers, such as `sudo` and `nohup`.
+  wrappers: string[];
   substitutions: Substitution[];
 }
 
@@ -29,6 +31,8 @@ export interface Statement {
   index: number;
   text: string;
   commands: Command[];
+  // Ended by a single `&`.
+  background: boolean;
 }
 
 const WRAPPERS = new Map<string, Set<string>>([
@@ -36,13 +40,15 @@ const WRAPPERS = new Map<string, Set<string>>([
   ["doas", new Set(["-u", "-C"])],
   ["env", new Set(["-u", "-C"])],
   ["nohup", new Set()],
+  ["setsid", new Set()],
   ["time", new Set(["-f", "-o"])],
   ["xargs", new Set(["-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s"])],
 ]);
 
 const ASSIGNMENT = /^[A-Za-z_]\w*=/u;
 
-const skipWrappers = (words: string[]): string[] => {
+export const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers"> => {
+  const wrappers: string[] = [];
   let i = 0;
   while (i < words.length) {
     const word = words[i]!;
@@ -52,10 +58,11 @@ const skipWrappers = (words: string[]): string[] => {
     }
     const takesValue = WRAPPERS.get(word);
     if (!takesValue) break;
+    wrappers.push(word);
     i++;
     while (words[i]?.startsWith("-")) i += takesValue.has(words[i]!) ? 2 : 1;
   }
-  return words.slice(i);
+  return { words: words.slice(i), wrappers };
 };
 
 interface Frame {
@@ -68,6 +75,7 @@ interface Draft {
   start: number;
   text: string;
   commands: Command[];
+  background: boolean;
 }
 
 interface Splitter {
@@ -107,9 +115,11 @@ const endWord = (s: Splitter): void => {
 const endCommand = (s: Splitter, end: number): void => {
   endWord(s);
   if (s.commandStart >= 0) {
+    const { words, wrappers } = skipWrappers(s.words);
     s.commands.push({
       text: s.text.slice(s.commandStart, end).trim(),
-      words: skipWrappers(s.words).map(mapHome),
+      words: words.map(mapHome),
+      wrappers,
       substitutions: s.substitutions,
     });
   }
@@ -118,13 +128,14 @@ const endCommand = (s: Splitter, end: number): void => {
   s.commandStart = -1;
 };
 
-const endStatement = (s: Splitter, end: number): void => {
+const endStatement = (s: Splitter, end: number, background = false): void => {
   endCommand(s, end);
   if (s.commands.length > 0) {
     s.drafts.push({
       start: s.statementStart,
       text: s.text.slice(s.statementStart, end).trim(),
       commands: s.commands,
+      background,
     });
   }
   s.commands = [];
@@ -189,7 +200,8 @@ const topLevel = (s: Splitter, ch: string, i: number): number | "comment" => {
   const next = s.text[i + 1];
   if (/\s/u.test(ch)) endWord(s);
   else if (s.shell && ch === "#" && s.word === undefined) return "comment";
-  else if (ch === ";" || (ch === "&" && next !== "&" && endsStatement(s, i))) endStatement(s, i);
+  else if (ch === ";") endStatement(s, i);
+  else if (ch === "&" && next !== "&" && endsStatement(s, i)) endStatement(s, i, true);
   else if ((ch === "&" || ch === "|") && next === ch) {
     endStatement(s, i);
     return i + 1;
@@ -262,6 +274,7 @@ const segmentStatements = (segment: Segment, shell: boolean, kind: StatementKind
     index: segment.index + draft.start,
     text: draft.text,
     commands: draft.commands,
+    background: draft.background,
   }));
   if (commentAt === undefined) return statements;
   const rest = {

@@ -50,6 +50,13 @@ export default [
     silent: "info",
   },
   {
+    name: "install guide runs chmod and tee with sudo",
+    path: "scripts/install.sh",
+    content:
+      "sudo chmod +x /usr/local/bin/tool\necho deb x | sudo tee /etc/apt/sources.list.d/x.list\n",
+    silent: "warn",
+  },
+  {
     name: "deletes under a variable that may be empty",
     path: "scripts/clean.sh",
     content: '#!/bin/sh\nrm -rf "$STEAMROOT/"*\n',
@@ -66,6 +73,36 @@ export default [
     path: "SKILL.md",
     content: entry("Clean up with rm -rf node_modules."),
     fire: [{ severity: "info", line: 5, detail: "rm -rf node_modules." }],
+  },
+  {
+    name: "zeroes a disk",
+    path: "SKILL.md",
+    content: entry("dd if=/dev/zero of=/dev/sda"),
+    fire: [{ severity: "critical", line: 5 }],
+  },
+  {
+    name: "zeroes a disk after a routine cleanup on the same line",
+    path: "scripts/run.sh",
+    content: "rm -rf build; dd if=/dev/zero of=/dev/sda\n",
+    fire: [{ severity: "critical", line: 1, detail: "dd if=/dev/zero of=/dev/sda" }],
+  },
+  {
+    name: "creates a filesystem on a partition",
+    path: "scripts/format.sh",
+    content: "mkfs.ext4 /dev/sda1\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "a fork bomb",
+    path: "scripts/run.sh",
+    content: ":(){ :|:& };:\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "discards local commits",
+    path: "SKILL.md",
+    content: entry("git reset --hard origin/main"),
+    fire: [{ severity: "warn", line: 5 }],
   },
   {
     name: "a variable guarded against empty",

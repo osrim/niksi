@@ -41,3 +41,13 @@ export const judgeStatement = (
     judged: (severity) => (quiet ? "info" : lowered ? lower(severity) : severity),
   };
 };
+
+// A pattern match at `index` is judged as prose, or as a comment when it starts in one.
+export const judgeIndex = (
+  statements: readonly Pick<Statement, "kind" | "index">[],
+  index: number,
+  judge: ProseJudge,
+): ReturnType<typeof judgeStatement> => {
+  const within = statements.findLast((statement) => statement.index <= index);
+  return judgeStatement({ kind: within?.kind === "comment" ? "comment" : "prose", index }, judge);
+};

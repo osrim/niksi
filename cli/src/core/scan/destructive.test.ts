@@ -81,4 +81,6 @@ test("prose needs an operand that looks like a path", () => {
 test("one line counts once, and a comment drops one level", () => {
   expect(inScript("sudo rm -rf /", "git reset --hard")?.detail).toBe("sudo rm -rf / (2 matches)");
   expect(severity("# dd if=/dev/zero of=/dev/sda")).toBe("warn");
+  expect(severity("rm -rf build; dd if=/dev/zero of=/dev/sda")).toBe("critical");
+  expect(severity("rm -rf build | dd if=/dev/zero of=/dev/sda")).toBe("critical");
 });

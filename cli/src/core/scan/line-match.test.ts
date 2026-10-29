@@ -10,10 +10,18 @@ const match = (line: number, index: number, text: string, fields: Partial<LineMa
   ...fields,
 });
 
-test("oncePerLine keeps the first match on each line in text order", () => {
+test("oncePerLine keeps the strongest match on each line, the first on a tie, in text order", () => {
   expect(
     oncePerLine([match(1, 5, "b"), match(2, 9, "c"), match(1, 0, "a")]).map(({ text }) => text),
   ).toEqual(["a", "c"]);
+  expect(
+    oncePerLine([
+      match(1, 0, "a", { severity: "info" }),
+      match(1, 4, "b", { severity: "critical" }),
+      match(1, 8, "c", { severity: "critical" }),
+      match(2, 12, "d"),
+    ]).map(({ text }) => text),
+  ).toEqual(["b", "d"]);
 });
 
 test("strongestLine reports the first strongest match with the match count", () => {

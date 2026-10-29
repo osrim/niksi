@@ -81,6 +81,12 @@ export default [
     fire: [{ severity: "critical", line: 5 }],
   },
   {
+    name: "zeroes a disk after a routine cleanup on the same line",
+    path: "scripts/run.sh",
+    content: "rm -rf build; dd if=/dev/zero of=/dev/sda\n",
+    fire: [{ severity: "critical", line: 1, detail: "dd if=/dev/zero of=/dev/sda" }],
+  },
+  {
     name: "creates a filesystem on a partition",
     path: "scripts/format.sh",
     content: "mkfs.ext4 /dev/sda1\n",

@@ -32,16 +32,13 @@ export const patternMatch =
     return { severity: judged(severity), line: lineAt(text, index), index, text: found, quiet };
   };
 
-// A line can match more than one pattern, so only its first match in text order counts.
+// A line can match more than one pattern, so only its strongest match counts.
 export const oncePerLine = <T extends LineMatch>(matches: readonly T[]): T[] => {
-  const lines = new Set<number>();
-  return matches
-    .toSorted((a, b) => a.index - b.index)
-    .filter(({ line }) => {
-      if (lines.has(line)) return false;
-      lines.add(line);
-      return true;
-    });
+  const lines = Map.groupBy(
+    matches.toSorted((a, b) => a.index - b.index),
+    ({ line }) => line,
+  );
+  return [...lines.values()].flatMap((found) => strongest(found) ?? []);
 };
 
 export const strongestLine = (

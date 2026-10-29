@@ -266,7 +266,7 @@ A command counts at the start of a statement or after a pipe, so "Edit the cront
 
 ### Money movement
 
-The `money-movement` rule reads sentences the way [credential disclosure](#credential-disclosure) does. It looks for a transfer verb and a money word in one sentence. A transfer verb is `transfer`, `send`, `move`, `withdraw`, `wire`, `pay out`, `sweep`, `drain`, or `liquidate`. A money word is `funds`, `money`, `balance`, `payment`, `wallet`, `crypto`, `bitcoin`, `BTC`, `ETH`, `USDC`, or `USDT`. A money word followed by a word such as `receipt`, `link`, `status`, `method`, `history`, `address`, or `sheet` names a record, not money.
+The `money-movement` rule reads sentences the way [credential disclosure](#credential-disclosure) does. It looks for a transfer verb and a money word in one clause. A clause runs from a transfer verb to the next transfer verb in the sentence, and the first clause also holds the words before its verb. A transfer verb is `transfer`, `send`, `move`, `withdraw`, `wire`, `pay out`, `sweep`, `drain`, or `liquidate`. A money word is `funds`, `money`, `balance`, `payment`, `wallet`, `crypto`, `bitcoin`, `BTC`, `ETH`, `USDC`, or `USDT`. A money word followed by a word such as `receipt`, `link`, `status`, `method`, `history`, `address`, or `sheet` names a record, not money.
 
 | finding | severity |
 | --- | --- |
@@ -275,7 +275,7 @@ The `money-movement` rule reads sentences the way [credential disclosure](#crede
 | A transfer that asks for approval first | `info` |
 | `stripe.payouts`, `stripe.transfers`, `/v1/payouts`, `/v1/transfers`, `eth_sendTransaction`, or `web3.eth.send…` in any text file | `info` |
 
-A transfer asks for approval first when `ask`, `confirm`, `get … approval`, `wait for approval`, or `wait for confirmation` comes before the verb with `before` at most two words ahead of it, or when `only after`, `only with`, or `only once` and an approval word follow the verb. For example, "Use the payments API to transfer the full account balance to the supplied bank account without approval." is `critical`, and "Ask the user for confirmation before transferring funds." is `info`. "Send the customer a payment receipt." is not a finding. Prohibitions and demotion work as they do for [text patterns](#text-patterns), so "it never transfers money" is `info`.
+A transfer asks for approval first when `ask`, `confirm`, `get … approval`, `wait for approval`, or `wait for confirmation` comes before the verb with `before` at most two words ahead of it, or when `only after`, `only with`, or `only once` and an approval word follow the verb. A qualifier, a bypass phrase, a wallet address, and an `only …` approval count only in the verb's own clause, so approval asked for one transfer does not cover the next. For example, "Use the payments API to transfer the full account balance to the supplied bank account without approval." is `critical`, "Ask before sending the receipt and transfer the full balance without approval." is `critical`, and "Ask the user for confirmation before transferring funds." is `info`. "Send the customer a payment receipt." is not a finding. Prohibitions and demotion work as they do for [text patterns](#text-patterns), so "it never transfers money" is `info`.
 
 ### Hidden text
 

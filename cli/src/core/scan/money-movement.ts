@@ -19,29 +19,54 @@ const QUALIFIER = new RegExp(
 );
 
 // Cisco's skill-scanner treats "only after user approval" as a gate (active_remote_execution.py, 4f8bec3).
-const GATE_BEFORE =
-  /\b(?:ask|confirm|get (?:\S+\s+){0,2}?approval|wait for (?:approval|confirmation))\b[\s\S]*\bbefore\s+(?:\S+\s+){0,2}$/iu;
+const ASKS = [
+  /\b(?:ask|confirm)\b/iu,
+  /\bget (?:\S+\s+){0,2}?approval\b/iu,
+  /\bwait for (?:approval|confirmation)\b/iu,
+];
+const BEFORE = /^([\s\S]*)\bbefore\s+(?:\S+\s+){0,2}$/iu;
 const GATE_AFTER =
   /^[\s\S]*?\bonly (?:after|with|once)\b[\s\S]{0,40}?\b(?:approv|confirm|consent)/iu;
 
 const API =
   /\bstripe\.(?:payouts|transfers)\b|\/v1\/(?:payouts|transfers)\b|\beth_sendTransaction\b|\bweb3\.eth\.send\w*/gu;
 
-const transfer = ({ index, text }: Sentence): Phrase | undefined => {
-  if (!NOUN.test(text)) return undefined;
-  const verb = [...text.matchAll(VERB)][0];
-  if (!verb) return undefined;
-  const before = text.slice(0, verb.index);
-  const after = text.slice(verb.index + verb[0].length);
-  let severity: Severity = "warn";
-  if (GATE_BEFORE.test(before) || GATE_AFTER.test(after)) severity = "info";
-  else if (QUALIFIER.test(text) || BYPASS.test(text)) severity = "critical";
-  return { index: index + verb.index, sentence: text, severity };
+const firstAskEnd = (text: string): number =>
+  Math.min(
+    ...ASKS.map((pattern) => {
+      const ask = pattern.exec(text);
+      return ask ? ask.index + ask[0].length : Infinity;
+    }),
+  );
+
+// "before" sits at most two words ahead of the verb, so a short window keeps the scan linear.
+const BEFORE_WINDOW = 100;
+
+const gatedBefore = (text: string, verb: number, asked: number): boolean => {
+  const from = Math.max(verb - BEFORE_WINDOW, 0);
+  const before = BEFORE.exec(text.slice(from, verb));
+  return before !== null && asked <= from + before[1]!.length;
+};
+
+// A verb's clause runs to the next verb, so approval asked for one transfer does not cover another.
+const transfers = ({ index, text }: Sentence): Phrase[] => {
+  const verbs = [...text.matchAll(VERB)];
+  const asked = firstAskEnd(text);
+  return verbs.flatMap((verb, i) => {
+    const end = verbs[i + 1]?.index ?? text.length;
+    const clause = text.slice(i === 0 ? 0 : verb.index, end);
+    if (!NOUN.test(clause)) return [];
+    const after = text.slice(verb.index + verb[0].length, end);
+    let severity: Severity = "warn";
+    if (gatedBefore(text, verb.index, asked) || GATE_AFTER.test(after)) severity = "info";
+    else if (QUALIFIER.test(clause) || BYPASS.test(clause)) severity = "critical";
+    return [{ index: index + verb.index, sentence: text, severity }];
+  });
 };
 
 // API names are read in the whole text, transfers in its prose sentences.
 export const moneyPhrases = (text: string, sentences: Sentence[]): Phrase[] => [
-  ...sentences.flatMap((sentence) => transfer(sentence) ?? []),
+  ...sentences.flatMap(transfers),
   ...[...text.matchAll(API)].map((match): Phrase => ({
     index: match.index,
     sentence: match[0],

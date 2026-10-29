@@ -140,8 +140,8 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | Any other mention of `.claude/settings.json` or `.claude/settings.local.json` | `warn` |
 | `--dangerously-skip-permissions` | `critical` |
 | `rm -r` of `/`, `~`, `$HOME`, a system directory such as `/usr`, `/etc`, or `/Library`, or `$VAR/` without `${VAR:?}`, and every `sudo rm -r` | `critical` |
-| `dd` with `of=/dev/…` other than `/dev/null`, `/dev/stdout`, `/dev/stderr`, or `/dev/fd/…`, `mkfs` or `mkfs.<type>` with an operand, a fork bomb such as `:(){ :\|:& };:`, and `sudo` or `doas` before `rm`, `dd`, `mkfs`, or `chown` with an operand | `critical` |
-| `git push --force` or `-f`, `git reset --hard`, `git clean` with `-f` or `--force`, `chmod 777`, a set-uid or set-gid mode (`u+s`, `g+s`, or a four-digit mode that starts with `2`, `4`, or `6`), `history -c`, `rm` of `.bash_history`, and `sudo` or `doas` before `chmod` or `tee` with an operand | `warn` |
+| `dd` with `of=/dev/…` other than `/dev/null`, `/dev/stdout`, `/dev/stderr`, or `/dev/fd/…`, `mkfs` or `mkfs.<type>` with an operand, a fork bomb such as `:(){ :\|:& };:`, `sudo` or `doas` before `rm`, `dd`, `mkfs`, or `chown` with an operand, and `sudo` or `doas` before a `chmod` that loosens a mode or a `chmod` or `tee` of `/etc/shadow`, `/etc/gshadow`, `/etc/passwd`, `/etc/sudoers`, or a file in `/etc/sudoers.d` | `critical` |
+| `git push --force` or `-f`, `git reset --hard`, `git clean` with `-f` or `--force`, `chmod 777`, a set-uid or set-gid mode (`u+s`, `g+s`, or a four-digit mode that starts with `2`, `4`, or `6`), `history -c`, `rm` of `.bash_history`, and any other `sudo` or `doas` before `chmod` or `tee` with an operand | `warn` |
 | Any other `rm -r` | `info` |
 | A detached or silenced process, when the same file has a `warn` or `critical` `curl-pipe-shell`, `base64-exec`, or `persistence` match | `critical` |
 | Any other detached or silenced process | `warn` |

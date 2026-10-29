@@ -39,6 +39,13 @@ test("sudo or doas before rm, dd, mkfs, or chown is critical", () => {
   expect(severity("sudo apt-get install jq")).toBeUndefined();
 });
 
+test("sudo chmod that loosens a mode, or sudo on an account file, stays critical", () => {
+  expect(severity("sudo chmod 777 /etc/shadow")).toBe("critical");
+  expect(severity("sudo chmod u+s /usr/local/bin/tool")).toBe("critical");
+  expect(severity("echo bad | sudo tee /etc/sudoers")).toBe("critical");
+  expect(severity("echo bad | doas tee -a /etc/sudoers.d/extra")).toBe("critical");
+});
+
 test("sudo or doas before chmod or tee warns", () => {
   expect(severity("sudo chmod +x /usr/local/bin/tool")).toBe("warn");
   expect(severity("doas chmod 755 /usr/local/bin/tool")).toBe("warn");

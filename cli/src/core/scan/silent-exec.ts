@@ -107,12 +107,12 @@ interface Candidate extends Located {
   match: (severity: Severity) => LineMatch;
 }
 
-// `partners` are the file's curl-pipe-shell, base64-exec, and persistence matches above info.
+// `escalated` tells whether a partner rule raises the match on a line to critical.
 export const silentExec = (
   text: string,
   statements: Statement[],
   judge: ProseJudge,
-  partners: () => Located[],
+  escalated: (line: number) => boolean,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const at = patternMatch(text, statements, judge);
   const candidates: Candidate[] = [
@@ -133,9 +133,7 @@ export const silentExec = (
       match: (severity: Severity) => at(index, found, severity),
     })),
   ];
-  if (candidates.length === 0) return undefined;
-  const paired = new Set(combine(candidates, partners()).map(({ anchor }) => anchor));
   return strongestLine(
-    oncePerLine(candidates.map((c) => c.match(paired.has(c) ? "critical" : "warn"))),
+    oncePerLine(candidates.map((c) => c.match(escalated(c.line) ? "critical" : "warn"))),
   );
 };

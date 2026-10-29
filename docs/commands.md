@@ -231,6 +231,7 @@ nik audit [-g|-p] [--json]
       "findings": [
         {
           "severity": "warn",
+          "confidence": "medium",
           "rule": "prompt-injection",
           "help": "asks the agent to hide actions",
           "file": "SKILL.md",
@@ -245,7 +246,7 @@ nik audit [-g|-p] [--json]
 }
 ```
 
-`file` and `line` are absent when a finding has no location. Rule names are in [security-scan.md](security-scan.md).
+`file` and `line` are absent when a finding has no location. `confidence` is `high`, `medium`, or `low`. A `critical` match with `low` confidence has `severity` `warn`. Rule names and confidence are in [security-scan.md](security-scan.md#confidence).
 
 ## `disable`
 

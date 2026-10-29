@@ -6,6 +6,7 @@ import { renderFrontmatter, reviewSkills, stopsOn } from "./gate.ts";
 
 const finding = (severity: Finding["severity"], rule: Finding["rule"]): Finding => ({
   severity,
+  confidence: "high",
   rule,
   help: `${rule} help`,
   detail: `${rule} fired`,

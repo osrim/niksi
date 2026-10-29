@@ -65,7 +65,7 @@ const location = ({ file, line }: Finding): string =>
   file ? ` in ${code(line ? `${file}:${line}` : file)}` : "";
 
 const findingLine = (finding: Finding): string =>
-  `- ${code(finding.rule)} (${finding.help})${location(finding)}: ${code(finding.detail)}`;
+  `- ${code(finding.rule)} (${finding.help})${location(finding)}: ${code(finding.detail)}${finding.confidence === "low" ? " (low confidence)" : ""}`;
 
 const renderFindings = (findings: Finding[]): string[] => {
   const lines: string[] = [];

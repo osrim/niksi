@@ -1,4 +1,4 @@
-import type { Severity } from "./index.ts";
+import type { Confidence, Severity } from "./index.ts";
 
 const STRENGTH: Severity[] = ["info", "warn", "critical"];
 
@@ -14,3 +14,12 @@ export const strongest = <T extends { severity: Severity }>(found: readonly T[])
     (best, next) => (!best || stronger(next.severity, best.severity) ? next : best),
     undefined,
   );
+
+const CONFIDENCE: Confidence[] = ["low", "medium", "high"];
+
+export const lowerConfidence = (confidence: Confidence): Confidence =>
+  CONFIDENCE[Math.max(CONFIDENCE.indexOf(confidence) - 1, 0)]!;
+
+// The severity a finding shows and gates with.
+export const gated = (severity: Severity, confidence: Confidence): Severity =>
+  severity === "critical" && confidence === "low" ? "warn" : severity;

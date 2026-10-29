@@ -1,8 +1,8 @@
 import { lineAt } from "../skill/text.ts";
 import type { ProseJudge } from "./context.ts";
-import type { Finding, Severity } from "./index.ts";
+import type { Confidence, Finding, Severity } from "./index.ts";
 import { matchDetail } from "./redact.ts";
-import { lower, strongest } from "./severity.ts";
+import { gated, lower, strongest } from "./severity.ts";
 
 const AUDIENCE = String.raw`(?:user|person|human|operator|requester)\b(?!['’]s\b)`;
 const GAP = String.raw`[^.!?\n]{0,80}?`;
@@ -52,33 +52,45 @@ export const injections = (text: string): Injection[] =>
   ).toSorted((a, b) => a.index - b.index);
 
 export interface InjectionContext extends ProseJudge {
+  // The rule's own confidence.
+  confidence: Confidence;
   hidden: (index: number) => boolean;
-  // The skill has a network, credential, persistence, or money finding.
-  concealing: boolean;
+  // The confidence a network, credential, persistence, or money finding gives a concealment phrase.
+  concealing: Confidence | undefined;
   dangerNear: (line: number) => boolean;
 }
 
-// The negation in "do not tell the user" is the signal, so only an override reads prohibitions.
-const severityOf = (
+// The confidence of the partner that raises the phrase to critical, if any.
+const escalation = (
   { kind, index }: Injection,
   line: number,
   context: InjectionContext,
-): { severity: Severity; quiet: boolean } => {
-  if (kind === "override" && context.afterProhibition(index)) {
-    return { severity: "info", quiet: true };
+): Confidence | undefined => {
+  if (kind === "concealment")
+    return context.hidden(index) ? context.confidence : context.concealing;
+  return kind === "bypass" && context.dangerNear(line) ? context.confidence : undefined;
+};
+
+// The negation in "do not tell the user" is the signal, so only an override reads prohibitions.
+const severityOf = (
+  injection: Injection,
+  line: number,
+  context: InjectionContext,
+): { severity: Severity; confidence: Confidence; quiet: boolean } => {
+  if (injection.kind === "override" && context.afterProhibition(injection.index)) {
+    return { severity: "info", confidence: context.confidence, quiet: true };
   }
-  const combined =
-    kind === "concealment"
-      ? context.concealing || context.hidden(index)
-      : kind === "bypass" && context.dangerNear(line);
-  const severity = combined ? "critical" : "warn";
-  return { severity: context.demoted(index) ? lower(severity) : severity, quiet: false };
+  const raised = escalation(injection, line, context);
+  const confidence = raised ?? context.confidence;
+  const severity = raised ? "critical" : "warn";
+  const judged = context.demoted(injection.index) ? lower(severity) : severity;
+  return { severity: gated(judged, confidence), confidence, quiet: false };
 };
 
 export const promptInjection = (
   text: string,
   context: InjectionContext,
-): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
+): Pick<Finding, "severity" | "confidence" | "line" | "detail"> | undefined => {
   const found = injections(text).map((injection) => {
     const line = lineAt(text, injection.index);
     return Object.assign(injection, { line }, severityOf(injection, line, context));
@@ -87,6 +99,7 @@ export const promptInjection = (
   if (!best) return undefined;
   return {
     severity: best.severity,
+    confidence: best.confidence,
     line: best.line,
     detail: matchDetail(best.phrase, best.quiet, found.length),
   };

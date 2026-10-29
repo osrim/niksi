@@ -50,6 +50,9 @@ const sectionTitle = (severity: Severity, bucket: Finding[]): string =>
     ? `${plural(bucket.length, "critical finding")}`
     : plural(bucket.length, `${severity} finding`);
 
+const detailOf = (finding: Finding): string =>
+  finding.confidence === "low" ? `${finding.detail}${dim(" (low confidence)")}` : finding.detail;
+
 const locationOf = (finding: Finding): string =>
   finding.file ? (finding.line ? `${finding.file}:${finding.line}` : finding.file) : "";
 
@@ -73,7 +76,8 @@ export const renderFindings = (name: string, findings: Finding[]): string => {
         const where = locationOf(finding);
         const shown = where === previous ? "" : where;
         previous = where;
-        lines.push(where ? `    ${pad(shown, width)}  ${finding.detail}` : `    ${finding.detail}`);
+        const detail = detailOf(finding);
+        lines.push(where ? `    ${pad(shown, width)}  ${detail}` : `    ${detail}`);
       }
     }
   }

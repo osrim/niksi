@@ -20,6 +20,16 @@ Three commands scan:
 
 A skill you decline is skipped. The other skills in the batch still install.
 
+## Confidence
+
+Each finding also has a confidence: `high`, `medium`, or `low`. Severity says how much harm a match can do. Confidence says how sure the scan is that the match means it.
+
+- The `prompt-injection`, `remote-instructions`, `credential-disclosure`, and `money-movement` rules read the intent of prose. Their findings start at `medium`.
+- Every other rule starts at `high`.
+- When a partner rule raises a finding to `critical` from another file of the skill, the finding has one level less confidence than its rule. Only a [concealment phrase](#text-patterns) takes partners from other files.
+
+A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes` accepts it. Its detail ends with `(low confidence)`. `nik audit --json` gives every finding a `confidence` field.
+
 `add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered or recorded in the lockfile.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review.
@@ -145,7 +155,8 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | Any other `rm -r` | `info` |
 | A detached or silenced process, when the same file has a `warn` or `critical` `curl-pipe-shell`, `base64-exec`, or `persistence` match | `critical` |
 | Any other detached or silenced process | `warn` |
-| A concealment phrase, when the skill also has a `warn` or `critical` network, credential, persistence, or money finding, or when the phrase is in hidden text | `critical` |
+| A concealment phrase, when the same file also has a `warn` or `critical` network, credential, persistence, or money finding, or when the phrase is in hidden text | `critical` |
+| A concealment phrase, when only another file of the skill has such a finding | `warn`, with `low` [confidence](#confidence) |
 | An approval-bypass phrase within three lines of a `warn` or `critical` `money-movement`, `persistence`, `destructive`, or `curl-pipe-shell` match in the same file | `critical` |
 | Any other concealment or approval-bypass phrase, and "ignore previous instructions" | `warn` |
 | A sentence that fetches a URL and obeys what it says, with `before every`, `before each`, or `always`, or in hidden text | `critical` |
@@ -174,7 +185,7 @@ The `prompt-injection` rule reads every text file, code included. Each phrase st
 - `skip`, `bypass`, or `disable` the confirmation, approval, or prompt.
 - `auto-approve`, `auto_confirm`, `autoExecute`, and other spellings of `auto` with `approve`, `confirm`, or `execute`.
 
-A network finding is `curl-pipe-shell`, `exfil-domain`, or `remote-instructions`. A credential finding is `credential-paths`, `credential-disclosure`, `env-secrets`, `embedded-secret`, or `url-credentials`. A finding inside [hidden text](#hidden-text) counts too.
+A network finding is `curl-pipe-shell`, `exfil-domain`, or `remote-instructions`. A credential finding is `credential-paths`, `credential-disclosure`, `env-secrets`, `embedded-secret`, or `url-credentials`. A finding inside [hidden text](#hidden-text) counts too, as a finding of the file that holds the hidden text.
 
 A match in Markdown prose or inline code drops one level, to no lower than `info`, when the file is in a `references`, `docs`, or `examples` directory, or when the nearest visible heading above it names a demo, a reference, or an anti-pattern. A heading such as `## Examples` does not count. Code blocks, frontmatter, and hidden text keep the full severity, and so do invisible characters and hidden text findings. A match drops at most one level, even when it is a comment or both conditions apply.
 

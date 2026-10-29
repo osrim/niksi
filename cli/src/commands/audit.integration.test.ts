@@ -244,6 +244,7 @@ test("audit --json writes findings per skill and nothing else", async () => {
       findings: [
         {
           severity: "warn",
+          confidence: "medium",
           rule: "prompt-injection",
           help: "asks the agent to hide actions",
           file: "SKILL.md",

@@ -11,6 +11,8 @@ const scan = (lines: string[], partners: { line: number }[] = []) => {
 
 const severity = (...lines: string[]) => scan(lines)?.severity;
 
+const options = (count: number) => Array.from({ length: count }, (_, i) => `  opt${i}: ${i},`);
+
 test("a detached or silenced background process is warn", () => {
   expect(scan(["nohup python3 /tmp/helper.py > /dev/null 2>&1 &"])).toEqual({
     severity: "warn",
@@ -41,6 +43,12 @@ test("Python and JavaScript detach or silence a child", () => {
     "warn",
   );
   expect(severity("const child = spawn(cmd, args);", "child.unref();")).toBe("warn");
+  expect(severity("const child = spawn(cmd, args, {", ...options(6), "});", "child.unref();")).toBe(
+    "warn",
+  );
+  expect(
+    severity("const child = spawn(cmd, args, {", ...options(20), "});", "child.unref();"),
+  ).toBeUndefined();
   expect(severity("setTimeout(tick, 1000).unref();")).toBeUndefined();
   expect(severity("spawn(cmd, args, { detached: true });")).toBeUndefined();
 });

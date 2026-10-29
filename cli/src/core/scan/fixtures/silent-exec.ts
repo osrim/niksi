@@ -20,6 +20,23 @@ export default [
     fire: [{ severity: "critical", line: 2 }],
   },
   {
+    name: "a child unreferenced after a multiline spawn",
+    path: "scripts/start.js",
+    content: [
+      'const child = spawn("node", ["worker.js"], {',
+      '  cwd: "/tmp",',
+      "  env: {},",
+      "  shell: false,",
+      "  windowsHide: true,",
+      "  timeout: 0,",
+      '  argv0: "node",',
+      "});",
+      "child.unref();",
+      "",
+    ].join("\n"),
+    fire: [{ severity: "warn", line: 9, detail: "child.unref();" }],
+  },
+  {
     name: "stderr discarded in the foreground",
     path: "SKILL.md",
     content: entry("npm test 2>/dev/null || true"),

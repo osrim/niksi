@@ -45,10 +45,13 @@ const detaches = (statement: Statement): boolean =>
 
 const DEVNULL = String.raw`\s*=\s*(?:subprocess\.)?DEVNULL\b`;
 const NEARBY = 5;
+// A multiline options object and the child's event handlers can sit between `spawn(` and `.unref()`.
+const AFTER_SPAWN = 20;
 
 interface Pairing {
   anchor: RegExp;
   partner: RegExp;
+  within: number;
   // The partner may come before the anchor, but not after it.
   before?: boolean;
 }
@@ -57,9 +60,19 @@ const PAIRINGS: Pairing[] = [
   {
     anchor: new RegExp(`\\bstdout${DEVNULL}`, "gu"),
     partner: new RegExp(`\\bstderr${DEVNULL}`, "gu"),
+    within: NEARBY,
   },
-  { anchor: /\bdetached\s*:\s*true\b/gu, partner: /\bstdio\s*:\s*["']ignore["']/gu },
-  { anchor: /\.unref\(\s*\)/gu, partner: /\b(?:spawn|fork)\s*\(/gu, before: true },
+  {
+    anchor: /\bdetached\s*:\s*true\b/gu,
+    partner: /\bstdio\s*:\s*["']ignore["']/gu,
+    within: NEARBY,
+  },
+  {
+    anchor: /\.unref\(\s*\)/gu,
+    partner: /\b(?:spawn|fork)\s*\(/gu,
+    within: AFTER_SPAWN,
+    before: true,
+  },
 ];
 const ALONE = /\bstart_new_session\s*=\s*True\b/gu;
 
@@ -82,9 +95,9 @@ const textMatches = (text: string, pattern: RegExp): TextMatch[] =>
 
 const languageMatches = (text: string): TextMatch[] => [
   ...textMatches(text, ALONE),
-  ...PAIRINGS.flatMap(({ anchor, partner, before }) =>
+  ...PAIRINGS.flatMap(({ anchor, partner, within, before }) =>
     combine(textMatches(text, anchor), textMatches(text, partner), {
-      within: NEARBY,
+      within,
       related: (a, p) => !before || p.line <= a.line,
     }).map((pair) => pair.anchor),
   ),

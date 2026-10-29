@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Glob } from "bun";
-import { MODE_FILE, readDirFiles } from "../skill/files.ts";
+import { decodeText, MODE_FILE, readDirFiles, type SkillFile } from "../skill/files.ts";
 import { runScanners, type Finding, type Severity } from "./index.ts";
-import { RULES } from "./rules.ts";
+import { keywordMiss, PATTERN_RULES, RULES } from "./rules.ts";
 import type { Case, Expected } from "./test-fixture.ts";
 import { SYNTHETIC } from "./test-secrets.ts";
 
@@ -103,9 +103,10 @@ test("no finding detail holds a synthetic secret", () => {
 });
 
 const corpus = join(import.meta.dir, "..", "..", "..", "testdata", "benign-skills");
+const corpusSkills = [...new Glob("*/*/SKILL.md").scanSync(corpus)].map(dirname).toSorted();
 
 test("the benign corpus of published skills produces no critical finding", async () => {
-  const skills = [...new Glob("*/*/SKILL.md").scanSync(corpus)].map(dirname).toSorted();
+  const skills = corpusSkills;
   expect(skills).toHaveLength(27);
   const criticals: string[] = [];
   const counts = new Map<string, { rule: string; warn: number; info: number }>();
@@ -126,4 +127,26 @@ test("the benign corpus of published skills produces no critical finding", async
   }
   console.table([...counts.values()].toSorted((a, b) => a.rule.localeCompare(b.rule)));
   expect(criticals).toEqual([]);
+});
+
+test("the keyword pre-filter skips only files the pattern rule would not match", async () => {
+  const files: SkillFile[] = [
+    ...fixtures.flatMap(({ cases }) =>
+      cases.map((c) => ({ path: c.path, content: Buffer.from(c.content), mode: MODE_FILE })),
+    ),
+    ...(await Promise.all(corpusSkills.map((skill) => readDirFiles(join(corpus, skill))))).flat(),
+  ];
+  let skipped = 0;
+  const wrong: string[] = [];
+  for (const file of files) {
+    const text = decodeText(file)?.text;
+    if (text === undefined) continue;
+    for (const rule of PATTERN_RULES) {
+      if (!keywordMiss(rule, text)) continue;
+      skipped++;
+      if (text.search(rule.pattern) !== -1) wrong.push(`${rule.rule}: ${file.path}`);
+    }
+  }
+  expect(wrong).toEqual([]);
+  expect(skipped).toBeGreaterThan(0);
 });

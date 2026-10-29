@@ -18,6 +18,7 @@ const empty = (over: Partial<UpdateReport> = {}): UpdateReport => ({
 
 const warnLink: Finding = {
   severity: "warn",
+  confidence: "medium",
   rule: "prompt-injection",
   help: "asks the agent to hide actions",
   file: "SKILL.md",
@@ -27,6 +28,7 @@ const warnLink: Finding = {
 
 const criticalHook: Finding = {
   severity: "critical",
+  confidence: "high",
   rule: "hooks",
   help: "runs a configured command",
   file: "hooks.json",
@@ -240,4 +242,24 @@ test("verdicts that stop before selection land in the report with their reason",
       to: expect.objectContaining({ commit: NEW }),
     },
   ]);
+});
+
+test("a low-confidence finding says so", () => {
+  const markdown = renderUpdateReport(
+    empty({
+      updated: [
+        {
+          name: "pdf",
+          from: { commit: OLD },
+          to: { commit: NEW },
+          stat: " SKILL.md | 1 +\n",
+          findings: [{ ...warnLink, confidence: "low" }],
+        },
+      ],
+    }),
+  );
+
+  expect(markdown).toContain(
+    "- `prompt-injection` (asks the agent to hide actions) in `SKILL.md:7`: `do not tell the user` (low confidence)",
+  );
 });

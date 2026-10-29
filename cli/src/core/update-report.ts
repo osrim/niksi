@@ -64,8 +64,11 @@ const revision = (entry: Labelled): string => {
 const location = ({ file, line }: Finding): string =>
   file ? ` in ${code(line ? `${file}:${line}` : file)}` : "";
 
+const confidenceNote = ({ confidence }: Finding): string =>
+  confidence === "low" ? " (low confidence)" : "";
+
 const findingLine = (finding: Finding): string =>
-  `- ${code(finding.rule)} (${finding.help})${location(finding)}: ${code(finding.detail)}`;
+  `- ${code(finding.rule)} (${finding.help})${location(finding)}: ${code(finding.detail)}${confidenceNote(finding)}`;
 
 const renderFindings = (findings: Finding[]): string[] => {
   const lines: string[] = [];

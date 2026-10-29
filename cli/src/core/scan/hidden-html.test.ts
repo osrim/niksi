@@ -7,7 +7,7 @@ const judge = (text: string, scan: (body: string) => Finding[] = () => []) =>
   hiddenHtml(text, mapMarkdown(text).hidden, scan);
 
 const match = (severity: Finding["severity"]): Finding[] => [
-  { rule: "prompt-injection", help: "", severity, detail: "" },
+  { rule: "prompt-injection", help: "", severity, confidence: "medium", detail: "" },
 ];
 
 test("a warn match inside hidden text is critical and names its rule", () => {

@@ -4,9 +4,9 @@ import { silentExec } from "./silent-exec.ts";
 
 const noProseContext = { afterProhibition: () => false, demoted: () => false };
 
-const scan = (lines: string[], partners: { line: number }[] = []) => {
+const scan = (lines: string[], escalated = false) => {
   const text = lines.join("\n");
-  return silentExec(text, shellStatements(text, false), noProseContext, () => partners);
+  return silentExec(text, shellStatements(text, false), noProseContext, () => escalated);
 };
 
 const severity = (...lines: string[]) => scan(lines)?.severity;
@@ -54,9 +54,9 @@ test("Python and JavaScript detach or silence a child", () => {
 });
 
 test("a download, decode, or persistence match anywhere in the file makes it critical", () => {
-  expect(scan(["nohup ./worker &"], [{ line: 40 }])?.severity).toBe("critical");
+  expect(scan(["nohup ./worker &"], true)?.severity).toBe("critical");
 });
 
 test("a comment drops one level", () => {
-  expect(scan(["# nohup ./worker &"], [{ line: 3 }])?.severity).toBe("warn");
+  expect(scan(["# nohup ./worker &"], true)?.severity).toBe("warn");
 });

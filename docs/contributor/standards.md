@@ -71,6 +71,8 @@ A silent case states the highest severity it may produce. A case marked `known` 
 
 No rule may report `critical` on the benign corpus in `cli/testdata/benign-skills/`.
 
+A pattern rule may list `keywords`: literal strings that every match contains, ignoring case. A file without any keyword skips the rule, so a keyword list must never change a finding. The fixture test checks this on every fixture and the benign corpus.
+
 External audit services are an extra gate input, never a replacement for these rules.
 
 ## Supply chain

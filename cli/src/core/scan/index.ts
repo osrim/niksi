@@ -7,8 +7,11 @@ import { rank } from "./severity.ts";
 
 export type Severity = "info" | "warn" | "critical";
 
+export type Confidence = "low" | "medium" | "high";
+
 export interface Finding {
   severity: Severity;
+  confidence: Confidence;
   rule: Rule;
   help: string;
   file?: string;

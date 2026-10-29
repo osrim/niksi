@@ -1,6 +1,12 @@
 import type { ProseJudge } from "./context.ts";
 import type { Finding } from "./index.ts";
-import { oncePerLine, patternMatch, strongestLine } from "./line-match.ts";
+import {
+  oncePerLine,
+  patternMatch,
+  statementMatch,
+  strongestLine,
+  type LineMatch,
+} from "./line-match.ts";
 import type { Statement } from "./shell.ts";
 
 const PATTERNS = [
@@ -16,6 +22,19 @@ const PATTERNS = [
   /\b(?:powershell|pwsh)(?:\.exe)?\b[^\n]*?\s-(?:e|enc|encodedcommand)\s+["']?[a-z\d+/]{20,}/giu,
 ];
 
+// Quoting such as n'c' hides a command from the raw text, so each command's unquoted words match too.
+const commandMatches = (statements: Statement[], judge: ProseJudge): LineMatch[] =>
+  statements.flatMap((statement) =>
+    statement.commands.flatMap((command) => {
+      const words = command.words.join(" ");
+      return PATTERNS.flatMap((pattern) =>
+        Array.from(words.matchAll(pattern), (match) =>
+          statementMatch(statement, judge, "critical", match[0]),
+        ),
+      );
+    }),
+  );
+
 export const reverseShell = (
   text: string,
   statements: Statement[],
@@ -23,10 +42,11 @@ export const reverseShell = (
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const at = patternMatch(text, statements, judge);
   return strongestLine(
-    oncePerLine(
-      PATTERNS.flatMap((pattern) =>
+    oncePerLine([
+      ...PATTERNS.flatMap((pattern) =>
         Array.from(text.matchAll(pattern), (match) => at(match.index, match[0], "critical")),
       ),
-    ),
+      ...commandMatches(statements, judge),
+    ]),
   );
 };

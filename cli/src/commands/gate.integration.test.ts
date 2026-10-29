@@ -126,4 +126,10 @@ test("--yes without a terminal accepts a critical match with low confidence as w
 
   expect(result.exitCode).toBe(0);
   expect(linked(root, "quiet")).toBe(true);
+  expect(await recorded(root)).toEqual(["quiet"]);
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toEqual([
+    expect.objectContaining({ name: "quiet", path: "skills/quiet", agents: ["claude"] }),
+  ]);
 });

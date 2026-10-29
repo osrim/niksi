@@ -71,3 +71,10 @@ test("a relative target and an autolink are not compared", () => {
 test("a reference-style link compares its definition", () => {
   expect(check("[acme.dev][1]\n\n[1]: https://evil.dev\n")?.severity).toBe("warn");
 });
+
+test("a long password in the target is masked before the detail is shortened", () => {
+  const password = "p".repeat(240);
+  const detail = check(`[github.com/acme](https://user:${password}@evil.dev/install.sh)`)?.detail;
+  expect(detail).toStartWith("github.com/acme → https://user:********@evil.dev/install.sh");
+  expect(detail).not.toContain("pppp");
+});

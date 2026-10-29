@@ -1,7 +1,7 @@
 import { LinkifyIt } from "linkify-it";
 import MarkdownIt from "markdown-it";
 import type { Finding, Severity } from "./index.ts";
-import { matchDetail } from "./redact.ts";
+import { matchDetail, redact } from "./redact.ts";
 import { strongest } from "./severity.ts";
 
 const markdown = new MarkdownIt();
@@ -97,6 +97,6 @@ export const linkMismatch = (
   return {
     severity: best.severity,
     line: best.line,
-    detail: matchDetail(`${best.label.trim()} → ${best.href}`, false, found.length),
+    detail: matchDetail(redact(`${best.label.trim()} → ${best.href}`), false, found.length),
   };
 };

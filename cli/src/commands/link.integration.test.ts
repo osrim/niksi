@@ -326,3 +326,65 @@ test("list --json reports link and agent-copy entries, modified and missing", as
     links: [],
   });
 });
+
+test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {
+  const forge = "https://github.com/o/hidden-skills";
+  const repo = join(tmp, "hidden-skills");
+  await makeSkill(join(repo, "cursor-plugin", "skills"), "x");
+  await makeSkill(join(repo, "plugin", "skills"), "x");
+  await makeSkill(join(repo, ".claude", "skills"), "x", "Hidden copy.\n");
+  await initRepo(repo);
+  await commitAll(repo, "init");
+  const shorthand = await project("hidden-shorthand");
+  const forgeProject = await project("hidden-forge");
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${pathToFileURL(repo).href}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    const flags = ["-p", "--agent", "claude", "--yes"];
+    const added = await runCli(shorthand, "add", "o/hidden-skills/.claude/skills/x", ...flags);
+    expect(added.exitCode).toBe(0);
+    const { x } = await readSkills(shorthand);
+    expect(x).toMatchObject({
+      source: forge,
+      path: ".claude/skills/x",
+      root: ".claude/skills/x",
+      track: "auto",
+    });
+    const linked = join(shorthand, ".claude", "skills", "x", "SKILL.md");
+    expect(await readFile(linked, "utf8")).toContain("Hidden copy.");
+    const listed = await runCli(shorthand, "list", "--json");
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout).skills).toEqual([
+      expect.objectContaining({ name: "x", path: ".claude/skills/x", root: ".claude/skills/x" }),
+    ]);
+
+    const viaForge = await runCli(
+      forgeProject,
+      "add",
+      `${forge}/tree/main/.claude/skills/x`,
+      ...flags,
+    );
+    expect(viaForge.exitCode).toBe(0);
+    expect((await readSkills(forgeProject)).x).toEqual(x!);
+
+    await rm(join(shorthand, ".claude", "skills", "x"));
+    const installed = await runCli(shorthand, "install");
+    expect(installed.exitCode).toBe(0);
+    expect(await readFile(linked, "utf8")).toContain("Hidden copy.");
+
+    await makeSkill(join(repo, ".claude", "skills"), "x", "Hidden copy, version two.\n");
+    const upstream = await commitAll(repo, "version two");
+    const updated = await runCli(shorthand, "update", "--all", "--yes");
+    expect(updated.exitCode).toBe(0);
+    expect((await readSkills(shorthand)).x).toMatchObject({
+      commit: upstream,
+      path: ".claude/skills/x",
+      root: ".claude/skills/x",
+    });
+    expect(await readFile(linked, "utf8")).toContain("version two");
+  } finally {
+    restore();
+  }
+});

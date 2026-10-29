@@ -179,7 +179,7 @@ The `embedded-secret` rule looks for tokens and private keys that a skill ships.
 
 - AWS access keys, and GitHub, GitLab, Slack, npm, PyPI, Hugging Face, and DigitalOcean tokens.
 - Anthropic, OpenAI, Google, and SendGrid API keys, and Stripe live keys.
-- Telegram bot tokens with `telegram` or `/bot` in the 40 characters before them, and Discord bot tokens assigned to a name with `discord`.
+- Telegram bot tokens with `telegram` or `/bot` in the 40 characters before or after them, and Discord bot tokens assigned to a name with `discord`.
 - JWTs whose first two parts decode to JSON.
 - Private key blocks with at least 64 characters of body.
 

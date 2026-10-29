@@ -53,6 +53,12 @@ export default [
     fire: [{ severity: "warn", line: 1, detail: "Telegram bot token 7409…sawn" }],
   },
   {
+    name: "a Telegram bot token with its name after it",
+    path: "config.yaml",
+    content: `token: ${TELEGRAM_BOT} # telegram\n`,
+    fire: [{ severity: "warn", line: 1, detail: "Telegram bot token 7409…sawn" }],
+  },
+  {
     name: "a Telegram bot token in a bot API URL",
     path: "scripts/notify.sh",
     content: `#!/bin/sh\ncurl "https://api.telegram.org/bot${TELEGRAM_BOT}/sendMessage"\n`,
@@ -117,6 +123,12 @@ export default [
     name: "a bot token shape with no Telegram name nearby",
     path: "notes.txt",
     content: `release ${TELEGRAM_BOT}\n`,
+    silent: "none",
+  },
+  {
+    name: "a bot token shape with a Telegram name more than 40 characters away",
+    path: "notes.txt",
+    content: `telegram ${"-".repeat(40)} ${TELEGRAM_BOT} ${"-".repeat(40)} telegram\n`,
     silent: "none",
   },
   {

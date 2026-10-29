@@ -20,6 +20,13 @@ const shannon = (text: string): number => {
   );
 };
 
+const CUE_DISTANCE = 40;
+
+// Each side is tested alone, so a cue cannot be spelled across the token.
+const hasCue = (near: RegExp, text: string, index: number, length: number): boolean =>
+  near.test(text.slice(Math.max(0, index - CUE_DISTANCE), index)) ||
+  near.test(text.slice(index + length, index + length + CUE_DISTANCE));
+
 interface Secret {
   index: number;
   line: number;
@@ -33,7 +40,7 @@ const tokens = (text: string): Secret[] =>
     [...text.matchAll(pattern)].flatMap((match) => {
       const found = match[1]!;
       const index = match.index + match[0].indexOf(found);
-      if (near && !near.test(text.slice(Math.max(0, index - 40), index))) return [];
+      if (near && !hasCue(near, text, index, found.length)) return [];
       if (shannon(found) <= entropy || isPlaceholder(found) || valid?.(found) === false) return [];
       const line = lineAt(text, index);
       return [{ index, line, lastLine: line, detail: `${label} ${maskToken(found)}` }];

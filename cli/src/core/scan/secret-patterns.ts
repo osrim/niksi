@@ -8,7 +8,7 @@ export interface TokenRule {
   pattern: RegExp;
   // A token at or below this Shannon entropy is skipped.
   entropy?: number;
-  // The token counts only when this matches the 40 characters before it.
+  // The token counts only when this matches the 40 characters before or after it.
   near?: RegExp;
   valid?: (token: string) => boolean;
 }

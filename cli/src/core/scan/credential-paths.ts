@@ -85,7 +85,6 @@ export const credentialPaths = (
   { afterProhibition, demoted }: ProseJudge,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = statements.flatMap((statement) => {
-    const setup = KEY_SETUP.test(statement.text);
     const prose = statement.kind === "prose";
     const prohibited = prose && afterProhibition(statement.index);
     const lowered = prose && demoted(statement.index);
@@ -94,7 +93,7 @@ export const credentialPaths = (
       return lowered ? lower(severity) : severity;
     };
     return statement.commands.flatMap((command) =>
-      commandMatches(statement, command, setup).map((match) => ({
+      commandMatches(statement, command, KEY_SETUP.test(command.text)).map((match) => ({
         path: match.path,
         line: statement.line,
         prohibited,

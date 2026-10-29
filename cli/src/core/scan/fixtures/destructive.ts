@@ -68,6 +68,30 @@ export default [
     fire: [{ severity: "info", line: 5, detail: "rm -rf node_modules." }],
   },
   {
+    name: "zeroes a disk",
+    path: "SKILL.md",
+    content: entry("dd if=/dev/zero of=/dev/sda"),
+    fire: [{ severity: "critical", line: 5 }],
+  },
+  {
+    name: "creates a filesystem on a partition",
+    path: "scripts/format.sh",
+    content: "mkfs.ext4 /dev/sda1\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "a fork bomb",
+    path: "scripts/run.sh",
+    content: ":(){ :|:& };:\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "discards local commits",
+    path: "SKILL.md",
+    content: entry("git reset --hard origin/main"),
+    fire: [{ severity: "warn", line: 5 }],
+  },
+  {
     name: "a variable guarded against empty",
     path: "scripts/clean.sh",
     content: '#!/bin/sh\nrm -rf "${STEAMROOT:?}/"*\n',

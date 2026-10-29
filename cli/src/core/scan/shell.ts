@@ -47,7 +47,7 @@ const WRAPPERS = new Map<string, Set<string>>([
 
 const ASSIGNMENT = /^[A-Za-z_]\w*=/u;
 
-const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers"> => {
+export const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers"> => {
   const wrappers: string[] = [];
   let i = 0;
   while (i < words.length) {

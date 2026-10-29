@@ -19,6 +19,7 @@ import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
 import { demotes, type ProseJudge } from "./context.ts";
 import { dependencySource } from "./dependency-source.ts";
+import { destructive, destructiveMatches } from "./destructive.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
 import { invalidEncoding } from "./encoding.ts";
 import { isMedia, misleadingExtension } from "./file-signature.ts";
@@ -60,7 +61,7 @@ export const RULES = {
   "embedded-secret": { help: "ships a token or private key" },
   "url-credentials": { help: "puts a password in a URL or header" },
   "prompt-injection": { help: "asks the agent to hide actions" },
-  destructive: { help: "recursive delete" },
+  destructive: { help: "destroys data or loosens permissions" },
   persistence: { help: "installs something that runs again later" },
   "silent-exec": { help: "starts a detached or silenced process" },
   "dependency-source": { help: "installs from a source it picks, or skips TLS checks" },
@@ -509,35 +510,6 @@ const settingsSeverity: Judge = (match, file, text) => {
   return isEntry(file.path) && OPENS_WITH_WRITE.test(sentence) ? "critical" : "warn";
 };
 
-// The idea of SC2114 and SC2115. No ShellCheck code is copied: ShellCheck is GPL-3.0.
-const IMPORTANT_PATHS = new Set(
-  "/ ~ $HOME ${HOME} /bin /boot /dev /etc /home /lib /lib64 /media /mnt /usr /usr/bin /usr/local /var /Users /System /Library".split(
-    " ",
-  ),
-);
-const UNGUARDED_VAR_DIR = /^\$\{?\w+\}?\/\*?$/u;
-
-const isImportantTarget = (token: string): boolean => {
-  const target = token.replaceAll(/["']/gu, "").replace(/(?<=.)[.,:]+$/u, "");
-  return (
-    UNGUARDED_VAR_DIR.test(target) || IMPORTANT_PATHS.has(target.replace(/\/\*?$/u, "") || "/")
-  );
-};
-
-const deleteSeverity: Judge = ({ groups }) => {
-  const { sudo, flags = "", targets = "" } = groups ?? {};
-  if (!/(?:^|\s)(?:-[a-zA-Z]*[rR]|--recursive\b)/u.test(flags)) return undefined;
-  const important = targets.split(/\s+/u).filter(Boolean).some(isImportantTarget);
-  return sudo || important ? "critical" : "info";
-};
-
-const DESTRUCTIVE: PatternRule = {
-  rule: "destructive",
-  severity: deleteSeverity,
-  pattern:
-    /\b(?<sudo>sudo(?:[ \t]+-\S*(?:[ \t]+[^\s-]\S*)??)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
-};
-
 const PATTERN_RULES: PatternRule[] = [
   { rule: "exfil-domain", severity: exfilSeverity, pattern: new RegExp(EXFIL_HOST, "giu") },
   {
@@ -551,7 +523,6 @@ const PATTERN_RULES: PatternRule[] = [
     severity: envSeverity,
     pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
   },
-  DESTRUCTIVE,
 ];
 
 const lowerIf = (demoted: boolean, severity: Severity): Severity =>
@@ -867,6 +838,10 @@ const persistenceText = textRule("persistence", (file, text) =>
   persistence(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
 
+const destructiveText = textRule("destructive", (file, text) =>
+  destructive(text, shellStatements(text, isProse(file.path)), proseContext(file, text)),
+);
+
 const silentExecText = textRule("silent-exec", (file, text) => {
   const statements = shellStatements(text, isProse(file.path));
   const context = proseContext(file, text);
@@ -916,6 +891,7 @@ const TEXT_SCANNERS = [
   embeddedSecretText,
   urlCredentialText,
   persistenceText,
+  destructiveText,
   silentExecText,
   dependencySourceText,
   installHookText,
@@ -946,10 +922,7 @@ const dangerLines = (file: SkillFile, text: string): { line: number }[] => {
       hit.statements.map(({ line }) => ({ severity, line })),
     ),
     ...persistenceMatches(statements, context),
-    ...patternMatches(DESTRUCTIVE, file, text, context).map(({ match, severity }) => ({
-      severity,
-      line: lineAt(text, match.index),
-    })),
+    ...destructiveMatches(text, statements, context),
     ...judgePhrases(text, moneyPhrases(text, sentences), context),
   ].flatMap(({ severity, line }) => (severity === "info" ? [] : [{ line }]));
 };

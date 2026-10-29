@@ -1,5 +1,4 @@
-import { lineAt } from "../skill/text.ts";
-import { combine } from "./combine.ts";
+import { lineOf, lineStarts } from "../skill/text.ts";
 import type { Finding, Severity } from "./index.ts";
 import { isPlaceholder, maskToken, TOKEN_RULES } from "./secret-patterns.ts";
 import { strongest } from "./severity.ts";
@@ -35,19 +34,19 @@ interface Secret {
   detail: string;
 }
 
-const tokens = (text: string): Secret[] =>
+const tokens = (text: string, lineAt: (index: number) => number): Secret[] =>
   TOKEN_RULES.flatMap(({ label, pattern, entropy = 0, near, valid }) =>
     [...text.matchAll(pattern)].flatMap((match) => {
       const found = match[1]!;
       const index = match.index + match[0].indexOf(found);
       if (near && !hasCue(near, text, index, found.length)) return [];
       if (shannon(found) <= entropy || isPlaceholder(found) || valid?.(found) === false) return [];
-      const line = lineAt(text, index);
+      const line = lineAt(index);
       return [{ index, line, lastLine: line, detail: `${label} ${maskToken(found)}` }];
     }),
   );
 
-const privateKeys = (text: string): Secret[] =>
+const privateKeys = (text: string, lineAt: (index: number) => number): Secret[] =>
   [...text.matchAll(PRIVATE_KEY)].flatMap((match) => {
     const body = match[2]!;
     if (body.replaceAll(/\s/gu, "").length < KEY_BODY_LENGTH || ELIDED_KEY.test(body)) return [];
@@ -55,8 +54,8 @@ const privateKeys = (text: string): Secret[] =>
     return [
       {
         index: match.index,
-        line: lineAt(text, match.index),
-        lastLine: lineAt(text, match.index + match[0].length),
+        line: lineAt(match.index),
+        lastLine: lineAt(match.index + match[0].length),
         detail: `${match[1]} block (${lines} lines)`,
       },
     ];
@@ -64,19 +63,34 @@ const privateKeys = (text: string): Secret[] =>
 
 const SEND_DISTANCE = 5;
 
+// `sends` is in line order. A tie goes to the earlier send.
+const nearestSend = (sends: readonly number[], line: number): number | undefined => {
+  let lo = 0;
+  let hi = sends.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (sends[mid]! < line) lo = mid + 1;
+    else hi = mid;
+  }
+  const before = sends[lo - 1];
+  const after = sends[lo];
+  const nearest =
+    before !== undefined && (after === undefined || line - before <= after - line) ? before : after;
+  return nearest !== undefined && Math.abs(nearest - line) <= SEND_DISTANCE ? nearest : undefined;
+};
+
 export const embeddedSecrets = (
   text: string,
   sendLines: readonly number[],
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const found = [...tokens(text), ...privateKeys(text)].toSorted((a, b) => a.index - b.index);
-  const ends = found.flatMap((secret) => [
-    { secret, line: secret.line },
-    { secret, line: secret.lastLine },
-  ]);
-  const sends = sendLines.map((line) => ({ line }));
-  const pairs = combine(ends, sends, { within: SEND_DISTANCE });
+  const starts = lineStarts(text);
+  const lineAt = (index: number): number => lineOf(starts, index) + 1;
+  const found = [...tokens(text, lineAt), ...privateKeys(text, lineAt)].toSorted(
+    (a, b) => a.index - b.index,
+  );
+  const sends = sendLines.toSorted((a, b) => a - b);
   const judged = found.map((secret) => {
-    const send = pairs.find(({ anchor }) => anchor.secret === secret)?.partner.line;
+    const send = nearestSend(sends, secret.line) ?? nearestSend(sends, secret.lastLine);
     const severity: Severity = send === undefined ? "warn" : "critical";
     return { secret, severity, send };
   });

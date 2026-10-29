@@ -32,6 +32,12 @@ export default [
     ],
   },
   {
+    name: "an exfiltration host named only in the query",
+    path: "SKILL.md",
+    content: entry("[acme.dev](https://evil.invalid/x?u=webhook.site)"),
+    silent: "warn",
+  },
+  {
     name: "a subdomain and plain link text",
     path: "SKILL.md",
     content: entry("[docs.acme.dev](https://acme.dev/docs) and [Acme docs](https://acme.dev/docs)"),

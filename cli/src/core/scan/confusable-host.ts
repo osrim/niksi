@@ -12,7 +12,10 @@ const SCRIPTS = [
   ["Armenian", /\p{Script=Armenian}/u],
   ["Cherokee", /\p{Script=Cherokee}/u],
 ] as const;
-const LOOKALIKE = /[\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Armenian}\p{Script=Cherokee}]/u;
+const LOOKALIKE = new RegExp(
+  `[${SCRIPTS.map(([script]) => String.raw`\p{Script=${script}}`).join("")}]`,
+  "u",
+);
 const LATIN = /\p{Script=Latin}/u;
 const WORD = /[\p{L}\p{M}]+/gu;
 const PUNYCODE = /(?:^|[./])xn--/iu;
@@ -41,12 +44,13 @@ const mixedScripts = (word: string): string | undefined => {
 const unicodeLabel = (label: string): string =>
   PUNYCODE.test(label) ? domainToUnicode(label) || label : label;
 
-// Each host label and each word of the path is judged on its own.
+// A path word counts too: a GitHub owner such as `acme` names who serves the file.
 const urlHit = (url: string, index: number): Hit | undefined => {
   const host = HOST.exec(url);
   if (!host) return undefined;
   const labels = host[1]!.split(".").map(unicodeLabel);
-  const words = [...labels, ...(url.slice(host[0].length).match(WORD) ?? [])];
+  const path = url.slice(host[0].length).split(/[?#]/u, 1)[0]!;
+  const words = [...labels, ...(path.match(WORD) ?? [])];
   for (const word of words) {
     const mixed = mixedScripts(word);
     if (mixed)

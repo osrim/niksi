@@ -28,8 +28,8 @@ export interface InvisibleHit {
   severity: Severity;
   code: string;
   why?: string;
-  // A tag run's ASCII text, with control characters escaped.
-  tags?: string;
+  // A tag run's ASCII text, with control characters escaped, and its printable length.
+  tags?: { text: string; printable: number };
 }
 
 interface Hit extends InvisibleHit, Located {}
@@ -95,18 +95,24 @@ const charHits = (text: string): InvisibleHit[] =>
     return [{ index, count: 1, code: codeOf(cp), ...tier(text, index, ch) }];
   });
 
-const decodeTags = (codepoints: number[]): string =>
-  codepoints
-    .map((cp) => cp - 0xe0000)
-    .map((ascii) =>
-      ascii >= 0x20 && ascii < 0x7f
-        ? String.fromCharCode(ascii)
-        : `\\x${ascii.toString(16).toUpperCase().padStart(2, "0")}`,
+const isPrintable = (ascii: number): boolean => ascii >= 0x20 && ascii < 0x7f;
+
+const decodeTags = (codepoints: number[]): { text: string; printable: number } => {
+  const ascii = codepoints.map((cp) => cp - 0xe0000);
+  const text = ascii
+    .map((code) =>
+      isPrintable(code)
+        ? String.fromCharCode(code)
+        : `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`,
     )
     .join("");
+  return { text, printable: ascii.filter(isPrintable).length };
+};
 
 // A subdivision flag is a black flag, two to seven lowercase tag letters or digits, and a cancel tag.
 const FLAG_TAGS = /^[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{2,7}\u{E007F}$/u;
+
+export const TAG_TEXT = 60;
 
 const tagHits = (text: string): InvisibleHit[] =>
   [...text.matchAll(TAG_RUN)].flatMap(({ 0: run, index }) => {
@@ -115,11 +121,10 @@ const tagHits = (text: string): InvisibleHit[] =>
     if (before(text, index, /\u{1F3F4}$/u) && FLAG_TAGS.test(run)) return [];
     const tags = decodeTags(codepoints);
     const code = codepoints.length > 1 ? `${codeOf(codepoints[0]!)}…${codeOf(last)}` : codeOf(last);
-    const why = `tags decode to "${tags.slice(0, 60)}"`;
+    const why = `tags decode to "${tags.text.slice(0, TAG_TEXT)}"`;
     return [{ index, count: codepoints.length, code, severity: "critical", why, tags }];
   });
 
-// Tag runs and single characters that do not shape the visible text around them.
 export const invisibleHits = (text: string): InvisibleHit[] => [
   ...tagHits(text),
   ...charHits(text),

@@ -13,16 +13,19 @@ test("four escaped tag characters are critical and the detail decodes them", () 
 
 test("tag characters count across the file, and control tags show escaped", () => {
   const found = escapedInvisibles(
-    'a = "\\U000E0068\\U000E0001"\nb = "\\U000E0069" + "\\U000E0021"\n',
+    'a = "\\U000E0068\\U000E0001"\nb = "\\U000E0069" + "\\U000E0021\\U000E0021"\n',
   );
   expect(found?.severity).toBe("critical");
   expect(found?.detail).toBe(
-    '4 escaped invisible character(s): U+E0068…U+E0001, U+E0069, U+E0021 (tags decode to "h\\x01i!")',
+    '5 escaped invisible character(s): U+E0068…U+E0001, U+E0069, U+E0021…U+E0021 (tags decode to "h\\x01i!!")',
   );
 });
 
-test("three escaped tag characters stay at warn", () => {
+test("three printable tag characters stay at warn, however many control tags join them", () => {
   expect(escapedInvisibles('"\\u{E0069}\\u{E0067}\\u{E006E}"')?.severity).toBe("warn");
+  expect(escapedInvisibles('"\\u{E007F}\\u{E007F}\\u{E007F}\\u{E007F}\\u{E0069}"')?.severity).toBe(
+    "warn",
+  );
 });
 
 test("every escape form resolves its code point", () => {

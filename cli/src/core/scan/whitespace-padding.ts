@@ -7,7 +7,7 @@ const SNIPPET_LENGTH = 80;
 
 const BLANK = /^[ \t\r]*$/u;
 const PAD = new RegExp(String.raw`[ \t]{${PAD_WIDTH},}(?=\S)`, "gu");
-// Padding before a table border or a box-drawing character aligns columns.
+// Padding before a table border or a box-drawing character usually aligns columns.
 const ALIGNED = /^[|\u{2500}-\u{257F}]/u;
 
 interface Pad {
@@ -15,6 +15,7 @@ interface Pad {
   what: string;
   // The text the padding pushes out of view.
   pushed: string;
+  aligned: boolean;
 }
 
 const lineStarts = (lines: string[]): number[] => {
@@ -40,6 +41,7 @@ const gaps = (text: string, lines: string[]): Pad[] => {
     line: line + 1,
     what: `${count} blank lines`,
     pushed: text.slice(starts[line], starts[found[i + 1]?.line ?? lines.length]),
+    aligned: false,
   }));
 };
 
@@ -47,8 +49,14 @@ const runs = (lines: string[]): Pad[] =>
   lines.flatMap((line, i) =>
     [...line.matchAll(PAD)].flatMap(({ 0: run, index }) => {
       const pushed = line.slice(index + run.length);
-      if (ALIGNED.test(pushed)) return [];
-      return [{ line: i + 1, what: `${run.length} spaces or tabs`, pushed }];
+      return [
+        {
+          line: i + 1,
+          what: `${run.length} spaces or tabs`,
+          pushed,
+          aligned: ALIGNED.test(pushed),
+        },
+      ];
     }),
   );
 
@@ -56,15 +64,16 @@ const criticalRules = (found: Finding[]): string[] => [
   ...new Set(found.flatMap((f) => (f.severity === "critical" ? [f.rule] : []))),
 ];
 
-// `scan` runs the text rules over the pushed text. The first pad whose text has a critical match wins.
+// `scan` runs the text rules over the pushed text. The first pad whose text has a critical match
+// wins. Alignment counts only then.
 export const whitespacePadding = (
   text: string,
   scan: (pushed: string) => Finding[],
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const lines = text.split("\n");
   const pads = [...gaps(text, lines), ...runs(lines)].toSorted((a, b) => a.line - b.line);
-  if (pads.length === 0) return undefined;
-  let best = pads[0]!;
+  const plain = pads.filter((pad) => !pad.aligned);
+  let best = plain[0];
   let rules: string[] = [];
   for (const pad of pads) {
     rules = criticalRules(scan(pad.pushed));
@@ -72,10 +81,12 @@ export const whitespacePadding = (
     best = pad;
     break;
   }
+  if (!best) return undefined;
+  const count = plain.length + (best.aligned ? 1 : 0);
   const detail = [
     `${best.what} before "${excerpt(best.pushed.split("\n", 1)[0]!, SNIPPET_LENGTH)}"`,
     ...(rules.length > 0 ? [`(${rules.join(", ")})`] : []),
-    ...(pads.length > 1 ? [`(${pads.length} matches)`] : []),
+    ...(count > 1 ? [`(${count} matches)`] : []),
   ].join(" ");
   return { severity: rules.length > 0 ? "critical" : "warn", line: best.line, detail };
 };

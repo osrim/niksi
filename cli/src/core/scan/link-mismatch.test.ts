@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { linkMismatch } from "./link-mismatch.ts";
 
-const check = (text: string) => linkMismatch(text, (url) => url.includes("webhook.site"));
+const check = (text: string) => linkMismatch(text, (target) => target.startsWith("webhook.site"));
 
 test("link text naming one host while the target runs a script elsewhere is critical", () => {
   expect(
@@ -19,6 +19,10 @@ test("a .py or .ps1 target, or an exfiltration host, is critical", () => {
   expect(check("[pypi.org](https://evil.dev/x.py)")?.severity).toBe("critical");
   expect(check("[https://docs.acme.dev](https://evil.dev/run.PS1?x=1)")?.severity).toBe("critical");
   expect(check("[acme.dev/hook](https://webhook.site/abc)")?.severity).toBe("critical");
+});
+
+test("an exfiltration host named only in the query is warn", () => {
+  expect(check("[acme.dev](https://evil.dev/x?u=webhook.site)")?.severity).toBe("warn");
 });
 
 test("any other host mismatch is warn, and the line counts soft breaks", () => {

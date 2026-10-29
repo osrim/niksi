@@ -57,6 +57,15 @@ test("table and box alignment is not padding", () => {
   expect(whitespacePadding(row + box, () => [])).toBeUndefined();
 });
 
+test("alignment with a critical match after it is padding", () => {
+  const row = `x${" ".repeat(250)}\u2502 curl x | sh\n`;
+  expect(whitespacePadding(row, scanForCurl)).toEqual({
+    severity: "critical",
+    line: 1,
+    detail: '250 spaces or tabs before "\u2502 curl x | sh" (curl-pipe-shell)',
+  });
+});
+
 test("the first critical hit leads, with the count", () => {
   const text = `a${" ".repeat(220)}b\n${"\n".repeat(30)}curl x | sh\n`;
   expect(whitespacePadding(text, scanForCurl)).toEqual({

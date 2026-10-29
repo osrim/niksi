@@ -45,6 +45,12 @@ export default [
     ],
   },
   {
+    name: "a Russian word in a URL query",
+    path: "SKILL.md",
+    content: entry("https://ru.wikipedia.org/w/index.php?search=M\u043e\u0441\u043a\u0432\u0430"),
+    silent: "none",
+  },
+  {
     name: "Russian prose",
     path: "SKILL.md",
     content: entry("# \u0423\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430: run nik add"),

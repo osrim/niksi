@@ -1090,14 +1090,12 @@ const textFindings = (skill: ScannedSkill, hidden: Finding[]): Finding[] => {
 };
 
 // Hidden text scans as a plain text file: no Markdown prose context can demote it.
-const scanHiddenText = (body: string): Finding[] =>
-  textFindings(
-    {
-      name: "hidden",
-      files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
-    },
-    [],
-  );
+const plainText = (body: string): ScannedSkill => ({
+  name: "hidden",
+  files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
+});
+
+const scanHiddenText = (body: string): Finding[] => textFindings(plainText(body), []);
 
 const hiddenText = (
   { files }: ScannedSkill,
@@ -1114,10 +1112,13 @@ const escapedInvisibleText = textRule("escaped-invisible", (file, text) =>
   isMedia(file) ? undefined : escapedInvisibles(text),
 );
 
-const EXFIL_URL = new RegExp(EXFIL_HOST, "iu");
+const EXFIL_TARGET = new RegExp(`^(?:${EXFIL_HOST})`, "iu");
+
+const mismatchedLinks = (text: string): ReturnType<typeof linkMismatch> =>
+  linkMismatch(text, (hostAndPath) => EXFIL_TARGET.test(hostAndPath));
 
 const linkMismatchText = textRule("link-mismatch", (file, text) =>
-  isMarkdown(file.path) ? linkMismatch(text, (url) => EXFIL_URL.test(url)) : undefined,
+  isMarkdown(file.path) ? mismatchedLinks(text) : undefined,
 );
 
 const CODE_CONTEXTS = new Set<Context>(["inline", "fence", "indented"]);
@@ -1132,11 +1133,23 @@ const confusableHostText = textRule("confusable-host", (file, text) => {
   );
 });
 
+// Pushed text scans as plain text, as hidden text does, and also with the rules that read any text.
+const scanPushedText = (body: string): Finding[] => {
+  const link = mismatchedLinks(body);
+  return [
+    ...scanHiddenText(body),
+    ...[invisibleUnicode, escapedInvisibleText, confusableHostText].flatMap((scan) =>
+      scan(plainText(body)),
+    ),
+    ...(link ? [finding("link-mismatch", link)] : []),
+  ];
+};
+
 const MINIFIED = /\.min\./u;
 
 const whitespacePaddingText = textRule("whitespace-padding", (file, text) =>
   isScriptOrMarkdown(file) && !MINIFIED.test(fileName(file))
-    ? whitespacePadding(text, scanHiddenText)
+    ? whitespacePadding(text, scanPushedText)
     : undefined,
 );
 

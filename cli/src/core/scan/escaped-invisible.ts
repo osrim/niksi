@@ -1,5 +1,5 @@
 import type { Finding, Severity } from "./index.ts";
-import { invisibleHits, label, type InvisibleHit } from "./invisible.ts";
+import { invisibleHits, label, TAG_TEXT, type InvisibleHit } from "./invisible.ts";
 import { excerpt } from "./redact.ts";
 import { rank } from "./severity.ts";
 
@@ -13,7 +13,6 @@ const TEST_CUE =
 
 const CRITICAL_TAGS = 4;
 const CODES_LENGTH = 60;
-const TAGS_LENGTH = 60;
 
 const MAX_CODE_POINT = 0x10ffff;
 
@@ -73,7 +72,7 @@ const lineHits = (line: string, number: number): Hit[] => {
     .map((hit) => Object.assign(hit, { line: number }));
 };
 
-const capped = (hit: InvisibleHit): Severity => (hit.severity === "info" ? "info" : "warn");
+const cappedAtWarn = (hit: InvisibleHit): Severity => (hit.severity === "info" ? "info" : "warn");
 
 export const escapedInvisibles = (
   text: string,
@@ -81,22 +80,22 @@ export const escapedInvisibles = (
   const hits = text.split("\n").flatMap((line, i) => lineHits(line, i + 1));
   if (hits.length === 0) return undefined;
   const tagRuns = hits.filter((hit) => hit.tags !== undefined);
-  const tagCount = tagRuns.reduce((n, hit) => n + hit.count, 0);
+  const printable = tagRuns.reduce((n, hit) => n + hit.tags!.printable, 0);
   const total = hits.reduce((n, hit) => n + hit.count, 0);
   // Tags split over several strings, as in `"\u{E0069}" + "\u{E0067}"`, decode as one text.
-  if (tagCount >= CRITICAL_TAGS) {
+  if (printable >= CRITICAL_TAGS) {
     const codes = tagRuns.map((hit) => hit.code).join(", ");
-    const tags = tagRuns.map((hit) => hit.tags).join("");
+    const tags = tagRuns.map((hit) => hit.tags!.text).join("");
     return {
       severity: "critical",
       line: tagRuns[0]!.line,
-      detail: `${total} escaped invisible character(s): ${excerpt(codes, CODES_LENGTH)} (tags decode to "${tags.slice(0, TAGS_LENGTH)}")`,
+      detail: `${total} escaped invisible character(s): ${excerpt(codes, CODES_LENGTH)} (tags decode to "${tags.slice(0, TAG_TEXT)}")`,
     };
   }
-  const ranked = hits.toSorted((a, b) => rank(capped(b)) - rank(capped(a)));
+  const ranked = hits.toSorted((a, b) => rank(cappedAtWarn(b)) - rank(cappedAtWarn(a)));
   const sample = [...new Set(ranked.map(label))].slice(0, 5).join(", ");
   return {
-    severity: capped(ranked[0]!),
+    severity: cappedAtWarn(ranked[0]!),
     line: ranked[0]!.line,
     detail: `${total} escaped invisible character(s): ${sample}`,
   };

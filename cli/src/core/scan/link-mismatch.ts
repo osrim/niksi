@@ -22,34 +22,44 @@ interface Link {
   line: number;
 }
 
-const markdownLinks = (tokens: Token[]): Link[] => {
+const BREAKS = new Set(["softbreak", "hardbreak"]);
+const LABEL_PARTS = new Set(["text", "code_inline"]);
+
+const inlineLinks = (children: Token[], firstLine: number): Link[] => {
   const links: Link[] = [];
-  for (const token of tokens) {
-    if (token.type !== "inline" || !token.map || !token.children) continue;
-    let line = token.map[0] + 1;
-    let open: Link | undefined;
-    for (const child of token.children) {
-      if (child.type === "softbreak" || child.type === "hardbreak") line++;
-      if (child.type === "link_open" && child.markup !== "autolink") {
-        open = { label: "", href: String(child.attrGet("href") ?? ""), line };
-      } else if (child.type === "link_close" && open) {
-        links.push(open);
-        open = undefined;
-      } else if (open && (child.type === "text" || child.type === "code_inline")) {
-        open.label += child.content;
-      }
+  let line = firstLine;
+  let open: Link | undefined;
+  for (const child of children) {
+    if (BREAKS.has(child.type)) line++;
+    if (child.type === "link_open" && child.markup !== "autolink") {
+      open = { label: "", href: String(child.attrGet("href") ?? ""), line };
+    } else if (child.type === "link_close" && open) {
+      links.push(open);
+      open = undefined;
+    } else if (open && LABEL_PARTS.has(child.type)) {
+      open.label += child.content;
     }
   }
   return links;
 };
 
-const hostOf = (url: string): string | undefined => {
+const markdownLinks = (tokens: Token[]): Link[] =>
+  tokens.flatMap((token) =>
+    token.type === "inline" && token.map && token.children
+      ? inlineLinks(token.children, token.map[0] + 1)
+      : [],
+  );
+
+const parse = (url: string): URL | undefined => {
   try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./u, "") || undefined;
+    return new URL(url);
   } catch {
     return undefined;
   }
 };
+
+const hostOf = (url: URL | undefined): string | undefined =>
+  url?.hostname.toLowerCase().replace(/^www\./u, "") || undefined;
 
 // The label is a host only when the whole of it is one URL or bare host.
 const labelHost = (label: string): string | undefined => {
@@ -59,7 +69,7 @@ const labelHost = (label: string): string | undefined => {
   if (found.length !== 1 || match!.index !== 0 || match!.lastIndex !== text.length)
     return undefined;
   if (match!.schema === "" && FILE_NAME.test(text)) return undefined;
-  return hostOf(match!.url);
+  return hostOf(parse(match!.url));
 };
 
 const related = (a: string, b: string): boolean =>
@@ -71,14 +81,16 @@ interface Mismatch extends Link {
 
 export const linkMismatch = (
   text: string,
-  isExfil: (url: string) => boolean,
+  // Gets the target's host and path, such as `hooks.slack.com/services/T0`.
+  isExfil: (hostAndPath: string) => boolean,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = markdownLinks(markdown.parse(text, {})).flatMap((link): Mismatch[] => {
     const shown = labelHost(link.label);
-    const target = hostOf(link.href);
-    if (!shown || !target || related(shown, target)) return [];
-    const runs = RUNS_SCRIPT.test(new URL(link.href).pathname);
-    return [{ ...link, severity: runs || isExfil(link.href) ? "critical" : "warn" }];
+    const url = parse(link.href);
+    const target = hostOf(url);
+    if (!shown || !url || !target || related(shown, target)) return [];
+    const dangerous = RUNS_SCRIPT.test(url.pathname) || isExfil(url.host + url.pathname);
+    return [{ ...link, severity: dangerous ? "critical" : "warn" }];
   });
   const best = strongest(found);
   if (!best) return undefined;

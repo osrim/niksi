@@ -26,6 +26,15 @@ test("a mixed host label is critical, written raw or as punycode", () => {
   );
 });
 
+test("a query or fragment word is not judged as part of the URL", () => {
+  expect(
+    confusableHost(
+      "https://ru.wikipedia.org/wiki/Test?q=M\u043e\u0441\u043a\u0432\u0430#x\u0430",
+      nowhere,
+    ),
+  ).toBeUndefined();
+});
+
 test("a punycode host that decodes to one script is info", () => {
   expect(confusableHost("https://xn--bcher-kva.example", nowhere)).toEqual({
     severity: "info",

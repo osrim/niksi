@@ -60,7 +60,6 @@ const urlHit = (url: string, index: number): Hit | undefined => {
   return { index, severity: "info", detail: `punycode host ${host[1]} reads ${labels.join(".")}` };
 };
 
-// `isCode` says whether the word at an index is code, such as a fence or a script.
 export const confusableHost = (
   text: string,
   isCode: (index: number) => boolean,

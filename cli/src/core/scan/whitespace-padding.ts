@@ -6,7 +6,6 @@ const PAD_WIDTH = 200;
 const SNIPPET_LENGTH = 80;
 
 const BLANK = /^[ \t\r]*$/u;
-// Each run matches once, then its length and the character after it decide.
 const RUN = /[ \t]+/gu;
 const NOT_SPACE = /\S/u;
 // Padding before a table border or a box-drawing character usually aligns columns.

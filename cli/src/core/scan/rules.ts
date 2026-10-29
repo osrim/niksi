@@ -10,23 +10,26 @@ import {
 } from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
-import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
+import { mapMarkdown, type Context, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
 import { combine, nearest } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
+import { confusableHost } from "./confusable-host.ts";
 import { demotes, type ProseJudge } from "./context.ts";
 import { dependencySource } from "./dependency-source.ts";
 import { destructive, destructiveMatches } from "./destructive.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
-import { invalidEncoding } from "./encoding.ts";
+import { invalidEncoding, isScriptOrMarkdown } from "./encoding.ts";
+import { escapedInvisibles } from "./escaped-invisible.ts";
 import { isMedia, misleadingExtension } from "./file-signature.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
 import type { Confidence, Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
 import { installHook } from "./install-hook.ts";
+import { linkMismatch } from "./link-mismatch.ts";
 import { isMap } from "./manifest.ts";
 import { moneyMovement, moneyPhrases } from "./money-movement.ts";
 import { persistence, persistenceMatches } from "./persistence.ts";
@@ -50,6 +53,7 @@ import { suppressionComments } from "./suppression.ts";
 import { gated, lower, lowerConfidence, stronger, strongest } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
+import { whitespacePadding } from "./whitespace-padding.ts";
 
 export const RULES = {
   "curl-pipe-shell": { help: "runs downloaded code", confidence: "high" },
@@ -79,6 +83,10 @@ export const RULES = {
   },
   "invisible-unicode": { help: "invisible characters", confidence: "high" },
   "hidden-html": { help: "text a reader does not see", confidence: "high" },
+  "escaped-invisible": { help: "escaped invisible characters", confidence: "high" },
+  "link-mismatch": { help: "link text names another host", confidence: "high" },
+  "confusable-host": { help: "mixes lookalike letters from other scripts", confidence: "high" },
+  "whitespace-padding": { help: "pushes text out of view", confidence: "high" },
   "remote-instructions": { help: "fetches instructions to follow", confidence: "medium" },
   "allowed-tools": { help: "pre-approves tools for itself", confidence: "high" },
   "disallowed-tools": { help: "takes a tool away from the agent", confidence: "high" },
@@ -1082,14 +1090,12 @@ const textFindings = (skill: ScannedSkill, hidden: Finding[]): Finding[] => {
 };
 
 // Hidden text scans as a plain text file: no Markdown prose context can demote it.
-const scanHiddenText = (body: string): Finding[] =>
-  textFindings(
-    {
-      name: "hidden",
-      files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
-    },
-    [],
-  );
+const plainText = (body: string): ScannedSkill => ({
+  name: "hidden",
+  files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
+});
+
+const scanHiddenText = (body: string): Finding[] => textFindings(plainText(body), []);
 
 const hiddenText = (
   { files }: ScannedSkill,
@@ -1101,6 +1107,51 @@ const hiddenText = (
     const found = hiddenHtml(text, mapMarkdown(text).hidden, (body) => scan(body, file.path));
     return found ? [finding("hidden-html", { file: file.path, ...found })] : [];
   });
+
+const escapedInvisibleText = textRule("escaped-invisible", (file, text) =>
+  isMedia(file) ? undefined : escapedInvisibles(text),
+);
+
+const EXFIL_TARGET = new RegExp(`^(?:${EXFIL_HOST})`, "iu");
+
+const mismatchedLinks = (text: string): ReturnType<typeof linkMismatch> =>
+  linkMismatch(text, (hostAndPath) => EXFIL_TARGET.test(hostAndPath));
+
+const linkMismatchText = textRule("link-mismatch", (file, text) =>
+  isMarkdown(file.path) ? mismatchedLinks(text) : undefined,
+);
+
+const CODE_CONTEXTS = new Set<Context>(["inline", "fence", "indented"]);
+
+// Markdown is code only in code spans and blocks, `.txt` never, and any other text file always.
+const confusableHostText = textRule("confusable-host", (file, text) => {
+  if (isMedia(file)) return undefined;
+  if (!isMarkdown(file.path)) return confusableHost(text, () => !isProse(file.path));
+  let map: MarkdownMap | undefined;
+  return confusableHost(text, (index) =>
+    CODE_CONTEXTS.has((map ??= mapMarkdown(text)).contextAt(index)),
+  );
+});
+
+// Pushed text scans as plain text, as hidden text does, and also with the rules that read any text.
+const scanPushedText = (body: string): Finding[] => {
+  const link = mismatchedLinks(body);
+  return [
+    ...scanHiddenText(body),
+    ...[invisibleUnicode, escapedInvisibleText, confusableHostText].flatMap((scan) =>
+      scan(plainText(body)),
+    ),
+    ...(link ? [finding("link-mismatch", link)] : []),
+  ];
+};
+
+const MINIFIED = /\.min\./u;
+
+const whitespacePaddingText = textRule("whitespace-padding", (file, text) =>
+  isScriptOrMarkdown(file) && !MINIFIED.test(fileName(file))
+    ? whitespacePadding(text, scanPushedText)
+    : undefined,
+);
 
 const textScan: Scanner = (skill) => {
   const insideHidden: Finding[] = [];
@@ -1195,8 +1246,12 @@ export const defaultScanners: Scanner[] = [
   fileFlags,
   fileContent,
   invisibleUnicode,
+  escapedInvisibleText,
   frontmatterPrivileges,
   loadTimeExecution,
   textScan,
+  linkMismatchText,
+  confusableHostText,
+  whitespacePaddingText,
   urlInventory,
 ];

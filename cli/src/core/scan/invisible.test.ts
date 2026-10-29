@@ -15,6 +15,12 @@ test("the strongest character leads the detail and sets the line", () => {
   });
 });
 
+test("a control character in a tag run shows as an escape", () => {
+  expect(invisibleCharacters("a\u{E0068}\u{E0001}\u{E0069}b", [])?.detail).toBe(
+    '3 invisible character(s): U+E0068…U+E0069 (tags decode to "h\\x01i")',
+  );
+});
+
 test("a tag run outside a flag decodes, even after a black flag without a cancel tag", () => {
   const run = [..."hi"].map((ch) => String.fromCodePoint(0xe0000 + ch.codePointAt(0)!)).join("");
   expect(invisibleCharacters(`\u{1F3F4}${run}`, [])?.detail).toBe(

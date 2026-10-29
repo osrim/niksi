@@ -65,6 +65,7 @@ The local scan may gain rules and widen existing ones. Every new or widened rule
 - A rule that reads prose starts at `warn`. It reaches `critical` only through a documented combination, hidden content, or the frontmatter `description`.
 - A command in Markdown is code, not prose, and may reach `critical` like the same line in a script. A command is a code span or code block, a statement that starts with a command or follows a pipe, or a command name followed by an operand that looks like a path. A sentence that only names a command, such as "the mkfs command formats a disk", stays prose.
 - An unfamiliar host alone is never a finding.
+- Scan time grows linearly with the input, even on input written to stall the scan. A regex has no unbounded repetition that can backtrack across a long line, a loop matches each run of text once and never rescans it from every offset, and an input-sized array is never spread into a call's arguments.
 - A rule may port a technique from another scanner, but copies rule text or data only under a license that allows it. Write niksi's own regex for a technique from a Semgrep rule.
 
 A silent case states the highest severity it may produce. A case marked `known` pins a wrong result at today's severity. The change that fixes it updates the case and removes the mark. Probes that no rule catches yet go in `fixtures/unclaimed.ts`. The rule that catches a probe moves it into that rule's own fixture file.

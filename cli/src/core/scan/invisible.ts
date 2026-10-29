@@ -22,15 +22,19 @@ const WINDOW = 32;
 const NEAR_LINES = 2;
 const ESCALATE_AT_COUNT = 3;
 
-interface Hit extends Located {
+export interface InvisibleHit {
   index: number;
   count: number;
   severity: Severity;
   code: string;
   why?: string;
+  // A tag run's ASCII text, with control characters escaped, and its printable length.
+  tags?: { text: string; printable: number };
 }
 
-const codeOf = (codepoint: number): string =>
+interface Hit extends InvisibleHit, Located {}
+
+export const codeOf = (codepoint: number): string =>
   `U+${codepoint.toString(16).toUpperCase().padStart(4, "0")}`;
 
 const before = (text: string, index: number, pattern: RegExp): boolean =>
@@ -82,7 +86,7 @@ const tier = (text: string, index: number, ch: string): Pick<Hit, "severity" | "
   return { severity: "warn" };
 };
 
-const charHits = (text: string): Omit<Hit, "line">[] =>
+const charHits = (text: string): InvisibleHit[] =>
   [...text.matchAll(CANDIDATE)].flatMap(({ 0: ch, index }) => {
     const cp = ch.codePointAt(0)!;
     // A leading U+FEFF is a byte-order mark. Tag characters are judged as runs.
@@ -91,26 +95,42 @@ const charHits = (text: string): Omit<Hit, "line">[] =>
     return [{ index, count: 1, code: codeOf(cp), ...tier(text, index, ch) }];
   });
 
-const decodeTags = (codepoints: number[]): string =>
-  String.fromCharCode(
-    ...codepoints.map((cp) => cp - 0xe0000).filter((ascii) => ascii >= 0x20 && ascii < 0x7f),
-  );
+const isPrintable = (ascii: number): boolean => ascii >= 0x20 && ascii < 0x7f;
+
+const decodeTags = (codepoints: number[]): { text: string; printable: number } => {
+  const ascii = codepoints.map((cp) => cp - 0xe0000);
+  const text = ascii
+    .map((code) =>
+      isPrintable(code)
+        ? String.fromCharCode(code)
+        : `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`,
+    )
+    .join("");
+  return { text, printable: ascii.filter(isPrintable).length };
+};
 
 // A subdivision flag is a black flag, two to seven lowercase tag letters or digits, and a cancel tag.
 const FLAG_TAGS = /^[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{2,7}\u{E007F}$/u;
 
-const tagHits = (text: string): Omit<Hit, "line">[] =>
+export const TAG_TEXT = 60;
+
+const tagHits = (text: string): InvisibleHit[] =>
   [...text.matchAll(TAG_RUN)].flatMap(({ 0: run, index }) => {
     const codepoints = [...run].map((ch) => ch.codePointAt(0)!);
     const last = codepoints.at(-1)!;
     if (before(text, index, /\u{1F3F4}$/u) && FLAG_TAGS.test(run)) return [];
-    const decoded = decodeTags(codepoints);
+    const tags = decodeTags(codepoints);
     const code = codepoints.length > 1 ? `${codeOf(codepoints[0]!)}…${codeOf(last)}` : codeOf(last);
-    const why = decoded ? `tags decode to "${decoded.slice(0, 60)}"` : "tag characters";
-    return [{ index, count: codepoints.length, code, severity: "critical", why }];
+    const why = `tags decode to "${tags.text.slice(0, TAG_TEXT)}"`;
+    return [{ index, count: codepoints.length, code, severity: "critical", why, tags }];
   });
 
-const withLines = (text: string, hits: Omit<Hit, "line">[]): Hit[] => {
+export const invisibleHits = (text: string): InvisibleHit[] => [
+  ...tagHits(text),
+  ...charHits(text),
+];
+
+const withLines = (text: string, hits: InvisibleHit[]): Hit[] => {
   let line = 1;
   let at = 0;
   return hits
@@ -150,13 +170,13 @@ const escalate = (hits: Hit[], injections: Located[]): Hit[] => {
   });
 };
 
-const label = ({ code, why }: Hit): string => (why ? `${code} (${why})` : code);
+export const label = ({ code, why }: InvisibleHit): string => (why ? `${code} (${why})` : code);
 
 export const invisibleCharacters = (
   text: string,
   injections: Located[],
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const hits = escalate(withLines(text, [...tagHits(text), ...charHits(text)]), injections);
+  const hits = escalate(withLines(text, invisibleHits(text)), injections);
   if (hits.length === 0) return undefined;
   const ranked = hits.toSorted((a, b) => rank(b.severity) - rank(a.severity) || a.index - b.index);
   const strongest = ranked[0]!;

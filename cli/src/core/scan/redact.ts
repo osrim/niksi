@@ -23,7 +23,6 @@ export const excerpt = (text: string, max: number): string => {
 
 const DETAIL_LENGTH = 160;
 
-// `quiet` marks a match after a prohibition. `count` is how many matches the rule found.
 export const matchDetail = (text: string, quiet: boolean, count: number): string =>
   [
     excerpt(text, DETAIL_LENGTH),

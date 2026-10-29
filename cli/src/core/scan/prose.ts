@@ -68,7 +68,6 @@ export interface JudgedPhrase extends Phrase {
   quiet: boolean;
 }
 
-// A prohibition before the phrase makes it info. Docs and demo prose lower it one level.
 export const judgePhrases = (
   text: string,
   phrases: Phrase[],

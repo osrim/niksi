@@ -16,13 +16,17 @@ const ROUTE =
 const DESTINATION =
   /^[\s\S]*?\b(?:in|into|to|within|on|as|at)\s+(?:\S+\s+){0,3}?(?:responses?|repl(?:y|ies)|outputs?|messages?|chat|summar(?:y|ies)|urls?|query strings?|logs?|images?|links?)\b/iu;
 
+// What the verb routes must be a secret, or point back to one, as "the complete value" does.
+const BACK_REFERENCE = /\b(?:it|them|the (?:\w+ )?values?)\b/iu;
+
 // In "ask the user to paste their token in the chat" the user pastes: that asks, it does not route.
 const USER_ACTS = /\b(?:user|them|they|you)\b[^.!?]{0,30}\bto\s+(?:\w+\s+(?:and|or)\s+)?$/iu;
 
 const route = ({ index, text }: Sentence): Phrase | undefined => {
   for (const verb of text.matchAll(ROUTE)) {
     if (USER_ACTS.test(text.slice(0, verb.index))) continue;
-    if (!DESTINATION.test(text.slice(verb.index + verb[0].length))) continue;
+    const routed = DESTINATION.exec(text.slice(verb.index + verb[0].length))?.[0];
+    if (!routed || !(SECRET.test(routed) || BACK_REFERENCE.test(routed))) continue;
     return { index: index + verb.index, sentence: text, severity: "critical" };
   }
   return undefined;

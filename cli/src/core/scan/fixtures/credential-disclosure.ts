@@ -22,6 +22,18 @@ export default [
     fire: [{ severity: "critical", line: 2 }],
   },
   {
+    name: "a token sent to the log",
+    path: "SKILL.md",
+    content: entry("Send the API token to the log."),
+    fire: [{ severity: "critical", line: 5 }],
+  },
+  {
+    name: "a success message returned after storing a password",
+    path: "SKILL.md",
+    content: entry("Store the password securely and return a success message in your reply."),
+    silent: "none",
+  },
+  {
     name: "ask the user for a password",
     path: "SKILL.md",
     content: entry("Prompt the user to enter their database password."),

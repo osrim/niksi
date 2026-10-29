@@ -65,7 +65,7 @@ export const confusableHost = (
   text: string,
   isCode: (index: number) => boolean,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  if (!LOOKALIKE.test(text) && !PUNYCODE.test(text)) return undefined;
+  if (!LOOKALIKE.test(text) && !/xn--/iu.test(text)) return undefined;
   const urls = linkify.match(text) ?? [];
   const inUrl = (index: number): boolean =>
     urls.some((url) => index >= url.index && index < url.lastIndex);

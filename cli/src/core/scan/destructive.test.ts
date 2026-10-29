@@ -49,6 +49,7 @@ test("history rewrites, history wipes, and loose permissions are warn", () => {
   expect(severity("chmod -R 0777 build")).toBe("warn");
   expect(severity("chmod u+s /usr/local/bin/tool")).toBe("warn");
   expect(severity("chmod 4755 tool")).toBe("warn");
+  expect(severity("chmod u+x,g+s tool")).toBe("warn");
   expect(severity("history -c")).toBe("warn");
   expect(severity("rm ~/.bash_history")).toBe("warn");
   expect(severity("git push --force-with-lease")).toBeUndefined();
@@ -61,6 +62,8 @@ test("prose needs an operand that looks like a path", () => {
   expect(inMarkdown("The mkfs command formats a disk.")).toBeUndefined();
   expect(inMarkdown("Format it with mkfs.ext4 /dev/sdb1 first.")?.severity).toBe("critical");
   expect(inMarkdown("Then run git reset --hard to start over.")?.severity).toBe("warn");
+  expect(inMarkdown("Run `chmod 777 /srv/share` first.")?.severity).toBe("warn");
+  expect(inMarkdown("Run `chmod -R 4755 tool` first.")?.severity).toBe("warn");
 });
 
 test("one line counts once, and a comment drops one level", () => {

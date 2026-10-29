@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { combine, oncePerLine } from "./combine.ts";
+import { combine } from "./combine.ts";
 
 const at = (line: number, name = `L${line}`) => ({ line, name });
 
@@ -36,11 +36,4 @@ test("a relation limits which partners count", () => {
 
 test("an anchor with no partner is left out", () => {
   expect(names(combine([at(1)], []))).toEqual([]);
-});
-
-test("oncePerLine keeps the first match on each line", () => {
-  expect(oncePerLine([at(1, "a"), at(1, "b"), at(2, "c")]).map(({ name }) => name)).toEqual([
-    "a",
-    "c",
-  ]);
 });

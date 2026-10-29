@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mapMarkdown } from "../skill/markdown.ts";
-import { demotes, judgeStatement } from "./context.ts";
+import { demotes, judgeIndex, judgeStatement } from "./context.ts";
 
 const demotedAt = (parts: string[], text: string, needle: string): boolean =>
   demotes(parts, mapMarkdown(text))(text.indexOf(needle));
@@ -73,4 +73,17 @@ test("a statement after a prohibition is info, and a comment or demoted prose dr
   expect(at("prose", 2)).toEqual([false, "warn"]);
   expect(at("comment", 1)).toEqual([false, "warn"]);
   expect(at("code", 1)).toEqual([false, "critical"]);
+});
+
+test("a pattern match is judged as a comment only when it starts in one", () => {
+  const judge = { afterProhibition: () => false, demoted: () => false };
+  const statements = [
+    { kind: "code" as const, index: 0 },
+    { kind: "comment" as const, index: 10 },
+    { kind: "code" as const, index: 20 },
+  ];
+  const at = (index: number) => judgeIndex(statements, index, judge).judged("critical");
+  expect(at(4)).toBe("critical");
+  expect(at(12)).toBe("warn");
+  expect(at(25)).toBe("critical");
 });

@@ -774,6 +774,14 @@ const downloadHits = (
       severity: weakest(hit.statements.map((s) => statementSeverity(s, context))),
     }));
 
+const downloadLines = (
+  statements: Statement[],
+  context: ProseContext,
+): { severity: Severity; line: number }[] =>
+  downloadHits(statements, context).flatMap(({ hit, severity }) =>
+    hit.statements.map(({ line }) => ({ severity, line })),
+  );
+
 const downloadedCode: Scanner = ({ files }) =>
   files.flatMap((file) => {
     const text = decodeText(file)?.text;
@@ -853,9 +861,7 @@ const silentExecText = textRule("silent-exec", (file, text) => {
   const context = proseContext(file, text);
   return silentExec(text, statements, context, () =>
     [
-      ...downloadHits(statements, context).flatMap(({ hit, severity }) =>
-        hit.statements.map(({ line }) => ({ severity, line })),
-      ),
+      ...downloadLines(statements, context),
       ...persistenceMatches(statements, context),
       ...base64ExecMatches(text, statements, context),
     ].filter(({ severity }) => severity !== "info"),
@@ -925,9 +931,7 @@ const dangerLines = (file: SkillFile, text: string): { line: number }[] => {
   const statements = shellStatements(text, isProse(file.path));
   const sentences = isProse(file.path) ? proseSentences(text, context.map) : [];
   return [
-    ...downloadHits(statements, context).flatMap(({ hit, severity }) =>
-      hit.statements.map(({ line }) => ({ severity, line })),
-    ),
+    ...downloadLines(statements, context),
     ...persistenceMatches(statements, context),
     ...destructiveMatches(text, statements, context),
     ...judgePhrases(text, moneyPhrases(text, sentences), context),

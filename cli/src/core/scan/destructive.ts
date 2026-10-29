@@ -1,9 +1,13 @@
-import { lineAt } from "../skill/text.ts";
-import { oncePerLine } from "./combine.ts";
-import { judgeIndex, judgeStatement, type ProseJudge } from "./context.ts";
+import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { bare, commandName } from "./interpreter.ts";
-import { matchDetail } from "./redact.ts";
+import {
+  oncePerLine,
+  patternMatch,
+  statementMatch,
+  strongestLine,
+  type LineMatch,
+} from "./line-match.ts";
 import { strongest } from "./severity.ts";
 import { skipWrappers, type Command, type Statement } from "./shell.ts";
 
@@ -40,6 +44,9 @@ const AS_ROOT = new Set(["rm", "dd", "mkfs", "chmod", "chown", "tee"]);
 const DISK = /^of=\/dev\/(?!(?:null|stdout|stderr|fd\/\S*)$)\S/u;
 const OPEN_MODE = /^0?777$/u;
 const SET_ID = /^[ugoa]*[+=][rwxXt]*s|^[246][0-7]{3}$/u;
+
+const loosens = (mode: string): boolean =>
+  OPEN_MODE.test(mode) || mode.split(",").some((clause) => SET_ID.test(clause));
 const FORCE = /^(?:--force|-[a-zA-Z]*f[a-zA-Z]*)$/u;
 
 const warnIf = (match: boolean): Severity | undefined => (match ? "warn" : undefined);
@@ -55,7 +62,7 @@ const CHECKS: Record<string, (args: string[], operands: string[]) => Severity | 
   dd: (args) => (args.some((arg) => DISK.test(arg)) ? "critical" : undefined),
   mkfs: (_args, operands) => (operands.length > 0 ? "critical" : undefined),
   git: (args) => git(args),
-  chmod: (_args, [mode = ""]) => warnIf(OPEN_MODE.test(mode) || SET_ID.test(mode)),
+  chmod: (args) => warnIf(loosens(args.find((arg) => !arg.startsWith("-")) ?? "")),
   history: (args) => warnIf(args.includes("-c")),
   rm: (_args, operands) => warnIf(operands.some((path) => /(?:^|\/)\.bash_history$/u.test(path))),
 };
@@ -85,15 +92,7 @@ const candidates = (
     ? [command, ...command.words.slice(1).map((_, i) => skipWrappers(command.words.slice(i + 1)))]
     : [command];
 
-export interface DestructiveMatch {
-  severity: Severity;
-  line: number;
-  index: number;
-  text: string;
-  quiet: boolean;
-}
-
-const statementMatches = (statements: Statement[], judge: ProseJudge): DestructiveMatch[] =>
+const statementMatches = (statements: Statement[], judge: ProseJudge): LineMatch[] =>
   statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
     const found = statement.commands
@@ -101,53 +100,30 @@ const statementMatches = (statements: Statement[], judge: ProseJudge): Destructi
       .map((candidate) => commandSeverity(candidate, prose))
       .filter((severity) => severity !== undefined);
     const best = strongest(found.map((severity) => ({ severity })));
-    if (!best) return [];
-    const { quiet, judged } = judgeStatement(statement, judge);
-    const { line, index, text } = statement;
-    return [{ severity: judged(best.severity), line, index, text, quiet }];
+    return best ? [statementMatch(statement, judge, best.severity)] : [];
   });
 
-const patternMatches = (
-  text: string,
-  statements: Statement[],
-  judge: ProseJudge,
-): DestructiveMatch[] => {
-  const located = (index: number, found: string, severity: Severity): DestructiveMatch => {
-    const { quiet, judged } = judgeIndex(statements, index, judge);
-    return { severity: judged(severity), line: lineAt(text, index), index, text: found, quiet };
-  };
+const patternMatches = (text: string, statements: Statement[], judge: ProseJudge): LineMatch[] => {
+  const at = patternMatch(text, statements, judge);
   return [
-    ...[...text.matchAll(RECURSIVE_DELETE)].flatMap((match) => {
+    ...Array.from(text.matchAll(RECURSIVE_DELETE)).flatMap((match) => {
       const severity = deleteSeverity(match.groups);
-      return severity ? [located(match.index, match[0].trim(), severity)] : [];
+      return severity ? [at(match.index, match[0].trim(), severity)] : [];
     }),
-    ...[...text.matchAll(FORK_BOMB)].map((match) => located(match.index, match[0], "critical")),
+    ...Array.from(text.matchAll(FORK_BOMB), (match) => at(match.index, match[0], "critical")),
   ];
 };
 
-// A line can match both as a statement and as a pattern, so each line counts once.
 export const destructiveMatches = (
   text: string,
   statements: Statement[],
   judge: ProseJudge,
-): DestructiveMatch[] =>
-  oncePerLine(
-    [...patternMatches(text, statements, judge), ...statementMatches(statements, judge)].toSorted(
-      (a, b) => a.index - b.index,
-    ),
-  );
+): LineMatch[] =>
+  oncePerLine([...patternMatches(text, statements, judge), ...statementMatches(statements, judge)]);
 
 export const destructive = (
   text: string,
   statements: Statement[],
   judge: ProseJudge,
-): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const found = destructiveMatches(text, statements, judge);
-  const best = strongest(found);
-  if (!best) return undefined;
-  return {
-    severity: best.severity,
-    line: best.line,
-    detail: matchDetail(best.text, best.quiet, found.length),
-  };
-};
+): Pick<Finding, "severity" | "line" | "detail"> | undefined =>
+  strongestLine(destructiveMatches(text, statements, judge));

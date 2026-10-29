@@ -1,7 +1,5 @@
-import { lineAt } from "../skill/text.ts";
-import { oncePerLine } from "./combine.ts";
-import { judgeIndex, judgeStatement, type ProseJudge } from "./context.ts";
-import type { Finding, Severity } from "./index.ts";
+import type { ProseJudge } from "./context.ts";
+import type { Finding } from "./index.ts";
 import {
   commandName,
   EXEC_SINK,
@@ -10,8 +8,13 @@ import {
   RUNS_ARGUMENT,
   runsStdin,
 } from "./interpreter.ts";
-import { matchDetail } from "./redact.ts";
-import { strongest } from "./severity.ts";
+import {
+  oncePerLine,
+  patternMatch,
+  statementMatch,
+  strongestLine,
+  type LineMatch,
+} from "./line-match.ts";
 import { shellStatements, type Command, type Statement } from "./shell.ts";
 
 const DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|Buffer\.from\([^\n]*?["']base64["']|base64[ \t]+(?:-d|-D|--decode)\b|codecs\.decode\s*\(|bytes\.fromhex\s*\(|zlib\.decompress\s*\(|marshal\.loads\s*\(|(?<![.\w])compile\s*\(|["']{2}\.join\(\s*(?:map\(\s*chr\b|\[?\s*chr\s*\()|String\.fromCharCode\s*\(`;
@@ -70,54 +73,28 @@ const decodesAndRuns = (statement: Statement): boolean => {
   return commands.some(runsSubstitution);
 };
 
-export interface Base64ExecMatch {
-  severity: Severity;
-  line: number;
-  index: number;
-  text: string;
-  quiet: boolean;
-}
+const statementMatches = (statements: Statement[], judge: ProseJudge): LineMatch[] =>
+  statements
+    .filter(decodesAndRuns)
+    .map((statement) => statementMatch(statement, judge, "critical"));
 
-const statementMatches = (statements: Statement[], judge: ProseJudge): Base64ExecMatch[] =>
-  statements.filter(decodesAndRuns).map((statement) => {
-    const { quiet, judged } = judgeStatement(statement, judge);
-    const { line, index, text } = statement;
-    return { severity: judged("critical"), line, index, text, quiet };
-  });
-
-const patternMatches = (
-  text: string,
-  statements: Statement[],
-  judge: ProseJudge,
-): Base64ExecMatch[] =>
-  PATTERNS.flatMap((pattern) =>
-    [...text.matchAll(pattern)].map(({ index, 0: found }) => {
-      const { quiet, judged } = judgeIndex(statements, index, judge);
-      return { severity: judged("critical"), line: lineAt(text, index), index, text: found, quiet };
-    }),
+const patternMatches = (text: string, statements: Statement[], judge: ProseJudge): LineMatch[] => {
+  const at = patternMatch(text, statements, judge);
+  return PATTERNS.flatMap((pattern) =>
+    Array.from(text.matchAll(pattern), (match) => at(match.index, match[0], "critical")),
   );
+};
 
-// A shell line can match both as a statement and as a pattern, so each line counts once.
 export const base64ExecMatches = (
   text: string,
   statements: Statement[],
   judge: ProseJudge,
-): Base64ExecMatch[] => {
-  const all = [...statementMatches(statements, judge), ...patternMatches(text, statements, judge)];
-  return oncePerLine(all.toSorted((a, b) => a.index - b.index));
-};
+): LineMatch[] =>
+  oncePerLine([...statementMatches(statements, judge), ...patternMatches(text, statements, judge)]);
 
 export const base64Exec = (
   text: string,
   statements: Statement[],
   judge: ProseJudge,
-): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const found = base64ExecMatches(text, statements, judge);
-  const best = strongest(found);
-  if (!best) return undefined;
-  return {
-    severity: best.severity,
-    line: best.line,
-    detail: matchDetail(best.text, best.quiet, found.length),
-  };
-};
+): Pick<Finding, "severity" | "line" | "detail"> | undefined =>
+  strongestLine(base64ExecMatches(text, statements, judge));

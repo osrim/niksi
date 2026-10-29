@@ -1,10 +1,15 @@
 import { lineAt } from "../skill/text.ts";
-import { combine, oncePerLine, type Located } from "./combine.ts";
-import { judgeIndex, judgeStatement, type ProseJudge } from "./context.ts";
-import type { Finding } from "./index.ts";
+import { combine, type Located } from "./combine.ts";
+import type { ProseJudge } from "./context.ts";
+import type { Finding, Severity } from "./index.ts";
 import { commandName } from "./interpreter.ts";
-import { matchDetail } from "./redact.ts";
-import { strongest } from "./severity.ts";
+import {
+  oncePerLine,
+  patternMatch,
+  statementMatch,
+  strongestLine,
+  type LineMatch,
+} from "./line-match.ts";
 import type { Statement } from "./shell.ts";
 
 const DETACHERS = new Set(["nohup", "setsid"]);
@@ -85,8 +90,9 @@ const languageMatches = (text: string): TextMatch[] => [
   ),
 ];
 
-interface Candidate extends TextMatch {
-  judgment: ReturnType<typeof judgeStatement>;
+interface Candidate extends Located {
+  index: number;
+  match: (severity: Severity) => LineMatch;
 }
 
 // `partners` are the file's curl-pipe-shell, base64-exec, and persistence matches above info.
@@ -96,28 +102,28 @@ export const silentExec = (
   judge: ProseJudge,
   partners: () => Located[],
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const shell: Candidate[] = statements.filter(detaches).map((statement) => ({
-    index: statement.index,
-    line: statement.line,
-    text: statement.background ? `${statement.text} &` : statement.text,
-    judgment: judgeStatement(statement, judge),
-  }));
-  const language: Candidate[] = languageMatches(text).map((match) =>
-    Object.assign(match, { judgment: judgeIndex(statements, match.index, judge) }),
-  );
-  const candidates = oncePerLine([...shell, ...language].toSorted((a, b) => a.index - b.index));
+  const at = patternMatch(text, statements, judge);
+  const candidates: Candidate[] = [
+    ...statements.filter(detaches).map((statement) => ({
+      line: statement.line,
+      index: statement.index,
+      match: (severity: Severity) =>
+        statementMatch(
+          statement,
+          judge,
+          severity,
+          statement.background ? `${statement.text} &` : statement.text,
+        ),
+    })),
+    ...languageMatches(text).map(({ line, index, text: found }) => ({
+      line,
+      index,
+      match: (severity: Severity) => at(index, found, severity),
+    })),
+  ];
   if (candidates.length === 0) return undefined;
   const paired = new Set(combine(candidates, partners()).map(({ anchor }) => anchor));
-  const found = candidates.map(({ line, text: matched, judgment }, i) => ({
-    line,
-    matched,
-    quiet: judgment.quiet,
-    severity: judgment.judged(paired.has(candidates[i]!) ? "critical" : "warn"),
-  }));
-  const best = strongest(found)!;
-  return {
-    severity: best.severity,
-    line: best.line,
-    detail: matchDetail(best.matched, best.quiet, found.length),
-  };
+  return strongestLine(
+    oncePerLine(candidates.map((c) => c.match(paired.has(c) ? "critical" : "warn"))),
+  );
 };

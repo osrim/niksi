@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { excerpt, matchDetail, redact } from "./redact.ts";
-import { AWS_KEY, BEARER, JWT } from "./test-secrets.ts";
+import { AWS_KEY, BEARER, DB_PASSWORD, GITHUB_TOKEN, JWT } from "./test-secrets.ts";
 
 test.each([
   ["https://user:hunter2@host.dev/x", "https://user:********@host.dev/x"],
@@ -39,6 +39,28 @@ test("an excerpt is one line with control and invisible characters replaced, the
     "run this \u{FFFD}[2J now\u{FFFD}",
   );
   expect(excerpt("abcdef", 3)).toBe("abc…");
+});
+
+test("a URL password cut by the excerpt is masked", () => {
+  const long = DB_PASSWORD.repeat(18).slice(0, 240);
+  expect(excerpt(`https://user:${long}@host.dev/x`, 160)).toBe("https://user:********@host.dev/x");
+  const longer = DB_PASSWORD.repeat(200);
+  expect(excerpt(`https://user:${longer}@host.dev/x`, 160)).toBe("https://user:********…");
+});
+
+test("a token cut by the excerpt is masked", () => {
+  const detail = excerpt(`${"x ".repeat(70)}${GITHUB_TOKEN} ${"y ".repeat(50)}`, 160);
+  expect(detail).toBe(`${"x ".repeat(70)}ghp_…4kVo${" y".repeat(5)} …`);
+});
+
+test.each([
+  ["a.", 50_000],
+  ["?", 100_000],
+  [`ey${"A".repeat(17)}.`, 5000],
+])("an excerpt of %p repeated %p times scans in linear time", (repeated, times) => {
+  const start = performance.now();
+  expect(excerpt(repeated.repeat(times), 160)).toHaveLength(161);
+  expect(performance.now() - start).toBeLessThan(250);
 });
 
 test("a match detail marks a warning and counts matches", () => {

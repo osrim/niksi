@@ -25,7 +25,6 @@ export const statementMatch = (
   return { severity: judged(severity), line: statement.line, index: statement.index, text, quiet };
 };
 
-// Returns a function that judges a pattern match found at `index` in `text`.
 export const patternMatch =
   (text: string, statements: readonly Statement[], judge: ProseJudge) =>
   (index: number, found: string, severity: Severity): LineMatch => {

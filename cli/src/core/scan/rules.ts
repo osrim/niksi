@@ -7,12 +7,15 @@ import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { combine } from "./combine.ts";
+import { credentialPaths } from "./credential-paths.ts";
 import { demotes } from "./context.ts";
+import { embeddedSecrets } from "./embedded-secret.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
 import type { Finding, Scanner, Severity } from "./index.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
 import { lower, stronger } from "./severity.ts";
+import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 
 export const RULES = {
@@ -21,8 +24,10 @@ export const RULES = {
   "exfil-domain": { help: "known exfiltration endpoint" },
   "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
-  "credential-paths": { help: "reads credentials (~/.ssh, ~/.aws)" },
+  "credential-paths": { help: "names a credential file or store" },
   "env-secrets": { help: "reads env vars or .env" },
+  "embedded-secret": { help: "ships a token or private key" },
+  "url-credentials": { help: "a password in a URL or auth header" },
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
   "invisible-unicode": { help: "invisible characters" },
@@ -529,11 +534,6 @@ const PATTERN_RULES: PatternRule[] = [
   },
   { rule: "skip-permissions", severity: "critical", pattern: /--dangerously-skip-permissions/gu },
   {
-    rule: "credential-paths",
-    severity: "critical",
-    pattern: /~\/\.ssh\b|\bid_rsa\b|~\/\.aws\b/gu,
-  },
-  {
     rule: "env-secrets",
     severity: envSeverity,
     pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
@@ -859,7 +859,44 @@ const remoteInstructionText: Scanner = ({ files }) =>
     return found ? [finding("remote-instructions", { file: file.path, ...found })] : [];
   });
 
-const TEXT_SCANNERS = [downloadedCode, suspiciousPatterns, remoteInstructionText];
+const credentialPathText: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = decodeText(file)?.text;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const found = credentialPaths(
+      shellStatements(text, isProse(file.path)),
+      proseContext(file, text),
+    );
+    return found ? [finding("credential-paths", { file: file.path, ...found })] : [];
+  });
+
+const SENDS = new RegExp(String.raw`${DOWNLOADS.source}|\brequests\.|${EXFIL_HOST}`, "iu");
+
+const embeddedSecretText: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = decodeText(file)?.text;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const sendLines = text.split("\n").flatMap((line, i) => (SENDS.test(line) ? [i + 1] : []));
+    const found = embeddedSecrets(text, sendLines);
+    return found ? [finding("embedded-secret", { file: file.path, ...found })] : [];
+  });
+
+const urlCredentialText: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    const text = decodeText(file)?.text;
+    if (text === undefined || isSymlink(file.mode)) return [];
+    const found = urlCredentials(text);
+    return found ? [finding("url-credentials", { file: file.path, ...found })] : [];
+  });
+
+const TEXT_SCANNERS = [
+  downloadedCode,
+  suspiciousPatterns,
+  remoteInstructionText,
+  credentialPathText,
+  embeddedSecretText,
+  urlCredentialText,
+];
 
 // Hidden text scans as a plain text file: no Markdown prose context can demote it.
 const scanHiddenText = (body: string): Finding[] =>

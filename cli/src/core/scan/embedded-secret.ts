@@ -5,7 +5,7 @@ import { isPlaceholder, maskToken, TOKEN_RULES } from "./secret-patterns.ts";
 import { strongest } from "./severity.ts";
 
 const PRIVATE_KEY =
-  /-----BEGIN ([ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?)-----([\s\S]*?)-----END [ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----/gu;
+  /-----BEGIN ([ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?)-----([\s\S]{0,20000}?)-----END [ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----/gu;
 
 const KEY_BODY_LENGTH = 64;
 

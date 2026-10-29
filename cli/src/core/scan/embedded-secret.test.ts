@@ -29,3 +29,8 @@ test("a send after a private key's END line counts from that line", () => {
     detail: "OPENSSH PRIVATE KEY block (14 lines) (network call on line 15)",
   });
 });
+
+test("a private key body longer than 20,000 characters is not a key", () => {
+  const long = PRIVATE_KEY.replace(KEY_BODY, Array(400).fill(KEY_BODY).join("\n"));
+  expect(embeddedSecrets(long, [])).toBeUndefined();
+});

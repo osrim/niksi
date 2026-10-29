@@ -28,3 +28,7 @@ test("words that only contain a marker are not one", () => {
     suppressionComments("nosecurity checks; the noqa_style flag; shellcheck it"),
   ).toBeUndefined();
 });
+
+test("a marker stays on one line", () => {
+  expect(suppressionComments("## Modes\nnosec mode is off\n")).toBeUndefined();
+});

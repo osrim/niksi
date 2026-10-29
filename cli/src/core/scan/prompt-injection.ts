@@ -52,7 +52,6 @@ export const injections = (text: string): Injection[] =>
   ).toSorted((a, b) => a.index - b.index);
 
 export interface InjectionContext extends ProseJudge {
-  // The rule's own confidence.
   confidence: Confidence;
   hidden: (index: number) => boolean;
   // The confidence a network, credential, persistence, or money finding gives a concealment phrase.
@@ -84,6 +83,7 @@ const severityOf = (
   const confidence = raised ?? context.confidence;
   const severity = raised ? "critical" : "warn";
   const judged = context.demoted(injection.index) ? lower(severity) : severity;
+  // Gated here as well, so the strongest match is picked by the severity the finding shows.
   return { severity: gated(judged, confidence), confidence, quiet: false };
 };
 

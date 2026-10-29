@@ -144,7 +144,7 @@ test("the keyword pre-filter skips only files the pattern rule would not match",
     for (const rule of PATTERN_RULES) {
       if (!keywordMiss(rule, text)) continue;
       skipped++;
-      if (new RegExp(rule.pattern).test(text)) wrong.push(`${rule.rule}: ${file.path}`);
+      if (text.search(rule.pattern) !== -1) wrong.push(`${rule.rule}: ${file.path}`);
     }
   }
   expect(wrong).toEqual([]);

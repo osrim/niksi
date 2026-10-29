@@ -566,11 +566,9 @@ export const PATTERN_RULES: PatternRule[] = [
   },
 ];
 
-const literal = (keyword: string): string => keyword.replaceAll(/[$()*+./?[\\\]^{|}]/gu, "\\$&");
-
 const KEYWORDS = new Map(
   PATTERN_RULES.flatMap(({ rule, keywords }) =>
-    keywords ? [[rule, new RegExp(keywords.map(literal).join("|"), "iu")] as const] : [],
+    keywords ? [[rule, new RegExp(keywords.map(RegExp.escape).join("|"), "iu")] as const] : [],
   ),
 );
 
@@ -939,42 +937,40 @@ const PARTNER_MATCHES: Record<
 };
 
 // A partner raises a match when it is above info and at most `within` lines away: 0 is the
-// same line, "file" anywhere in the file. "skill" also counts the other files of the skill.
-interface Escalation<R extends Rule> {
-  partners: readonly R[];
-  within: number | "file" | "skill";
+// same line, "file" anywhere in the file.
+interface Escalation {
+  partners: readonly PartnerRule[];
+  within: number | "file";
 }
 
-const SILENT_EXEC: Escalation<PartnerRule> = {
+const SILENT_EXEC: Escalation = {
   partners: ["curl-pipe-shell", "base64-exec", "persistence"],
   within: "file",
 };
 
-const APPROVAL_BYPASS: Escalation<PartnerRule> = {
+const APPROVAL_BYPASS: Escalation = {
   partners: ["money-movement", "persistence", "destructive", "curl-pipe-shell"],
   within: 3,
 };
 
-// A partner only in another file lowers the confidence one level.
-const CONCEALMENT: Escalation<Rule> = {
-  partners: [
-    "curl-pipe-shell",
-    "exfil-domain",
-    "remote-instructions",
-    "credential-paths",
-    "credential-disclosure",
-    "env-secrets",
-    "embedded-secret",
-    "url-credentials",
-    "persistence",
-    "money-movement",
-  ],
-  within: "skill",
-};
+// Partner findings anywhere in the skill raise a concealment phrase. A partner only in another
+// file lowers the confidence one level.
+const CONCEALMENT_PARTNERS: readonly Rule[] = [
+  "curl-pipe-shell",
+  "exfil-domain",
+  "remote-instructions",
+  "credential-paths",
+  "credential-disclosure",
+  "env-secrets",
+  "embedded-secret",
+  "url-credentials",
+  "persistence",
+  "money-movement",
+];
 
 // Most files match no anchor, so the partners are found only when one asks.
 const escalates = (
-  { partners, within }: Escalation<PartnerRule>,
+  { partners, within }: Escalation,
   parse: () => ParsedText,
 ): ((line: number) => boolean) => {
   let near: ((anchor: { line: number }) => unknown) | undefined;
@@ -984,7 +980,7 @@ const escalates = (
       const lines = partners
         .flatMap((rule) => PARTNER_MATCHES[rule](parsed))
         .filter(({ severity }) => severity !== "info");
-      near = nearest(lines, { within: typeof within === "number" ? within : Infinity });
+      near = nearest(lines, { within: within === "file" ? Infinity : within });
     }
     return near({ line }) !== undefined;
   };
@@ -1047,10 +1043,9 @@ const TEXT_SCANNERS = [
   suppressionText,
 ];
 
-// `signals` are the other text findings of the skill, including those inside hidden text.
 const concealing = (signals: Finding[], path: string): Confidence | undefined => {
   const partners = signals.filter(
-    (signal) => signal.severity !== "info" && CONCEALMENT.partners.includes(signal.rule),
+    (signal) => signal.severity !== "info" && CONCEALMENT_PARTNERS.includes(signal.rule),
   );
   if (partners.length === 0) return undefined;
   const own = RULES["prompt-injection"].confidence;

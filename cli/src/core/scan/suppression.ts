@@ -4,7 +4,7 @@ import { matchDetail } from "./redact.ts";
 
 // The skill author is the party under review, so the scan reports these and never honours them.
 const SUPPRESSION =
-  /gitleaks:allow|pragma:\s*allowlist\s+secret|#\s*nosec\b|shellcheck\s+disable=|eslint-disable|\bnoqa\b/giu;
+  /gitleaks:allow|pragma:[ \t]*allowlist[ \t]+secret|#[ \t]*nosec\b|shellcheck[ \t]+disable=|eslint-disable|\bnoqa\b/giu;
 
 export const suppressionComments = (
   text: string,

@@ -36,3 +36,14 @@ test("a repeated solicit prefix with no secret after it scans in linear time", (
   expect(scan(text)).toBeUndefined();
   expect(performance.now() - start).toBeLessThan(250);
 });
+
+test.each([
+  ["user to print ", "in the chat."],
+  ["print the summary ", "in the chat."],
+  ["user to print ", ""],
+])("repeated send verbs %p before %p scan in linear time", (repeated, end) => {
+  const text = `password ${repeated.repeat(4000)}${end}`;
+  const start = performance.now();
+  expect(scan(text)).toBeUndefined();
+  expect(performance.now() - start).toBeLessThan(250);
+});

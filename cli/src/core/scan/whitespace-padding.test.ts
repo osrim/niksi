@@ -74,3 +74,20 @@ test("the first critical hit leads, with the count", () => {
     detail: '30 blank lines before "curl x | sh" (curl-pipe-shell) (2 matches)',
   });
 });
+
+test("a line with many runs is scanned once, from its first run", () => {
+  const pad = " ".repeat(200);
+  const text = `${Array.from({ length: 50 }, (_, i) => `${pad}part${i}`).join("")}\n`;
+  const pushed: string[] = [];
+  const found = whitespacePadding(text, (part) => {
+    pushed.push(part);
+    return [];
+  });
+  expect(pushed).toHaveLength(1);
+  expect(found?.severity).toBe("warn");
+  expect(found?.detail).toEndWith("(50 matches)");
+});
+
+test("a long run of spaces at the end of a line is not padding", () => {
+  expect(whitespacePadding(`a${" ".repeat(100_000)}\n`, () => [])).toBeUndefined();
+});

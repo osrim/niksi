@@ -6,7 +6,9 @@ const PAD_WIDTH = 200;
 const SNIPPET_LENGTH = 80;
 
 const BLANK = /^[ \t\r]*$/u;
-const PAD = new RegExp(String.raw`[ \t]{${PAD_WIDTH},}(?=\S)`, "gu");
+// Each run matches once, then its length and the character after it decide.
+const RUN = /[ \t]+/gu;
+const NOT_SPACE = /\S/u;
 // Padding before a table border or a box-drawing character usually aligns columns.
 const ALIGNED = /^[|\u{2500}-\u{257F}]/u;
 
@@ -16,6 +18,8 @@ interface Pad {
   // The text the padding pushes out of view.
   pushed: string;
   aligned: boolean;
+  // Later runs on a line push text inside the first run's text, so only the first is scanned.
+  scanned: boolean;
 }
 
 const lineStarts = (lines: string[]): number[] => {
@@ -42,22 +46,27 @@ const gaps = (text: string, lines: string[]): Pad[] => {
     what: `${count} blank lines`,
     pushed: text.slice(starts[line], starts[found[i + 1]?.line ?? lines.length]),
     aligned: false,
+    scanned: true,
   }));
 };
 
 const runs = (lines: string[]): Pad[] =>
   lines.flatMap((line, i) =>
-    [...line.matchAll(PAD)].flatMap(({ 0: run, index }) => {
-      const pushed = line.slice(index + run.length);
-      return [
-        {
+    [...line.matchAll(RUN)]
+      .filter(
+        ({ 0: run, index }) =>
+          run.length >= PAD_WIDTH && NOT_SPACE.test(line[index + run.length] ?? ""),
+      )
+      .map(({ 0: run, index }, nth) => {
+        const pushed = line.slice(index + run.length);
+        return {
           line: i + 1,
           what: `${run.length} spaces or tabs`,
           pushed,
           aligned: ALIGNED.test(pushed),
-        },
-      ];
-    }),
+          scanned: nth === 0,
+        };
+      }),
   );
 
 const criticalRules = (found: Finding[]): string[] => [
@@ -76,6 +85,7 @@ export const whitespacePadding = (
   let best = plain[0];
   let rules: string[] = [];
   for (const pad of pads) {
+    if (!pad.scanned) continue;
     rules = criticalRules(scan(pad.pushed));
     if (rules.length === 0) continue;
     best = pad;

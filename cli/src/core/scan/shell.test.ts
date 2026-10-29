@@ -81,6 +81,24 @@ test("wrappers, their options, and leading assignments are skipped", () => {
   expect(pipeline("LANG=C python3 -")).toEqual([["python3", "-"]]);
 });
 
+test("each command keeps the wrappers it skipped", () => {
+  const [statement] = script("sudo -u root nohup setsid python3 x.py | doas tee out");
+  expect(statement!.commands.map((command) => command.wrappers)).toEqual([
+    ["sudo", "nohup", "setsid"],
+    ["doas"],
+  ]);
+});
+
+test("a statement ended by a single & runs in the background", () => {
+  expect(script("a & b && c; d &").map((s) => [s.text, s.background])).toEqual([
+    ["a", true],
+    ["b", false],
+    ["c", false],
+    ["d", true],
+  ]);
+  expect(script("a >/dev/null 2>&1 &")[0]!.background).toBe(true);
+});
+
 test("substitutions are recorded with their kind, backticks as $(", () => {
   const [statement] = script('bash <(curl -s x.invalid) "$(wget -qO- y.invalid | cat)" `z`');
   expect(statement!.commands[0]!.substitutions).toEqual([

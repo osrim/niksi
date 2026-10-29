@@ -13,7 +13,7 @@ import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
-import { base64Exec } from "./base64-exec.ts";
+import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
 import { combine } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
@@ -43,6 +43,7 @@ import {
 import { injections, promptInjection } from "./prompt-injection.ts";
 import { judgePhrases, proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
+import { silentExec } from "./silent-exec.ts";
 import { lower, stronger, strongest } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
@@ -61,6 +62,7 @@ export const RULES = {
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
   persistence: { help: "installs something that runs again later" },
+  "silent-exec": { help: "starts a detached or silenced process" },
   "dependency-source": { help: "installs from a source it picks, or skips TLS checks" },
   "install-hook": { help: "runs a script when a package installs" },
   "money-movement": { help: "moves money" },
@@ -865,6 +867,20 @@ const persistenceText = textRule("persistence", (file, text) =>
   persistence(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
 
+const silentExecText = textRule("silent-exec", (file, text) => {
+  const statements = shellStatements(text, isProse(file.path));
+  const context = proseContext(file, text);
+  return silentExec(text, statements, context, () =>
+    [
+      ...downloadHits(statements, context).flatMap(({ hit, severity }) =>
+        hit.statements.map(({ line }) => ({ severity, line })),
+      ),
+      ...persistenceMatches(statements, context),
+      ...base64ExecMatches(text, statements, context),
+    ].filter(({ severity }) => severity !== "info"),
+  );
+});
+
 const dependencySourceText = textRule("dependency-source", (file, text) =>
   dependencySource(
     shellStatements(text, isProse(file.path)),
@@ -900,6 +916,7 @@ const TEXT_SCANNERS = [
   embeddedSecretText,
   urlCredentialText,
   persistenceText,
+  silentExecText,
   dependencySourceText,
   installHookText,
   moneyMovementText,

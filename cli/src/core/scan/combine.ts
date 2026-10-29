@@ -28,3 +28,13 @@ export const combine = <A extends Located, B extends Located>(
       );
     return nearest ? [{ anchor, partner: nearest }] : [];
   });
+
+// Keeps the first match on each line, so callers pass matches in text order.
+export const oncePerLine = <T extends Located>(matches: readonly T[]): T[] => {
+  const lines = new Set<number>();
+  return matches.filter(({ line }) => {
+    if (lines.has(line)) return false;
+    lines.add(line);
+    return true;
+  });
+};

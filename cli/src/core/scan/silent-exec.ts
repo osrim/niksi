@@ -1,0 +1,123 @@
+import { lineAt } from "../skill/text.ts";
+import { combine, oncePerLine, type Located } from "./combine.ts";
+import { judgeIndex, judgeStatement, type ProseJudge } from "./context.ts";
+import type { Finding } from "./index.ts";
+import { commandName } from "./interpreter.ts";
+import { matchDetail } from "./redact.ts";
+import { strongest } from "./severity.ts";
+import type { Statement } from "./shell.ts";
+
+const DETACHERS = new Set(["nohup", "setsid"]);
+const NULL_DEVICE = "/dev/null";
+const REDIRECT = /^(&|1|2)?>>?(.*)$/u;
+
+// Order matters: `> /dev/null 2>&1` silences both streams, `2>&1 > /dev/null` only stdout.
+const silenced = (words: string[]): boolean => {
+  let out = false;
+  let err = false;
+  for (let i = 0; i < words.length; i++) {
+    if (words[i] === "2>&1") {
+      err = out;
+      continue;
+    }
+    const redirect = REDIRECT.exec(words[i]!);
+    if (!redirect) continue;
+    const target = redirect[2] || words[++i];
+    const stream = redirect[1] || "1";
+    if (stream !== "2") out = target === NULL_DEVICE;
+    if (stream !== "1") err = target === NULL_DEVICE;
+  }
+  return out && err;
+};
+
+const detaches = (statement: Statement): boolean =>
+  statement.commands.some(
+    ({ words, wrappers }) =>
+      (words.length > 0 && wrappers.some((wrapper) => DETACHERS.has(wrapper))) ||
+      commandName(words[0] ?? "") === "disown" ||
+      (statement.background && silenced(words)),
+  );
+
+const DEVNULL = String.raw`\s*=\s*(?:subprocess\.)?DEVNULL\b`;
+const NEARBY = 5;
+
+interface Pairing {
+  anchor: RegExp;
+  partner: RegExp;
+  // The partner may come before the anchor, but not after it.
+  before?: boolean;
+}
+
+const PAIRINGS: Pairing[] = [
+  {
+    anchor: new RegExp(`\\bstdout${DEVNULL}`, "gu"),
+    partner: new RegExp(`\\bstderr${DEVNULL}`, "gu"),
+  },
+  { anchor: /\bdetached\s*:\s*true\b/gu, partner: /\bstdio\s*:\s*["']ignore["']/gu },
+  { anchor: /\.unref\(\s*\)/gu, partner: /\b(?:spawn|fork)\s*\(/gu, before: true },
+];
+const ALONE = /\bstart_new_session\s*=\s*True\b/gu;
+
+interface TextMatch extends Located {
+  index: number;
+  text: string;
+}
+
+const lineText = (text: string, index: number): string => {
+  const end = text.indexOf("\n", index);
+  return text.slice(text.lastIndexOf("\n", index - 1) + 1, end === -1 ? text.length : end).trim();
+};
+
+const textMatches = (text: string, pattern: RegExp): TextMatch[] =>
+  [...text.matchAll(pattern)].map(({ index }) => ({
+    index,
+    line: lineAt(text, index),
+    text: lineText(text, index),
+  }));
+
+const languageMatches = (text: string): TextMatch[] => [
+  ...textMatches(text, ALONE),
+  ...PAIRINGS.flatMap(({ anchor, partner, before }) =>
+    combine(textMatches(text, anchor), textMatches(text, partner), {
+      within: NEARBY,
+      related: (a, p) => !before || p.line <= a.line,
+    }).map((pair) => pair.anchor),
+  ),
+];
+
+interface Candidate extends TextMatch {
+  judgment: ReturnType<typeof judgeStatement>;
+}
+
+// `partners` are the file's curl-pipe-shell, base64-exec, and persistence matches above info.
+export const silentExec = (
+  text: string,
+  statements: Statement[],
+  judge: ProseJudge,
+  partners: () => Located[],
+): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
+  const shell: Candidate[] = statements.filter(detaches).map((statement) => ({
+    index: statement.index,
+    line: statement.line,
+    text: statement.background ? `${statement.text} &` : statement.text,
+    judgment: judgeStatement(statement, judge),
+  }));
+  const language: Candidate[] = languageMatches(text).map((match) =>
+    Object.assign(match, { judgment: judgeIndex(statements, match.index, judge) }),
+  );
+  const candidates = oncePerLine([...shell, ...language].toSorted((a, b) => a.index - b.index));
+  if (candidates.length === 0) return undefined;
+  const paired = new Set(combine(candidates, partners()).map(({ anchor }) => anchor));
+  const found = candidates.map(({ line, text: matched, judgment }, i) => ({
+    line,
+    matched,
+    quiet: judgment.quiet,
+    severity: judgment.judged(paired.has(candidates[i]!) ? "critical" : "warn"),
+  }));
+  const best = strongest(found)!;
+  return {
+    severity: best.severity,
+    line: best.line,
+    detail: matchDetail(best.matched, best.quiet, found.length),
+  };
+};

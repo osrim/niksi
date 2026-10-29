@@ -1,4 +1,5 @@
 import { lineAt } from "../skill/text.ts";
+import { oncePerLine } from "./combine.ts";
 import { judgeIndex, judgeStatement, type ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import {
@@ -103,14 +104,7 @@ export const base64ExecMatches = (
   judge: ProseJudge,
 ): Base64ExecMatch[] => {
   const all = [...statementMatches(statements, judge), ...patternMatches(text, statements, judge)];
-  const lines = new Set<number>();
-  return all
-    .toSorted((a, b) => a.index - b.index)
-    .filter(({ line }) => {
-      if (lines.has(line)) return false;
-      lines.add(line);
-      return true;
-    });
+  return oncePerLine(all.toSorted((a, b) => a.index - b.index));
 };
 
 export const base64Exec = (

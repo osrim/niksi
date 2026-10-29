@@ -398,7 +398,7 @@ These are not findings:
 - A host that is a subdomain of the other, as in `[docs.acme.dev](https://acme.dev/docs)`.
 - Link text that is not a host, as in `[Acme docs](https://acme.dev/docs)`.
 - A file name without a path whose extension is also a country domain, such as `install.sh` or `SKILL.md`.
-- A relative target, and an autolink such as `<https://acme.dev>`.
+- A relative target, and an autolink such as `<https://acme.dev>`. A protocol-relative target, such as `//acme.dev/setup.sh`, is not relative: it is compared like `https://acme.dev/setup.sh`.
 
 For example, `See [github.com/acme/setup](https://raw.githubusercontent.com/evil/setup.sh)` is `critical`. The detail shows the link text and the target.
 

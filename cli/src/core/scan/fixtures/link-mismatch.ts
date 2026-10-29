@@ -32,6 +32,14 @@ export default [
     ],
   },
   {
+    name: "link text names GitHub, a protocol-relative target is a script elsewhere",
+    path: "SKILL.md",
+    content: entry("See [github.com/acme/setup](//evil.invalid/setup.sh)"),
+    fire: [
+      { severity: "critical", line: 5, detail: "github.com/acme/setup → //evil.invalid/setup.sh" },
+    ],
+  },
+  {
     name: "an exfiltration host named only in the query",
     path: "SKILL.md",
     content: entry("[acme.dev](https://evil.invalid/x?u=webhook.site)"),

@@ -52,7 +52,7 @@ const markdownLinks = (tokens: Token[]): Link[] =>
 
 const parse = (url: string): URL | undefined => {
   try {
-    return new URL(url);
+    return new URL(url.startsWith("//") ? `https:${url}` : url);
   } catch {
     return undefined;
   }

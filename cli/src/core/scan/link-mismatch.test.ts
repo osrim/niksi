@@ -54,6 +54,15 @@ test("text that is not a host is not compared", () => {
   expect(check("[`SKILL.md`](https://github.com/acme/x/blob/main/SKILL.md)")).toBeUndefined();
 });
 
+test("a protocol-relative target is compared like an https: one", () => {
+  expect(check("See [github.com/acme/setup](//evil.invalid/setup.sh)")).toEqual({
+    severity: "critical",
+    line: 1,
+    detail: "github.com/acme/setup → //evil.invalid/setup.sh",
+  });
+  expect(check("[acme.dev](//docs.acme.dev/x.sh)")).toBeUndefined();
+});
+
 test("a relative target and an autolink are not compared", () => {
   expect(check("[github.com/acme](./docs/acme.md)")).toBeUndefined();
   expect(check("<https://evil.dev/x.sh>")).toBeUndefined();

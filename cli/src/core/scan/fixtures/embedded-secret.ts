@@ -53,10 +53,28 @@ export default [
     fire: [{ severity: "warn", line: 1, detail: "Telegram bot token 7409…sawn" }],
   },
   {
+    name: "a Telegram bot token in a bot API URL",
+    path: "scripts/notify.sh",
+    content: `#!/bin/sh\ncurl "https://api.telegram.org/bot${TELEGRAM_BOT}/sendMessage"\n`,
+    fire: [
+      {
+        severity: "critical",
+        line: 2,
+        detail: "Telegram bot token 7409…sawn (network call on line 2)",
+      },
+    ],
+  },
+  {
     name: "a JWT whose parts are JSON",
     path: "scripts/call.js",
     content: `const auth = "${JWT}";\n`,
     fire: [{ severity: "warn", line: 1, detail: "JWT eyJh…czA5" }],
+  },
+  {
+    name: "an AWS access key above a git fetch",
+    path: "scripts/sync.sh",
+    content: `#!/bin/sh\nexport AWS_ACCESS_KEY_ID=${AWS_KEY}\ngit fetch origin\n`,
+    silent: "warn",
   },
   {
     name: "the AWS documentation key",

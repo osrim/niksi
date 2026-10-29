@@ -3,20 +3,20 @@ import { lower, strongest } from "./severity.ts";
 import { mapHome, type Command, type Statement } from "./shell.ts";
 
 // Paths are matched after mapHome, so `~` stands for every home spelling.
-const END = String.raw`(?![\w-]|\.[\w-])`;
+const PATH_END = String.raw`(?![\w-]|\.[\w-])`;
 const UNDER = String.raw`(?![\w-])(?:[\\/][\w.*-]*)?`;
-const STORE = new RegExp(
+const CREDENTIAL_LOCATION = new RegExp(
   [
     String.raw`~[\\/]\.(?:ssh|aws|azure|gnupg|password-store)${UNDER}`,
     String.raw`~[\\/]\.config[\\/]gcloud${UNDER}`,
-    String.raw`~[\\/]\.(?:git-credentials|netrc|pgpass|npmrc|pypirc)${END}`,
+    String.raw`~[\\/]\.(?:git-credentials|netrc|pgpass|npmrc|pypirc)${PATH_END}`,
     String.raw`~[\\/]\.docker[\\/]config\.json(?![\w-])`,
-    String.raw`~[\\/]\.kube[\\/]config${END}`,
+    String.raw`~[\\/]\.kube[\\/]config${PATH_END}`,
     String.raw`(?<![\w.-])application_default_credentials\.json`,
-    String.raw`(?<![\w.-])\/etc\/(?:g?shadow|sudoers(?:\.d)?)${END}`,
+    String.raw`(?<![\w.-])\/etc\/(?:g?shadow|sudoers(?:\.d)?)${PATH_END}`,
     String.raw`\bsecurity[ \t]+(?:find-(?:generic|internet)-password|dump-keychain)\b`,
     String.raw`\bLibrary[\\/]Keychains\b`,
-    String.raw`(?<=[\\/])(?:Login(?:\\ | )Data|Cookies)${END}`,
+    String.raw`(?<=[\\/])(?:Login(?:\\ | )Data|Cookies)${PATH_END}`,
     String.raw`(?<![\w.-])(?:key4\.db|logins\.json|cookies\.sqlite)(?![\w-])`,
   ].join("|"),
   "gu",
@@ -39,12 +39,14 @@ const MANAGES = new Set([
   "mkdir",
   "touch",
   "ls",
+  "cd",
   "export",
 ]);
 
 const WRITES_TO = /(?:>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?$/u;
 
-const IN_URL = /[a-z][\w+.-]*:\/\/\S*$/iu;
+// A substitution inside a URL still reads the file, as in `?d=$(<~/.ssh/id_rsa)`.
+const IN_URL = /[a-z][\w+.-]*:\/\/[^\s$`<(]*$/iu;
 
 interface Match {
   severity: Severity;
@@ -66,7 +68,7 @@ const privateSeverity = (statement: Statement, command: Command, text: string): 
 
 const commandMatches = (statement: Statement, command: Command, setup: boolean): Match[] => {
   const text = mapHome(command.text);
-  return [...text.matchAll(STORE)].flatMap((match) => {
+  return [...text.matchAll(CREDENTIAL_LOCATION)].flatMap((match) => {
     const before = text.slice(0, match.index);
     if (IN_URL.test(before)) return [];
     const path = match[0].replace(/(?<=.)[.,:;]+$/u, "");
@@ -78,21 +80,25 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
   });
 };
 
-// Prose names a store, a read verb beside it reads it, and code reads it unless it only manages it.
 export const credentialPaths = (
   statements: Statement[],
   { afterProhibition, demoted }: ProseJudge,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = statements.flatMap((statement) => {
     const setup = KEY_SETUP.test(statement.text);
-    const quiet = statement.kind === "prose" && afterProhibition(statement.index);
-    const drop = statement.kind === "prose" && demoted(statement.index);
+    const prose = statement.kind === "prose";
+    const prohibited = prose && afterProhibition(statement.index);
+    const lowered = prose && demoted(statement.index);
+    const judge = (severity: Severity): Severity => {
+      if (prohibited) return "info";
+      return lowered ? lower(severity) : severity;
+    };
     return statement.commands.flatMap((command) =>
       commandMatches(statement, command, setup).map((match) => ({
         path: match.path,
         line: statement.line,
-        quiet,
-        severity: quiet ? "info" : drop ? lower(match.severity) : match.severity,
+        prohibited,
+        severity: judge(match.severity),
       })),
     );
   });
@@ -100,7 +106,7 @@ export const credentialPaths = (
   if (!best) return undefined;
   const detail = [
     best.path,
-    ...(best.quiet ? ["(in a warning)"] : []),
+    ...(best.prohibited ? ["(in a warning)"] : []),
     ...(found.length > 1 ? [`(${found.length} matches)`] : []),
   ].join(" ");
   return { severity: best.severity, line: best.line, detail };

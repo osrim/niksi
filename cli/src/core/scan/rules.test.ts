@@ -278,8 +278,8 @@ test("regex rules fire with file and line", () => {
       "disables permission prompts",
       "claude --dangerously-skip-permissions",
     ],
-    ["credential-paths", "critical", "names a credential file or store", "cat ~/.ssh/id_ed25519"],
-    ["credential-paths", "warn", "names a credential file or store", "See ~/.ssh/id_rsa.pub"],
+    ["credential-paths", "critical", "names a credential file", "cat ~/.ssh/id_ed25519"],
+    ["credential-paths", "warn", "names a credential file", "See ~/.ssh/id_rsa.pub"],
     ["env-secrets", "info", "reads env vars or .env", "read process.env.SECRET"],
     [
       "prompt-injection",

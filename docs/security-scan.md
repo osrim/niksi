@@ -151,27 +151,27 @@ A download that runs from a `#` or `//` comment in a script or fenced code is `w
 
 ### Credentials
 
-The `credential-paths` rule looks for credential stores. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A credential store is one of these:
+The `credential-paths` rule looks for credential locations. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A credential location is one of these:
 
 - SSH: `~/.ssh` and the files in it.
 - Cloud and tool credentials: `~/.aws`, `~/.config/gcloud`, `application_default_credentials.json`, `~/.azure`, `~/.docker/config.json`, and `~/.kube/config`.
 - Credential files: `~/.git-credentials`, `~/.netrc`, `~/.pgpass`, `~/.npmrc`, and `~/.pypirc`.
-- Key and password stores: `~/.gnupg` and `~/.password-store`.
+- Key and password directories: `~/.gnupg` and `~/.password-store`.
 - System files: `/etc/shadow`, `/etc/gshadow`, and `/etc/sudoers`.
 - The macOS keychain: `security find-generic-password`, `security find-internet-password`, `security dump-keychain`, and `Library/Keychains`.
-- Browser stores: `Login Data` and `Cookies` after a `/`, `key4.db`, `logins.json`, and `cookies.sqlite`.
+- Browser files: `Login Data` and `Cookies` after a `/`, `key4.db`, `logins.json`, and `cookies.sqlite`.
 
 Public SSH material is a `.pub` file, `~/.ssh/authorized_keys`, or `~/.ssh/known_hosts`.
 
 | finding | severity |
 | --- | --- |
-| A credential store and, in the same statement, `cat`, `head`, `tail`, `less`, `cp`, `scp`, `rsync`, `tar`, `zip`, `base64`, `xxd`, `curl`, `open(`, `readFile`, or `read_text` | `critical` |
-| A credential store in a code block, or in a file that is not Markdown or `.txt` | `critical` |
-| Public SSH material, a statement with `ssh-keygen` or `ssh-copy-id`, or a write into a credential store with `>`, `>>`, or `tee` | `warn` |
-| A credential store in such a code statement that runs `ssh`, `ssh-add`, `ssh-keyscan`, `chmod`, `chown`, `mkdir`, `touch`, `ls`, or `export` | `warn` |
-| A credential store in prose or a comment | `warn` |
+| A credential location and, in the same statement, `cat`, `head`, `tail`, `less`, `cp`, `scp`, `rsync`, `tar`, `zip`, `base64`, `xxd`, `curl`, `open(`, `readFile`, or `read_text` | `critical` |
+| A credential location in a code block, or in a file that is not Markdown or `.txt` | `critical` |
+| Public SSH material, a statement with `ssh-keygen` or `ssh-copy-id`, or a write into a credential location with `>`, `>>`, or `tee` | `warn` |
+| A credential location in such a code statement that runs `ssh`, `ssh-add`, `ssh-keyscan`, `chmod`, `chown`, `mkdir`, `touch`, `ls`, `cd`, or `export` | `warn` |
+| A credential location in prose or a comment | `warn` |
 
-For example, `cat $HOME/.ssh/id_ed25519` is `critical`, and "Add your public key from `~/.ssh/id_rsa.pub` to the server." is `warn`. A store inside a URL, such as a link to a page named `Cookies`, is not a finding. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
+For example, `cat $HOME/.ssh/id_ed25519` is `critical`, and "Add your public key from `~/.ssh/id_rsa.pub` to the server." is `warn`. A location inside a URL, such as a link to a page named `Cookies`, is not a finding, unless a substitution such as `$(<~/.ssh/id_rsa)` reads it. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
 
 ### Embedded secrets
 
@@ -185,7 +185,7 @@ The `embedded-secret` rule looks for tokens and private keys that a skill ships.
 
 | finding | severity |
 | --- | --- |
-| A secret within five lines of `curl`, `wget`, `fetch`, `iwr`, `irm`, `Invoke-WebRequest`, `Invoke-RestMethod`, `requests.`, or an exfiltration host | `critical` |
+| A secret within five lines of `curl`, `wget`, `fetch(`, `fetch` before a URL, `iwr`, `irm`, `Invoke-WebRequest`, `Invoke-RestMethod`, `requests.`, or an exfiltration host. A private key counts from its `BEGIN` line or its `END` line. | `critical` |
 | Any other secret | `warn` |
 
 These are not secrets:

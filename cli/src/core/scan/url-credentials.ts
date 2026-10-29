@@ -1,12 +1,14 @@
 import { lineAt } from "../skill/text.ts";
-import { isPlaceholder } from "./embedded-secret.ts";
+import { AUTH_HEADER_NAME, isPlaceholder } from "./secret-patterns.ts";
 import type { Finding, Severity } from "./index.ts";
 import { strongest } from "./severity.ts";
 
 const URL_PASSWORD = /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]{1,50}:([^\s@/]{3,50})@[A-Za-z0-9.-]+/gu;
 
-const AUTH_HEADER =
-  /(?<![\w-])(?:-H|--header)[ \t]*=?[ \t]*["']?((?:Authorization:[ \t]*(?:Bearer|Basic|Token)|X-Api-Key:)[ \t]*([^\s"']+))/giu;
+const AUTH_HEADER = new RegExp(
+  String.raw`(?<![\w-])(?:-H|--header)[ \t]*=?[ \t]*["']?(${AUTH_HEADER_NAME}[ \t]*([^\s"']+))`,
+  "giu",
+);
 
 const HEADER_VALUE_LENGTH = 8;
 

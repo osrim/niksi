@@ -7,7 +7,7 @@ import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { combine } from "./combine.ts";
-import { credentialPaths } from "./credential-paths.ts";
+import { credentialPaths, type ProseJudge } from "./credential-paths.ts";
 import { demotes } from "./context.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
 import { hiddenHtml } from "./hidden-html.ts";
@@ -24,10 +24,10 @@ export const RULES = {
   "exfil-domain": { help: "known exfiltration endpoint" },
   "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
-  "credential-paths": { help: "names a credential file or store" },
+  "credential-paths": { help: "names a credential file" },
   "env-secrets": { help: "reads env vars or .env" },
   "embedded-secret": { help: "ships a token or private key" },
-  "url-credentials": { help: "a password in a URL or auth header" },
+  "url-credentials": { help: "puts a password in a URL or header" },
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
   "invisible-unicode": { help: "invisible characters" },
@@ -557,10 +557,8 @@ const lowerIf = (demoted: boolean, severity: Severity): Severity =>
 const PROHIBITION =
   /\b(never|do not|don't|must not|should not|avoid|refuses? (requests? )?to)\s+((ever\s+)?(run|execute|use|call|invoke|type|paste|pipe|ignore|pass)(ing)?\s+(\w+\s+with\s+)?)?[`'"]?$/iu;
 
-interface ProseContext {
+interface ProseContext extends ProseJudge {
   map?: MarkdownMap;
-  afterProhibition: (index: number) => boolean;
-  demoted: (index: number) => boolean;
 }
 
 // Only Markdown prose explains or demotes a command; code and scripts run it.
@@ -859,35 +857,36 @@ const remoteInstructionText: Scanner = ({ files }) =>
     return found ? [finding("remote-instructions", { file: file.path, ...found })] : [];
   });
 
-const credentialPathText: Scanner = ({ files }) =>
-  files.flatMap((file) => {
-    const text = decodeText(file)?.text;
-    if (text === undefined || isSymlink(file.mode)) return [];
-    const found = credentialPaths(
-      shellStatements(text, isProse(file.path)),
-      proseContext(file, text),
-    );
-    return found ? [finding("credential-paths", { file: file.path, ...found })] : [];
-  });
+type Located = Pick<Finding, "severity" | "line" | "detail">;
 
-const SENDS = new RegExp(String.raw`${DOWNLOADS.source}|\brequests\.|${EXFIL_HOST}`, "iu");
+const textRule =
+  (rule: Rule, detect: (file: SkillFile, text: string) => Located | undefined): Scanner =>
+  ({ files }) =>
+    files.flatMap((file) => {
+      const text = decodeText(file)?.text;
+      if (text === undefined || isSymlink(file.mode)) return [];
+      const found = detect(file, text);
+      return found ? [finding(rule, { file: file.path, ...found })] : [];
+    });
 
-const embeddedSecretText: Scanner = ({ files }) =>
-  files.flatMap((file) => {
-    const text = decodeText(file)?.text;
-    if (text === undefined || isSymlink(file.mode)) return [];
-    const sendLines = text.split("\n").flatMap((line, i) => (SENDS.test(line) ? [i + 1] : []));
-    const found = embeddedSecrets(text, sendLines);
-    return found ? [finding("embedded-secret", { file: file.path, ...found })] : [];
-  });
+const credentialPathText = textRule("credential-paths", (file, text) =>
+  credentialPaths(shellStatements(text, isProse(file.path)), proseContext(file, text)),
+);
 
-const urlCredentialText: Scanner = ({ files }) =>
-  files.flatMap((file) => {
-    const text = decodeText(file)?.text;
-    if (text === undefined || isSymlink(file.mode)) return [];
-    const found = urlCredentials(text);
-    return found ? [finding("url-credentials", { file: file.path, ...found })] : [];
-  });
+// `fetch` sends only as a call or before a URL, so `git fetch origin` is not a send.
+const SENDS = new RegExp(
+  String.raw`(?<![\w-])(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)(?![\w-])|\bfetch\s*\(|(?<![\w-])fetch[ \t]+(?:-\S+[ \t]+)*https?:\/\/|\brequests\.|${EXFIL_HOST}`,
+  "iu",
+);
+
+const embeddedSecretText = textRule("embedded-secret", (_file, text) =>
+  embeddedSecrets(
+    text,
+    text.split("\n").flatMap((line, i) => (SENDS.test(line) ? [i + 1] : [])),
+  ),
+);
+
+const urlCredentialText = textRule("url-credentials", (_file, text) => urlCredentials(text));
 
 const TEXT_SCANNERS = [
   downloadedCode,

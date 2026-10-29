@@ -19,9 +19,13 @@ import { integrityOf } from "../skill/integrity.ts";
 import { materialize } from "../install/store.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import { parseCoordinate } from "./coordinate.ts";
+import { GitSource } from "./git-source.ts";
+import { captureEnv } from "../../test-env.ts";
+import { commitAll, initRepo, makeSkill } from "../../test-cli.ts";
 
 let tmp: string;
 let dir: string;
+const restoreEnv = captureEnv("NIKSI_HOME", "XDG_CACHE_HOME");
 
 const installed = (
   name: string,
@@ -39,6 +43,7 @@ const installed = (
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-source-test-")));
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
+  process.env.XDG_CACHE_HOME = join(tmp, "cache");
   dir = join(tmp, "workspace");
   await mkdir(join(dir, "skills", "alpha"), { recursive: true });
   await mkdir(join(dir, "skills", "beta"), { recursive: true });
@@ -47,6 +52,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  restoreEnv();
   await rm(tmp, { recursive: true, force: true });
 });
 
@@ -293,4 +299,31 @@ test("discoveryCoordinate joins the discovery root onto a local source directory
     "/elsewhere/repo/plugins/x",
   );
   expect(discoveryCoordinate({ source: `${LOCAL_PREFIX}/elsewhere/repo` })).toBe("/elsewhere/repo");
+});
+
+test("a coordinate path that discovery misses becomes the discovery root when it holds SKILL.md", async () => {
+  const repo = join(tmp, "hidden-repo");
+  await makeSkill(join(repo, "cursor/skills"), "x");
+  await makeSkill(join(repo, "plugin/skills"), "x");
+  await makeSkill(join(repo, ".hidden/skills"), "x");
+  await makeSkill(join(repo, "tools"), "pdf");
+  await mkdir(join(repo, "docs"), { recursive: true });
+  await writeFile(join(repo, "docs/README.md"), "docs\n");
+  await initRepo(repo);
+  await commitAll(repo, "init");
+  const source = new GitSource(repo);
+  const resolved = async (skill: string): Promise<{ dir: string; paths: string[] }> => {
+    const found = await resolveCoordinate(source, { repo, kind: "git", skill });
+    return { dir: found.dir, paths: found.skills.map((s) => s.path) };
+  };
+  const everything = ["tools/pdf", "cursor/skills/x", "plugin/skills/x"];
+
+  expect(await resolved(".hidden/skills/x")).toEqual({
+    dir: ".hidden/skills/x",
+    paths: [".hidden/skills/x"],
+  });
+  expect(await resolved("tools/pdf")).toEqual({ dir: "", paths: everything });
+  expect(await resolved("pdf")).toEqual({ dir: "", paths: everything });
+  expect(await resolved("docs")).toEqual({ dir: "", paths: everything });
+  expect(await resolved(".hidden/skills")).toEqual({ dir: "", paths: everything });
 });

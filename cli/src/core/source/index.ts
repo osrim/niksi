@@ -73,8 +73,17 @@ export const resolveCoordinate = async (
     ref ??= split.ref;
   }
   const rev = await source.resolve(ref);
-  return { rev, skills: await source.discover(rev.commit, dir), dir, ref };
+  const skills = await source.discover(rev.commit, dir);
+  const named = coordinate.skill;
+  if (named !== undefined && !holdsSkillAt(skills, named)) {
+    const rooted = await source.discover(rev.commit, named);
+    if (holdsSkillAt(rooted, named)) return { rev, skills: rooted, dir: named, ref };
+  }
+  return { rev, skills, dir, ref };
 };
+
+const holdsSkillAt = (skills: DiscoveredSkill[], path: string): boolean =>
+  skills.some((skill) => skill.path === path);
 
 export interface ScopedCoordinate {
   source: Source;

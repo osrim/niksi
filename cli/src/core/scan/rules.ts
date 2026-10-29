@@ -10,10 +10,13 @@ import { combine } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
 import { demotes, type ProseJudge } from "./context.ts";
+import { dependencySource } from "./dependency-source.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
 import type { Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
+import { installHook } from "./install-hook.ts";
+import { isMap } from "./manifest.ts";
 import { moneyMovement, moneyPhrases } from "./money-movement.ts";
 import { persistence, persistenceMatches } from "./persistence.ts";
 import { injections, promptInjection } from "./prompt-injection.ts";
@@ -37,6 +40,8 @@ export const RULES = {
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
   persistence: { help: "installs something that runs again later" },
+  "dependency-source": { help: "installs from a source it picks, or skips TLS checks" },
+  "install-hook": { help: "runs a script when a package installs" },
   "money-movement": { help: "moves money" },
   "invisible-unicode": { help: "invisible characters" },
   "hidden-html": { help: "text a reader does not see" },
@@ -200,9 +205,6 @@ const fieldText = (key: string, value: unknown): string => {
   const text = asText(value).trim();
   return text ? `${key}: ${text}` : key;
 };
-
-const isMap = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : [value]);
 
@@ -904,6 +906,16 @@ const persistenceText = textRule("persistence", (file, text) =>
   persistence(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
 
+const dependencySourceText = textRule("dependency-source", (file, text) =>
+  dependencySource(
+    shellStatements(text, isProse(file.path)),
+    proseContext(file, text),
+    fileName(file) === "package.json" ? text : undefined,
+  ),
+);
+
+const installHookText = textRule("install-hook", (file, text) => installHook(fileName(file), text));
+
 // `fetch` sends only as a call or before a URL, so `git fetch origin` is not a send.
 const SENDS = new RegExp(
   String.raw`(?<![\w-])(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)(?![\w-])|\bfetch\s*\(|(?<![\w-])fetch[ \t]+(?:-\S+[ \t]+)*https?:\/\/|\brequests\.|${EXFIL_HOST}`,
@@ -928,6 +940,8 @@ const TEXT_SCANNERS = [
   embeddedSecretText,
   urlCredentialText,
   persistenceText,
+  dependencySourceText,
+  installHookText,
   moneyMovementText,
 ];
 

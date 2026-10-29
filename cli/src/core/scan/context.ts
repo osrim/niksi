@@ -1,4 +1,7 @@
 import type { MarkdownMap } from "../skill/markdown.ts";
+import type { Severity } from "./index.ts";
+import { lower } from "./severity.ts";
+import type { Statement } from "./shell.ts";
 
 export interface ProseJudge {
   afterProhibition: (index: number) => boolean;
@@ -23,5 +26,19 @@ export const demotes = (parts: string[], map: MarkdownMap): ((index: number) => 
     const context = map.contextAt(index);
     if (context !== "prose" && context !== "inline") return false;
     return directory || DEMOTED_HEADING.test(map.headingAt(index) ?? "");
+  };
+};
+
+// A prohibition before prose makes a match info. A comment, or docs and demo prose, drops one level.
+export const judgeStatement = (
+  { kind, index }: Pick<Statement, "kind" | "index">,
+  { afterProhibition, demoted }: ProseJudge,
+): { quiet: boolean; judged: (severity: Severity) => Severity } => {
+  const prose = kind === "prose";
+  const quiet = prose && afterProhibition(index);
+  const lowered = kind === "comment" || (prose && demoted(index));
+  return {
+    quiet,
+    judged: (severity) => (quiet ? "info" : lowered ? lower(severity) : severity),
   };
 };

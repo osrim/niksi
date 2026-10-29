@@ -29,7 +29,6 @@ export const demotes = (parts: string[], map: MarkdownMap): ((index: number) => 
   };
 };
 
-// A prohibition before prose makes a match info. A comment, or docs and demo prose, drops one level.
 export const judgeStatement = (
   { kind, index }: Pick<Statement, "kind" | "index">,
   { afterProhibition, demoted }: ProseJudge,

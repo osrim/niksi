@@ -480,6 +480,8 @@ interface PatternRule {
   rule: Rule;
   severity: Severity | Judge;
   pattern: RegExp;
+  // Every match holds one of these, ignoring case, so a file without any skips the pattern.
+  keywords?: readonly string[];
 }
 
 const lineBefore = (text: string, index: number): string =>
@@ -529,20 +531,51 @@ const settingsSeverity: Judge = (match, file, text) => {
   return isEntry(file.path) && OPENS_WITH_WRITE.test(sentence) ? "critical" : "warn";
 };
 
-const PATTERN_RULES: PatternRule[] = [
-  { rule: "exfil-domain", severity: exfilSeverity, pattern: new RegExp(EXFIL_HOST, "giu") },
+export const PATTERN_RULES: PatternRule[] = [
+  {
+    rule: "exfil-domain",
+    severity: exfilSeverity,
+    pattern: new RegExp(EXFIL_HOST, "giu"),
+    keywords: [
+      "webhook.site",
+      "requestbin.com",
+      "pipedream.net",
+      "ngrok",
+      "discord",
+      "api.telegram.org/bot",
+      "hooks.slack.com/services/",
+    ],
+  },
   {
     rule: "claude-settings",
     severity: settingsSeverity,
     pattern: /\.claude\/settings(\.local)?\.json|permissions\.allow/gu,
+    keywords: [".claude/settings", "permissions.allow"],
   },
-  { rule: "skip-permissions", severity: "critical", pattern: /--dangerously-skip-permissions/gu },
+  {
+    rule: "skip-permissions",
+    severity: "critical",
+    pattern: /--dangerously-skip-permissions/gu,
+    keywords: ["dangerously-skip-permissions"],
+  },
   {
     rule: "env-secrets",
     severity: envSeverity,
     pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
+    keywords: ["env"],
   },
 ];
+
+const literal = (keyword: string): string => keyword.replaceAll(/[$()*+./?[\\\]^{|}]/gu, "\\$&");
+
+const KEYWORDS = new Map(
+  PATTERN_RULES.flatMap(({ rule, keywords }) =>
+    keywords ? [[rule, new RegExp(keywords.map(literal).join("|"), "iu")] as const] : [],
+  ),
+);
+
+export const keywordMiss = ({ rule }: PatternRule, text: string): boolean =>
+  KEYWORDS.get(rule)?.test(text) === false;
 
 const lowerIf = (demoted: boolean, severity: Severity): Severity =>
   demoted ? lower(severity) : severity;
@@ -613,7 +646,9 @@ const suspiciousPatterns: Scanner = ({ files }) =>
     const text = decodeText(file)?.text;
     if (text === undefined) return [];
     const context = proseContext(file, text);
-    return PATTERN_RULES.flatMap((rule) => patternFinding(rule, file, text, context) ?? []);
+    return PATTERN_RULES.flatMap((rule) =>
+      keywordMiss(rule, text) ? [] : (patternFinding(rule, file, text, context) ?? []),
+    );
   });
 
 const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;

@@ -1,7 +1,7 @@
 import { judgeStatement, type ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { isMap, keyIndex, keyLine, readJson } from "./manifest.ts";
-import { matchDetail } from "./redact.ts";
+import { matchDetail, redact } from "./redact.ts";
 import { strongest } from "./severity.ts";
 import type { Command, Statement } from "./shell.ts";
 
@@ -229,6 +229,6 @@ export const dependencySource = (
   return {
     severity: best.severity,
     ...(best.line === undefined ? {} : { line: best.line }),
-    detail: matchDetail(best.text, best.quiet, found.length),
+    detail: matchDetail(redact(best.text), best.quiet, found.length),
   };
 };

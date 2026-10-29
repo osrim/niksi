@@ -41,16 +41,23 @@ interface DecodedLine {
   escaped: boolean[];
 }
 
+// In `\\u0041` the backslash before `u` is itself escaped, so the source holds the text `\u0041`.
+const escapedBackslash = (line: string, index: number): boolean => {
+  let count = 0;
+  while (line[index - count - 1] === "\\") count++;
+  return line[index] === "\\" && count % 2 === 1;
+};
+
 const decodeLine = (line: string): DecodedLine => {
   let text = "";
   const escaped: boolean[] = [];
   let at = 0;
   const append = (part: string, isEscape: boolean): void => {
     text += part;
-    escaped.push(...Array.from({ length: part.length }, () => isEscape));
+    for (let i = 0; i < part.length; i++) escaped.push(isEscape);
   };
   for (const match of line.matchAll(ESCAPE)) {
-    const decoded = decodeEscape(match);
+    const decoded = escapedBackslash(line, match.index) ? undefined : decodeEscape(match);
     if (decoded === undefined) continue;
     append(line.slice(at, match.index), false);
     append(decoded, true);

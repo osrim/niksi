@@ -76,3 +76,15 @@ test("a line with a test cue is skipped, and only that line", () => {
 test("a literal invisible character is left to invisible-unicode", () => {
   expect(escapedInvisibles("plain \u{200B} text &amp;")).toBeUndefined();
 });
+
+test("an escape after an escaped backslash is literal text", () => {
+  const tags = "\\u{E0069}\\u{E0067}\\u{E006E}\\u{E006F}";
+  expect(escapedInvisibles(`doc = "${tags.replaceAll("\\u", "\\\\u")}"`)).toBeUndefined();
+  expect(escapedInvisibles(`doc = "${tags.replaceAll("\\u", "\\\\\\u")}"`)?.severity).toBe(
+    "critical",
+  );
+});
+
+test("a very long line decodes without overflowing the call stack", () => {
+  expect(escapedInvisibles(`x = "${"a".repeat(1_000_000)}\\u200B"`)?.severity).toBe("warn");
+});

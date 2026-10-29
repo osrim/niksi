@@ -30,7 +30,7 @@ test("a platform package is restricted to its os and cpu and ships only the bina
   expect(pkg.name).toBe("@osrim/niksi-linux-arm64");
   expect(pkg.os).toEqual(["linux"]);
   expect(pkg.cpu).toEqual(["arm64"]);
-  expect(pkg.files).toEqual(["nik"]);
+  expect(pkg.files).toEqual(["nik", "THIRD-PARTY-NOTICES"]);
   expect("bin" in pkg).toBe(false);
 });
 

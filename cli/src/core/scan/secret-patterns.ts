@@ -1,4 +1,5 @@
 // Token patterns and entropy floors from gitleaks at b58d3f1, MIT License, Copyright (c) 2019 Zachary Rice.
+// The full notice is in THIRD-PARTY-NOTICES, which ships with the binary.
 const TOKEN_END = String.raw`(?=[\x60'"\s;]|\\[nr]|$)`;
 
 export interface TokenRule {

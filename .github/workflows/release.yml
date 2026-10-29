@@ -73,7 +73,8 @@ jobs:
         run: |
           bun build --compile --minify --no-compile-autoload-dotenv --no-compile-autoload-bunfig \
             --target="${{ matrix.target }}" src/index.ts --outfile dist/nik
-          tar czf "dist/niksi-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" -C dist nik
+          cp ../THIRD-PARTY-NOTICES dist/
+          tar czf "dist/niksi-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" -C dist nik THIRD-PARTY-NOTICES
 
       - name: Smoke test the binary
         env:

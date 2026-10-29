@@ -35,7 +35,7 @@ export const platformPackage = (version: string, os: string, arch: string): Mani
   description: `niksi binary for ${os}-${arch}. Install \`niksi\` instead.`,
   os: [os],
   cpu: [arch],
-  files: ["nik"],
+  files: ["nik", "THIRD-PARTY-NOTICES"],
   ...COMMON,
 });
 

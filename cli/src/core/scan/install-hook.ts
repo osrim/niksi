@@ -1,7 +1,7 @@
 import { lineAt } from "../skill/text.ts";
 import type { Finding, Severity } from "./index.ts";
 import { isMap, keyIndex, keyLine, readJson } from "./manifest.ts";
-import { matchDetail, redact } from "./redact.ts";
+import { matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
 
 // Flags that come before the one that takes inline code, as in `node --no-warnings -e`.
@@ -201,6 +201,6 @@ export const installHook = (
   return {
     severity: best.severity,
     ...(best.line === undefined ? {} : { line: best.line }),
-    detail: matchDetail(redact(best.text), false, hooks.length),
+    detail: matchDetail(best.text, false, hooks.length),
   };
 };

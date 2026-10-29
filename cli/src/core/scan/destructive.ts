@@ -40,7 +40,15 @@ const FORK_BOMB =
   /(?<name>:|\b\w+)\s*\(\s*\)\s*\{\s*\k<name>\s*\|\s*\k<name>\s*&\s*\}\s*;\s*\k<name>/gu;
 
 const ESCALATES = new Set(["sudo", "doas"]);
-const AS_ROOT = new Set(["rm", "dd", "mkfs", "chmod", "chown", "tee"]);
+// Install guides run `sudo chmod +x` and `sudo tee` on their own files, so those only warn.
+const AS_ROOT: Record<string, Severity> = {
+  rm: "critical",
+  dd: "critical",
+  mkfs: "critical",
+  chown: "critical",
+  chmod: "warn",
+  tee: "warn",
+};
 const DISK = /^of=\/dev\/(?!(?:null|stdout|stderr|fd\/\S*)$)\S/u;
 const OPEN_MODE = /^0?777$/u;
 const SET_ID = /^[ugoa]*[+=][rwxXt]*s|^[246][0-7]{3}$/u;
@@ -79,8 +87,9 @@ const commandSeverity = (
   const name = commandName(command).replace(/^mkfs\..+$/u, "mkfs");
   const operands = operandsOf(args, prose);
   const escalated = wrappers.some((wrapper) => ESCALATES.has(wrapper));
-  if (escalated && AS_ROOT.has(name) && operands.length > 0) return "critical";
-  return CHECKS[name]?.(args, operands);
+  const asRoot = escalated && operands.length > 0 ? AS_ROOT[name] : undefined;
+  const own = CHECKS[name]?.(args, operands);
+  return strongest([asRoot, own].flatMap((severity) => (severity ? [{ severity }] : [])))?.severity;
 };
 
 // Prose names the command after other words, as in "then run git reset --hard".

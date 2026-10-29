@@ -33,11 +33,16 @@ test("disk writes, filesystem creation, and fork bombs are critical", () => {
   expect(severity("mkfs --help")).toBeUndefined();
 });
 
-test("sudo or doas before rm, dd, mkfs, chmod, chown, or tee is critical", () => {
+test("sudo or doas before rm, dd, mkfs, or chown is critical", () => {
   expect(severity("sudo chown -R root /opt/app")).toBe("critical");
   expect(severity("doas rm /etc/motd")).toBe("critical");
-  expect(severity("echo 1 | sudo tee /proc/sys/vm/drop_caches")).toBe("critical");
   expect(severity("sudo apt-get install jq")).toBeUndefined();
+});
+
+test("sudo or doas before chmod or tee warns", () => {
+  expect(severity("sudo chmod +x /usr/local/bin/tool")).toBe("warn");
+  expect(severity("doas chmod 755 /usr/local/bin/tool")).toBe("warn");
+  expect(severity("echo deb x | sudo tee /etc/apt/sources.list.d/x.list")).toBe("warn");
 });
 
 test("history rewrites, history wipes, and loose permissions are warn", () => {

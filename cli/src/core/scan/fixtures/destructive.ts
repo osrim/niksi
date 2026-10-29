@@ -50,6 +50,13 @@ export default [
     silent: "info",
   },
   {
+    name: "install guide runs chmod and tee with sudo",
+    path: "scripts/install.sh",
+    content:
+      "sudo chmod +x /usr/local/bin/tool\necho deb x | sudo tee /etc/apt/sources.list.d/x.list\n",
+    silent: "warn",
+  },
+  {
     name: "deletes under a variable that may be empty",
     path: "scripts/clean.sh",
     content: '#!/bin/sh\nrm -rf "$STEAMROOT/"*\n',

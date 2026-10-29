@@ -1043,23 +1043,28 @@ const TEXT_SCANNERS = [
   suppressionText,
 ];
 
-const concealing = (signals: Finding[], path: string): Confidence | undefined => {
-  const partners = signals.filter(
-    (signal) => signal.severity !== "info" && CONCEALMENT_PARTNERS.includes(signal.rule),
+const concealment = (signals: Finding[]): ((path: string) => Confidence | undefined) => {
+  const paths = new Set(
+    signals
+      .filter((signal) => signal.severity !== "info" && CONCEALMENT_PARTNERS.includes(signal.rule))
+      .map((signal) => signal.file),
   );
-  if (partners.length === 0) return undefined;
   const own = RULES["prompt-injection"].confidence;
-  return partners.some((signal) => signal.file === path) ? own : lowerConfidence(own);
+  return (path) => {
+    if (paths.size === 0) return undefined;
+    return paths.has(path) ? own : lowerConfidence(own);
+  };
 };
 
 // `signals` are the other text findings of the skill, including those inside hidden text.
-const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[] =>
-  textRule("prompt-injection", (file, text) => {
+const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[] => {
+  const concealing = concealment(signals);
+  return textRule("prompt-injection", (file, text) => {
     const context = proseContext(file, text);
     return promptInjection(text, {
       ...context,
       confidence: RULES["prompt-injection"].confidence,
-      concealing: concealing(signals, file.path),
+      concealing: concealing(file.path),
       hidden: (index) => context.map?.contextAt(index) === "hidden",
       dangerNear: escalates(APPROVAL_BYPASS, () => ({
         file,
@@ -1069,6 +1074,7 @@ const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[]
       })),
     });
   })(skill);
+};
 
 const textFindings = (skill: ScannedSkill, hidden: Finding[]): Finding[] => {
   const found = TEXT_SCANNERS.flatMap((scan) => scan(skill));

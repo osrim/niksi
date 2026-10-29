@@ -1,5 +1,10 @@
 import type { MarkdownMap } from "../skill/markdown.ts";
 
+export interface ProseJudge {
+  afterProhibition: (index: number) => boolean;
+  demoted: (index: number) => boolean;
+}
+
 const DEMOTED_DIRECTORIES = new Set(["references", "docs", "examples"]);
 
 const DEMOTED_HEADING = /\b(?:demo(?:nstration)?s?|references?|anti-?patterns?)\b/iu;

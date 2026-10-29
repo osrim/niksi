@@ -1,3 +1,4 @@
+import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { lower, strongest } from "./severity.ts";
 import { mapHome, type Command, type Statement } from "./shell.ts";
@@ -61,11 +62,6 @@ const trimTrailing = (path: string): string => {
 interface Match {
   severity: Severity;
   path: string;
-}
-
-export interface ProseJudge {
-  afterProhibition: (index: number) => boolean;
-  demoted: (index: number) => boolean;
 }
 
 const commandName = (command: Command): string => (command.words[0] ?? "").replace(/^.*\//u, "");

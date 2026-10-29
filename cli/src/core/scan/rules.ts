@@ -7,12 +7,17 @@ import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { combine } from "./combine.ts";
-import { credentialPaths, type ProseJudge } from "./credential-paths.ts";
-import { demotes } from "./context.ts";
+import { credentialDisclosure } from "./credential-disclosure.ts";
+import { credentialPaths } from "./credential-paths.ts";
+import { demotes, type ProseJudge } from "./context.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
-import type { Finding, Scanner, Severity } from "./index.ts";
+import type { Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
+import { moneyMovement } from "./money-movement.ts";
+import { persistence } from "./persistence.ts";
+import { injections, promptInjection } from "./prompt-injection.ts";
+import { proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
 import { lower, stronger } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
@@ -25,11 +30,14 @@ export const RULES = {
   "claude-settings": { help: "names agent settings or permissions" },
   "skip-permissions": { help: "disables permission prompts" },
   "credential-paths": { help: "names a credential file" },
+  "credential-disclosure": { help: "asks for a secret or sends one out" },
   "env-secrets": { help: "reads env vars or .env" },
   "embedded-secret": { help: "ships a token or private key" },
   "url-credentials": { help: "puts a password in a URL or header" },
   "prompt-injection": { help: "asks the agent to hide actions" },
   destructive: { help: "recursive delete" },
+  persistence: { help: "installs something that runs again later" },
+  "money-movement": { help: "moves money" },
   "invisible-unicode": { help: "invisible characters" },
   "hidden-html": { help: "text a reader does not see" },
   "remote-instructions": { help: "fetches instructions to follow" },
@@ -169,10 +177,8 @@ const invisibleUnicode: Scanner = ({ files }) =>
   files.flatMap((file) => {
     const text = isMedia(file) ? undefined : decodeText(file)?.text;
     if (text === undefined) return [];
-    const injections = [...text.matchAll(PROMPT_INJECTION)].map((match) => ({
-      line: lineAt(text, match.index),
-    }));
-    const found = invisibleCharacters(text, injections);
+    const phrases = injections(text).map((match) => ({ line: lineAt(text, match.index) }));
+    const found = invisibleCharacters(text, phrases);
     return found ? [finding("invisible-unicode", { file: file.path, ...found })] : [];
   });
 
@@ -514,9 +520,6 @@ const deleteSeverity: Judge = ({ groups }) => {
   return sudo || important ? "critical" : "info";
 };
 
-const PROMPT_INJECTION =
-  /ignore (all )?(previous|prior|above) instructions|do not (tell|inform) the user|without (telling|asking) the user/giu;
-
 const PATTERN_RULES: PatternRule[] = [
   {
     rule: "base64-exec",
@@ -537,11 +540,6 @@ const PATTERN_RULES: PatternRule[] = [
     rule: "env-secrets",
     severity: envSeverity,
     pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
-  },
-  {
-    rule: "prompt-injection",
-    severity: "warn",
-    pattern: PROMPT_INJECTION,
   },
   {
     rule: "destructive",
@@ -873,6 +871,21 @@ const credentialPathText = textRule("credential-paths", (file, text) =>
   credentialPaths(shellStatements(text, isProse(file.path)), proseContext(file, text)),
 );
 
+const credentialDisclosureText = textRule("credential-disclosure", (file, text) => {
+  if (!isProse(file.path)) return undefined;
+  const context = proseContext(file, text);
+  return credentialDisclosure(text, proseSentences(text, context.map), context);
+});
+
+const moneyMovementText = textRule("money-movement", (file, text) => {
+  const context = proseContext(file, text);
+  return moneyMovement(text, isProse(file.path) ? proseSentences(text, context.map) : [], context);
+});
+
+const persistenceText = textRule("persistence", (file, text) =>
+  persistence(shellStatements(text, isProse(file.path)), proseContext(file, text)),
+);
+
 // `fetch` sends only as a call or before a URL, so `git fetch origin` is not a send.
 const SENDS = new RegExp(
   String.raw`(?<![\w-])(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)(?![\w-])|\bfetch\s*\(|(?<![\w-])fetch[ \t]+(?:-\S+[ \t]+)*https?:\/\/|\brequests\.|${EXFIL_HOST}`,
@@ -893,26 +906,83 @@ const TEXT_SCANNERS = [
   suspiciousPatterns,
   remoteInstructionText,
   credentialPathText,
+  credentialDisclosureText,
   embeddedSecretText,
   urlCredentialText,
+  persistenceText,
+  moneyMovementText,
 ];
+
+const CONCEALED_RULES = new Set<Rule>([
+  "curl-pipe-shell",
+  "exfil-domain",
+  "remote-instructions",
+  "credential-paths",
+  "credential-disclosure",
+  "env-secrets",
+  "embedded-secret",
+  "url-credentials",
+  "persistence",
+  "money-movement",
+]);
+const BYPASSED_RULES = new Set<Rule>([
+  "money-movement",
+  "persistence",
+  "destructive",
+  "curl-pipe-shell",
+]);
+const BYPASS_LINES = 3;
+
+// `signals` are the other text findings of the skill, including those inside hidden text.
+const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[] => {
+  const raised = signals.filter((signal) => signal.severity !== "info");
+  const concealing = raised.some((signal) => CONCEALED_RULES.has(signal.rule));
+  return textRule("prompt-injection", (file, text) => {
+    const { map, ...judge } = proseContext(file, text);
+    const dangers = raised.flatMap(({ rule, file: path, line }) =>
+      path === file.path && line !== undefined && BYPASSED_RULES.has(rule) ? [{ line }] : [],
+    );
+    return promptInjection(text, {
+      ...judge,
+      concealing,
+      hidden: (index) => map?.contextAt(index) === "hidden",
+      dangerNear: (line) => combine([{ line }], dangers, { within: BYPASS_LINES }).length > 0,
+    });
+  })(skill);
+};
+
+const textFindings = (skill: ScannedSkill, hidden: Finding[]): Finding[] => {
+  const found = TEXT_SCANNERS.flatMap((scan) => scan(skill));
+  return [...found, ...promptInjectionText(skill, [...found, ...hidden])];
+};
 
 // Hidden text scans as a plain text file: no Markdown prose context can demote it.
 const scanHiddenText = (body: string): Finding[] =>
-  TEXT_SCANNERS.flatMap((scan) =>
-    scan({
+  textFindings(
+    {
       name: "hidden",
       files: [{ path: "hidden.txt", content: Buffer.from(body), mode: MODE_FILE }],
-    }),
+    },
+    [],
   );
 
-const hiddenText: Scanner = ({ files }) =>
+const hiddenText = ({ files }: ScannedSkill, scan: (body: string) => Finding[]): Finding[] =>
   files.flatMap((file) => {
     const text = isMarkdown(file.path) ? decodeText(file)?.text : undefined;
     if (text === undefined || isSymlink(file.mode)) return [];
-    const found = hiddenHtml(text, mapMarkdown(text).hidden, scanHiddenText);
+    const found = hiddenHtml(text, mapMarkdown(text).hidden, scan);
     return found ? [finding("hidden-html", { file: file.path, ...found })] : [];
   });
+
+const textScan: Scanner = (skill) => {
+  const inner: Finding[] = [];
+  const hidden = hiddenText(skill, (body) => {
+    const found = scanHiddenText(body);
+    inner.push(...found);
+    return found;
+  });
+  return [...textFindings(skill, inner), ...hidden];
+};
 
 // Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
 const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
@@ -998,7 +1068,6 @@ export const defaultScanners: Scanner[] = [
   invisibleUnicode,
   frontmatterPrivileges,
   loadTimeExecution,
-  ...TEXT_SCANNERS,
-  hiddenText,
+  textScan,
   urlInventory,
 ];

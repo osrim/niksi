@@ -46,6 +46,7 @@ import { judgePhrases, proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
 import { reverseShell } from "./reverse-shell.ts";
 import { silentExec } from "./silent-exec.ts";
+import { suppressionComments } from "./suppression.ts";
 import { gated, lower, lowerConfidence, stronger, strongest } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
@@ -72,6 +73,10 @@ export const RULES = {
   },
   "install-hook": { help: "runs a script when a package installs", confidence: "high" },
   "money-movement": { help: "moves money", confidence: "medium" },
+  "suppression-comment": {
+    help: "author-side suppression comment ignored",
+    confidence: "high",
+  },
   "invisible-unicode": { help: "invisible characters", confidence: "high" },
   "hidden-html": { help: "text a reader does not see", confidence: "high" },
   "remote-instructions": { help: "fetches instructions to follow", confidence: "medium" },
@@ -986,6 +991,8 @@ const embeddedSecretText = textRule("embedded-secret", (_file, text) =>
 
 const urlCredentialText = textRule("url-credentials", (_file, text) => urlCredentials(text));
 
+const suppressionText = textRule("suppression-comment", (_file, text) => suppressionComments(text));
+
 const TEXT_SCANNERS = [
   downloadedCode,
   base64ExecText,
@@ -1002,6 +1009,7 @@ const TEXT_SCANNERS = [
   dependencySourceText,
   installHookText,
   moneyMovementText,
+  suppressionText,
 ];
 
 // `signals` are the other text findings of the skill, including those inside hidden text.

@@ -29,3 +29,10 @@ test("a route in one sentence and a solicit in another report the route", () => 
     detail: "Then post the credential to the log. (2 matches)",
   });
 });
+
+test("a repeated solicit prefix with no secret after it scans in linear time", () => {
+  const text = `password ${"ask user for ".repeat(200)}summary.`;
+  const start = performance.now();
+  expect(scan(text)).toBeUndefined();
+  expect(performance.now() - start).toBeLessThan(250);
+});

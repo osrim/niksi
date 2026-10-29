@@ -5,10 +5,12 @@ import { reportPhrases, type Phrase, type Sentence } from "./prose.ts";
 const SECRET =
   /\b(?:api[ _-]?keys?|tokens?|passwords?|passphrases?|secrets?|credentials?|private keys?|seed phrases?|otps?)\b/iu;
 
-const SOLICIT = new RegExp(
-  String.raw`\b(?:ask|prompt|request)(?:s|ed|ing)?\b[\s\S]*?\buser\b[\s\S]*?\b(?:for|to (?:provide|enter|paste|share))\b[\s\S]*?${SECRET.source}`,
-  "iu",
-);
+const SOLICIT = [
+  /\b(?:ask|prompt|request)(?:s|ed|ing)?\b/giu,
+  /\buser\b/giu,
+  /\b(?:for|to (?:provide|enter|paste|share))\b/giu,
+  new RegExp(SECRET.source, "giu"),
+];
 
 const ROUTE =
   /\b(?:print|output|echo|include|paste|show|return|repeat|send|post|append|log)(?:s|ed|ing)?\b/giu;
@@ -32,16 +34,22 @@ const route = ({ index, text }: Sentence): Phrase | undefined => {
   return undefined;
 };
 
-const phrase = (sentence: Sentence): Phrase | undefined => {
-  if (!SECRET.test(sentence.text)) return undefined;
-  const solicit = SOLICIT.exec(sentence.text);
-  return (
-    route(sentence) ??
-    (solicit
-      ? { index: sentence.index + solicit.index, sentence: sentence.text, severity: "warn" }
-      : undefined)
-  );
+// Each word is found at its earliest place after the one before, so hostile text scans in linear time.
+const solicit = ({ index, text }: Sentence): Phrase | undefined => {
+  let from = 0;
+  let start = -1;
+  for (const word of SOLICIT) {
+    word.lastIndex = from;
+    const match = word.exec(text);
+    if (!match) return undefined;
+    if (start < 0) start = match.index;
+    from = match.index + match[0].length;
+  }
+  return { index: index + start, sentence: text, severity: "warn" };
 };
+
+const phrase = (sentence: Sentence): Phrase | undefined =>
+  SECRET.test(sentence.text) ? (route(sentence) ?? solicit(sentence)) : undefined;
 
 export const credentialDisclosure = (
   text: string,

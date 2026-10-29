@@ -64,6 +64,42 @@ describe("decodeText", () => {
   test("an unknown extension without a NUL is text", () => {
     expect(decodeText(file("LICENSE", "MIT\n"))).toEqual({ text: "MIT\n", nuls: 0 });
   });
+
+  test("a text file that is not UTF-8 names the offset of its first invalid byte", () => {
+    const latin1 = Buffer.from("caf\xE9 \xE9\n", "latin1");
+    expect(decodeText(file("SKILL.md", latin1))).toEqual({
+      text: "caf\uFFFD \uFFFD\n",
+      nuls: 0,
+      invalid: { offset: 3, readAs: "utf-8" },
+    });
+  });
+
+  test("a replacement character in valid UTF-8 is not the invalid byte", () => {
+    const bytes = Buffer.concat([Buffer.from("\uFFFD ok "), Buffer.from([0xc0, 0xaf])]);
+    expect(decodeText(file("notes.txt", bytes))?.invalid).toEqual({ offset: 7, readAs: "utf-8" });
+  });
+
+  test("valid UTF-8 keeps a leading byte order mark and reports nothing invalid", () => {
+    expect(decodeText(file("notes.txt", "\uFEFFcafé\n"))).toEqual({
+      text: "\uFEFFcafé\n",
+      nuls: 0,
+    });
+  });
+
+  test("a UTF-16LE file without a byte order mark decodes as UTF-16LE", () => {
+    expect(decodeText(file("SKILL.md", Buffer.from("café\n", "utf16le")))).toEqual({
+      text: "café\n",
+      nuls: 5,
+      invalid: { offset: 6, readAs: "utf-16le" },
+    });
+  });
+
+  test("text with NUL bytes that is still UTF-8 is not read as UTF-16LE", () => {
+    expect(decodeText(file("notes.txt", Buffer.from("hi\n", "utf16le")))).toEqual({
+      text: "hi\n",
+      nuls: 3,
+    });
+  });
 });
 
 test("byPath orders by code unit, not locale", () => {

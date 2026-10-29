@@ -12,6 +12,8 @@ import { credentialPaths } from "./credential-paths.ts";
 import { demotes, type ProseJudge } from "./context.ts";
 import { dependencySource } from "./dependency-source.ts";
 import { embeddedSecrets } from "./embedded-secret.ts";
+import { invalidEncoding } from "./encoding.ts";
+import { isMedia, misleadingExtension } from "./file-signature.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
 import type { Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
@@ -63,6 +65,8 @@ export const RULES = {
   archive: { help: "ships an archive" },
   "archive-contents": { help: "archive not fully scanned" },
   binary: { help: "ships a binary" },
+  "invalid-encoding": { help: "text that is not UTF-8" },
+  "misleading-extension": { help: "content does not match its extension" },
   "external-url": { help: "links to an external host" },
 } as const;
 
@@ -84,26 +88,6 @@ const AGENT_CONFIG_FILES = new Set([
   "opencode.json",
   "opencode.jsonc",
 ]);
-
-// "?" matches any byte: a WebP stores its size at bytes 4 to 7.
-const MEDIA_MAGIC: Record<string, string[]> = {
-  ".png": ["\x89PNG\r\n\x1a\n"],
-  ".jpg": ["\xff\xd8\xff"],
-  ".jpeg": ["\xff\xd8\xff"],
-  ".gif": ["GIF87a", "GIF89a"],
-  ".webp": ["RIFF????WEBP"],
-  ".pdf": ["%PDF-"],
-  ".woff": ["wOFF"],
-  ".woff2": ["wOF2"],
-  ".ico": ["\0\0\x01\0"],
-};
-
-const isMedia = (file: SkillFile): boolean => {
-  const head = file.content.subarray(0, 12).toString("latin1");
-  return (MEDIA_MAGIC[extname(file.path).toLowerCase()] ?? []).some((magic) =>
-    [...magic].every((byte, i) => byte === "?" || head[i] === byte),
-  );
-};
 
 const binaryFinding = (file: SkillFile): Finding =>
   isMedia(file)
@@ -176,6 +160,17 @@ const fileFlags: Scanner = ({ files }) => {
   }
   return findings;
 };
+
+const fileContent: Scanner = ({ files }) =>
+  files.flatMap((file) => {
+    if (isSymlink(file.mode)) return [];
+    const encoding = invalidEncoding(file, decodeText(file));
+    const signature = misleadingExtension(file);
+    return [
+      ...(encoding ? [finding("invalid-encoding", { file: file.path, ...encoding })] : []),
+      ...(signature ? [finding("misleading-extension", { file: file.path, ...signature })] : []),
+    ];
+  });
 
 // A media file's bytes decode to stray code points, and agents do not read it as text.
 const invisibleUnicode: Scanner = ({ files }) =>
@@ -1111,6 +1106,7 @@ const urlInventory: Scanner = ({ files }) => {
 
 export const defaultScanners: Scanner[] = [
   fileFlags,
+  fileContent,
   invisibleUnicode,
   frontmatterPrivileges,
   loadTimeExecution,

@@ -42,7 +42,7 @@ Control characters in files and diffs show as caret markers, for example `^[` fo
 
 Every file in the skill directory except `.git` and `node_modules`, including files the agent never reads.
 
-A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, `.json`, `.yaml`, `.yml`, or `.toml`, or when it starts with `#!`. The scan reads a text file past its NUL bytes. A file with another extension is binary when its first 1,024 bytes contain a NUL.
+A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, `.json`, `.yaml`, `.yml`, or `.toml`, or when it starts with `#!`. The scan reads a text file past its NUL bytes. A text file without a byte order mark must be UTF-8. When it is not, and every second byte of its first 1,024 is zero, the scan reads it as UTF-16LE. Otherwise the scan reads each invalid sequence as U+FFFD. A file with another extension is binary when its first 1,024 bytes contain a NUL.
 
 ### Files
 
@@ -54,11 +54,18 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Executable that does not start with `#!`, binary, or archive file | `warn` |
 | Executable that starts with `#!`. The scan reads its text. | `info` |
 | Binary PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, or ICO file whose first bytes match its extension | `info` |
+| `SKILL.md` that is not UTF-8. The finding names the byte offset of the first invalid sequence. | `critical` |
+| Other Markdown file or script (`.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, or a file that starts with `#!`) that is not UTF-8 | `warn` |
+| Other text file that is not UTF-8 | `info` |
+| ELF, Mach-O, or PE executable, or a file that starts with `#!`, under an image, audio, video, font, document, or `.md` extension, such as an ELF binary named `logo.png` | `critical` |
+| PNG, JPEG, GIF, WebP, PDF, WOFF, WOFF2, ICO, or ZIP file under the extension of another of these formats, such as a PNG named `photo.jpg`. Also an ELF, Mach-O, or PE executable under a text extension. | `warn` |
 | Bundled agent configuration: `plugin.json`, `.mcp.json`, `settings.json`, `hooks.json`, `opencode.json`, `opencode.jsonc` | `critical` |
 | Invisible characters | See [Invisible characters](#invisible-characters) |
 | Archive that the scan could not read in full | `warn` |
 | Bundled `package.json`, `setup.py`, or `pyproject.toml` with a script that runs on install | See [Install hooks](#install-hooks) |
 | Bundled `package.json` dependency from a URL or a Git host | See [Dependency sources](#dependency-sources) |
+
+The image, audio, video, font, and document extensions are `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.ico`, `.bmp`, `.svg`, `.tif`, `.tiff`, `.avif`, `.heic`, `.mp3`, `.mp4`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm`, `.mov`, `.avi`, `.mkv`, `.woff`, `.woff2`, `.ttf`, `.otf`, `.eot`, `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.odt`, `.rtf`, and `.epub`. A PE executable starts with `MZ` and has a `PE` header where its DOS header points. The ZIP extensions are `.zip`, `.docx`, `.xlsx`, and `.pptx`.
 
 #### Archive members
 

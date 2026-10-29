@@ -40,9 +40,11 @@ const TEXT_EXTS = new Set([
   ".toml",
 ]);
 
+export const hasTextExtension = (path: string): boolean =>
+  TEXT_EXTS.has(extname(path).toLowerCase());
+
 const isTextCandidate = (file: SkillFile): boolean =>
-  TEXT_EXTS.has(extname(file.path).toLowerCase()) ||
-  file.content.subarray(0, 2).toString("latin1") === "#!";
+  hasTextExtension(file.path) || file.content.subarray(0, 2).toString("latin1") === "#!";
 
 const startsWith = (buf: Buffer, ...bytes: number[]): boolean =>
   buf.length >= bytes.length && bytes.every((byte, i) => buf[i] === byte);
@@ -59,6 +61,8 @@ const decodeUtf32 = (buf: Buffer, littleEndian: boolean): string => {
 export interface DecodedText {
   text: string;
   nuls: number;
+  // A text candidate without a byte order mark that is not UTF-8.
+  invalid?: { offset: number; readAs: "utf-8" | "utf-16le" };
 }
 
 const withoutNul = (decoded: string): DecodedText => {
@@ -66,13 +70,49 @@ const withoutNul = (decoded: string): DecodedText => {
   return { text, nuls: decoded.length - text.length };
 };
 
+const REPLACEMENT = Buffer.from("�");
+
+// Bytes before the first invalid sequence decode one to one, so their UTF-8 length is its offset.
+const invalidUtf8Offset = (buf: Buffer, lossy: string): number => {
+  let offset = 0;
+  let from = 0;
+  for (let at = lossy.indexOf("�"); at !== -1; at = lossy.indexOf("�", at + 1)) {
+    offset += Buffer.byteLength(lossy.slice(from, at));
+    if (!buf.subarray(offset, offset + REPLACEMENT.length).equals(REPLACEMENT)) return offset;
+    offset += REPLACEMENT.length;
+    from = at + 1;
+  }
+  return offset;
+};
+
+const looksUtf16le = (buf: Buffer): boolean => {
+  const head = buf.subarray(0, 1024);
+  if (head.length < 2) return false;
+  for (let i = 1; i < head.length; i += 2) if (head[i] !== 0) return false;
+  return true;
+};
+
+const decodeUnmarked = (buf: Buffer): DecodedText => {
+  try {
+    return withoutNul(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buf));
+  } catch {
+    const lossy = buf.toString("utf8");
+    const offset = invalidUtf8Offset(buf, lossy);
+    const nuls = buf.filter((byte) => byte === 0).length;
+    if (looksUtf16le(buf)) {
+      const { text } = withoutNul(new TextDecoder("utf-16le").decode(buf));
+      return { text, nuls, invalid: { offset, readAs: "utf-16le" } };
+    }
+    return { text: lossy.replaceAll("\0", ""), nuls, invalid: { offset, readAs: "utf-8" } };
+  }
+};
+
 const decodeCandidate = (buf: Buffer): DecodedText => {
   if (startsWith(buf, 0xff, 0xfe, 0, 0)) return withoutNul(decodeUtf32(buf, true));
   if (startsWith(buf, 0, 0, 0xfe, 0xff)) return withoutNul(decodeUtf32(buf, false));
   if (startsWith(buf, 0xff, 0xfe)) return withoutNul(new TextDecoder("utf-16le").decode(buf));
   if (startsWith(buf, 0xfe, 0xff)) return withoutNul(new TextDecoder("utf-16be").decode(buf));
-  const kept = buf.filter((byte) => byte !== 0);
-  return { text: Buffer.from(kept).toString("utf8"), nuls: buf.length - kept.length };
+  return decodeUnmarked(buf);
 };
 
 // A NUL must not hide the rest of a text file from the scan or the pager.

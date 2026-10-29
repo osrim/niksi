@@ -1,5 +1,5 @@
 import type { Finding } from "./index.ts";
-import { excerpt, redact } from "./redact.ts";
+import { excerpt } from "./redact.ts";
 
 const GAP_LINES = 20;
 const PAD_WIDTH = 200;
@@ -93,7 +93,7 @@ export const whitespacePadding = (
   if (!best) return undefined;
   const count = plain.length + (best.aligned ? 1 : 0);
   const detail = [
-    `${best.what} before "${excerpt(redact(best.pushed.split("\n", 1)[0]!), SNIPPET_LENGTH)}"`,
+    `${best.what} before "${excerpt(best.pushed.split("\n", 1)[0]!, SNIPPET_LENGTH)}"`,
     ...(rules.length > 0 ? [`(${rules.join(", ")})`] : []),
     ...(count > 1 ? [`(${count} matches)`] : []),
   ].join(" ");

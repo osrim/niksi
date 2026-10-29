@@ -48,6 +48,16 @@ const WRITES_TO = /(?:>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?$/u;
 // A substitution inside a URL still reads the file, as in `?d=$(<~/.ssh/id_rsa)`.
 const IN_URL = /[a-z][\w+.-]*:\/\/[^\s$`<(]*$/iu;
 
+const TRAILING = new Set([".", ",", ":", ";"]);
+
+// Drops trailing punctuation but keeps the first character. A regex anchored with `$` would
+// retry the run from each of its positions, which is quadratic in a long run of dots.
+const trimTrailing = (path: string): string => {
+  let end = path.length;
+  while (end > 1 && TRAILING.has(path.charAt(end - 1))) end -= 1;
+  return path.slice(0, end);
+};
+
 interface Match {
   severity: Severity;
   path: string;
@@ -71,7 +81,7 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
   return [...text.matchAll(CREDENTIAL_LOCATION)].flatMap((match) => {
     const before = text.slice(0, match.index);
     if (IN_URL.test(before)) return [];
-    const path = match[0].replace(/(?<=.)[.,:;]+$/u, "");
+    const path = trimTrailing(match[0]);
     const publicPath = setup || PUBLIC_SSH.test(path) || WRITES_TO.test(before);
     const severity = publicPath
       ? "warn"

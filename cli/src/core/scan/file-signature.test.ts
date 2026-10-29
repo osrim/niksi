@@ -20,6 +20,20 @@ const pe = (): number[] => {
   return [...bytes];
 };
 
+const universal = (magic = 0xcafebabe, archSize = 20): number[] => {
+  const offset = 8 + archSize;
+  const bytes = Buffer.alloc(offset + 4);
+  bytes.writeUInt32BE(magic, 0);
+  bytes.writeUInt32BE(1, 4);
+  bytes.writeUInt32BE(0x0100000c, 8);
+  if (archSize === 20) bytes.writeUInt32BE(offset, 16);
+  else bytes.writeBigUInt64BE(BigInt(offset), 16);
+  bytes.writeUInt32BE(0xcffaedfe, offset);
+  return [...bytes];
+};
+
+const JAVA_CLASS = [0xca, 0xfe, 0xba, 0xbe, 0x00, 0x00, 0x00, 0x34, 0x00, 0x1d, 0x0a, 0x00];
+
 test("an executable under a media, font, document, or Markdown name is critical", () => {
   expect(misleadingExtension(file("assets/logo.png", ELF))).toEqual({
     severity: "critical",
@@ -27,6 +41,12 @@ test("an executable under a media, font, document, or Markdown name is critical"
   });
   expect(misleadingExtension(file("fonts/a.woff2", [0xcf, 0xfa, 0xed, 0xfe]))?.detail).toBe(
     "Mach-O executable with a .woff2 extension",
+  );
+  expect(misleadingExtension(file("assets/logo.png", universal()))?.detail).toBe(
+    "Mach-O executable with a .png extension",
+  );
+  expect(misleadingExtension(file("logo.gif", universal(0xcafebabf, 32)))?.severity).toBe(
+    "critical",
   );
   expect(misleadingExtension(file("guide.PDF", pe()))?.detail).toBe(
     "PE executable with a .pdf extension",
@@ -52,6 +72,10 @@ test("a matching or unknown signature is silent", () => {
     misleadingExtension(file("notes.md", "MZ is a prefix, not a PE header\n")),
   ).toBeUndefined();
   expect(misleadingExtension(file("logo.png", [0x01, 0x02]))).toBeUndefined();
+  expect(misleadingExtension(file("logo.png", JAVA_CLASS))).toBeUndefined();
+  const archive = universal();
+  archive.splice(28, 4, ...Buffer.from("!<ar"));
+  expect(misleadingExtension(file("logo.png", archive))).toBeUndefined();
 });
 
 test("isMedia needs the signature of its own extension", () => {

@@ -65,7 +65,7 @@ A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py
 | Bundled `package.json`, `setup.py`, or `pyproject.toml` with a script that runs on install | See [Install hooks](#install-hooks) |
 | Bundled `package.json` dependency from a URL or a Git host | See [Dependency sources](#dependency-sources) |
 
-The image, audio, video, font, and document extensions are `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.ico`, `.bmp`, `.svg`, `.tif`, `.tiff`, `.avif`, `.heic`, `.mp3`, `.mp4`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm`, `.mov`, `.avi`, `.mkv`, `.woff`, `.woff2`, `.ttf`, `.otf`, `.eot`, `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.odt`, `.rtf`, and `.epub`. A PE executable starts with `MZ` and has a `PE` header where its DOS header points. The ZIP extensions are `.zip`, `.docx`, `.xlsx`, and `.pptx`.
+The image, audio, video, font, and document extensions are `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.ico`, `.bmp`, `.svg`, `.tif`, `.tiff`, `.avif`, `.heic`, `.mp3`, `.mp4`, `.m4a`, `.wav`, `.ogg`, `.flac`, `.webm`, `.mov`, `.avi`, `.mkv`, `.woff`, `.woff2`, `.ttf`, `.otf`, `.eot`, `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.odt`, `.rtf`, and `.epub`. A PE executable starts with `MZ` and has a `PE` header where its DOS header points. A universal Mach-O executable counts when every slice its header lists starts with a Mach-O header, so a Java class, which starts with the same bytes, does not. The ZIP extensions are `.zip`, `.docx`, `.xlsx`, and `.pptx`.
 
 #### Archive members
 

@@ -12,6 +12,18 @@ const pe = (): Uint8Array => {
   return bytes;
 };
 
+const universal = (): Uint8Array => {
+  const bytes = Buffer.alloc(32);
+  bytes.writeUInt32BE(0xcafebabe, 0);
+  bytes.writeUInt32BE(1, 4);
+  bytes.writeUInt32BE(0x0100000c, 8);
+  bytes.writeUInt32BE(28, 16);
+  bytes.writeUInt32BE(0xcffaedfe, 28);
+  return bytes;
+};
+
+const JAVA_CLASS = [0xca, 0xfe, 0xba, 0xbe, 0x00, 0x00, 0x00, 0x34, 0x00, 0x1d, 0x0a, 0x00];
+
 export default [
   {
     name: "L03 an ELF binary named as a PNG",
@@ -24,6 +36,12 @@ export default [
     path: "fonts/inter.woff2",
     content: new Uint8Array([0xcf, 0xfa, 0xed, 0xfe, 0x07, 0x00]),
     fire: [{ severity: "critical", detail: "Mach-O executable with a .woff2 extension" }],
+  },
+  {
+    name: "a universal Mach-O binary named as a PNG",
+    path: "assets/logo.png",
+    content: universal(),
+    fire: [{ severity: "critical", detail: "Mach-O executable with a .png extension" }],
   },
   {
     name: "a PE binary named as a PDF",
@@ -73,6 +91,12 @@ export default [
     name: "Markdown that starts with MZ",
     path: "notes.md",
     content: "MZ is a prefix, not a PE header.\n",
+    silent: "none",
+  },
+  {
+    name: "a Java class shares the universal Mach-O magic",
+    path: "assets/logo.png",
+    content: new Uint8Array(JAVA_CLASS),
     silent: "none",
   },
 ] satisfies Case[];

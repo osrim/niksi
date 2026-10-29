@@ -17,6 +17,13 @@ type Format =
   | "PE executable"
   | "#! script";
 
+const THIN_MACH_O = [
+  "\xcf\xfa\xed\xfe",
+  "\xfe\xed\xfa\xcf",
+  "\xce\xfa\xed\xfe",
+  "\xfe\xed\xfa\xce",
+];
+
 // "?" matches any byte: a WebP stores its size at bytes 4 to 7.
 const MAGIC: [Format, string[]][] = [
   ["PNG image", ["\x89PNG\r\n\x1a\n"]],
@@ -29,10 +36,7 @@ const MAGIC: [Format, string[]][] = [
   ["ICO icon", ["\0\0\x01\0"]],
   ["ZIP archive", ["PK\x03\x04"]],
   ["ELF executable", ["\x7fELF"]],
-  [
-    "Mach-O executable",
-    ["\xcf\xfa\xed\xfe", "\xfe\xed\xfa\xcf", "\xce\xfa\xed\xfe", "\xfe\xed\xfa\xce"],
-  ],
+  ["Mach-O executable", THIN_MACH_O],
   ["#! script", ["#!"]],
 ];
 
@@ -77,8 +81,27 @@ const isPe = (content: Buffer): boolean => {
   return content.toString("latin1", header, header + 4) === "PE\0\0";
 };
 
+const FAT_ARCH_SIZE: Record<number, number> = { 0xcafebabe: 20, 0xcafebabf: 32 };
+
+// A Java class also starts with 0xCAFEBABE and stores its major version (45 or more) where a
+// universal header stores its slice count, so every slice must also hold a thin Mach-O header.
+const isUniversalMachO = (content: Buffer): boolean => {
+  if (content.length < 8) return false;
+  const archSize = FAT_ARCH_SIZE[content.readUInt32BE(0)];
+  const slices = content.readUInt32BE(4);
+  if (!archSize || slices < 1 || slices >= 45 || content.length < 8 + slices * archSize) {
+    return false;
+  }
+  return Array.from({ length: slices }, (_, i) => 8 + i * archSize + 8).every((field) => {
+    const offset =
+      archSize === 20 ? content.readUInt32BE(field) : Number(content.readBigUInt64BE(field));
+    return THIN_MACH_O.includes(content.toString("latin1", offset, offset + 4));
+  });
+};
+
 const sniff = (content: Buffer): Format | undefined => {
   if (isPe(content)) return "PE executable";
+  if (isUniversalMachO(content)) return "Mach-O executable";
   const head = content.subarray(0, 12).toString("latin1");
   return MAGIC.find(([, prefixes]) =>
     prefixes.some((magic) => [...magic].every((byte, i) => byte === "?" || head[i] === byte)),

@@ -1,6 +1,7 @@
 import { lineAt } from "../skill/text.ts";
 import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
+import { matchDetail } from "./redact.ts";
 import { lower, strongest } from "./severity.ts";
 
 const AUDIENCE = String.raw`(?:user|person|human|operator|requester)\b(?!['’]s\b)`;
@@ -84,10 +85,9 @@ export const promptInjection = (
   });
   const best = strongest(found);
   if (!best) return undefined;
-  const detail = [
-    best.phrase.trim(),
-    ...(best.quiet ? ["(in a warning)"] : []),
-    ...(found.length > 1 ? [`(${found.length} matches)`] : []),
-  ].join(" ");
-  return { severity: best.severity, line: best.line, detail };
+  return {
+    severity: best.severity,
+    line: best.line,
+    detail: matchDetail(best.phrase, best.quiet, found.length),
+  };
 };

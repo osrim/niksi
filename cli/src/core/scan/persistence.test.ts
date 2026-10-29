@@ -58,6 +58,16 @@ test("launchd, systemd, preload and Run keys", () => {
   expect(inScript("cp job /etc/cron.d/job")?.severity).toBe("critical");
 });
 
+test("a Run key counts in any statement that names it", () => {
+  expect(
+    inScript("[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]")?.severity,
+  ).toBe("critical");
+  expect(
+    inScript('winreg.OpenKey(root, r"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce")')
+      ?.severity,
+  ).toBe("critical");
+});
+
 test("Markdown prose needs the command at the start of a statement", () => {
   expect(inMarkdown("Edit the crontab file by hand.")).toBeUndefined();
   expect(inMarkdown("Run `crontab -e` and add the job.")?.severity).toBe("critical");

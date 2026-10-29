@@ -1,6 +1,6 @@
 import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
-import { excerpt } from "./redact.ts";
+import { matchDetail } from "./redact.ts";
 import { lower, strongest } from "./severity.ts";
 import { mapHome, type Command, type Statement } from "./shell.ts";
 
@@ -58,58 +58,44 @@ const writes = (words: string[]): Write[] => {
   return found;
 };
 
-const crontab = (args: string[]): Severity | undefined => {
+const crontab = (args: string[]): Severity => {
   const flags = args.filter((arg, i) => args[i - 1] !== "-u" && arg !== "-u");
-  if (flags.some((arg) => arg === "-l" || arg === "-r")) return "info";
-  // A bare `crontab` reads the table from a pipe. In prose it is a word, not a command.
-  return "critical";
+  return flags.some((arg) => arg === "-l" || arg === "-r") ? "info" : "critical";
 };
 
-const systemctl = (args: string[]): boolean =>
-  /^(?:enable|link)$/u.test(args.find((arg) => !arg.startsWith("-")) ?? "");
+const PATHLIKE = /^-|[./]/u;
 
 const gitHooksPath = (args: string[]): boolean => {
   const at = args.findIndex((arg) => arg.toLowerCase() === "core.hookspath");
-  return (
-    args.includes("config") &&
-    at !== -1 &&
-    args[at + 1] !== undefined &&
-    !args.some((arg) => /^--(?:get|unset|list)/u.test(arg))
-  );
+  const reads = args.some((arg) => /^--(?:get|unset|list)/u.test(arg));
+  return args.includes("config") && at !== -1 && args[at + 1] !== undefined && !reads;
 };
 
-const PATHLIKE = /^-$|[./]/u;
+interface Use {
+  args: string[];
+  // Input arrives from a pipe, as in `printf … | crontab -`.
+  piped: boolean;
+  code: boolean;
+}
+
+const critical = (installs: boolean): Severity | undefined => (installs ? "critical" : undefined);
+
+const COMMANDS: Record<string, (use: Use) => Severity | undefined> = {
+  // In prose, "crontab is a tool" is a sentence. A command takes a flag, a file, `-`, or a pipe.
+  crontab: ({ args, piped, code }) =>
+    code || piped || args.some((arg) => PATHLIKE.test(arg)) ? crontab(args) : undefined,
+  launchctl: ({ args }) => critical(/^(?:load|bootstrap|enable)$/u.test(args[0] ?? "")),
+  systemctl: ({ args }) =>
+    critical(/^(?:enable|link)$/u.test(args.find((arg) => !arg.startsWith("-")) ?? "")),
+  schtasks: ({ args }) => critical(args.some((arg) => /^[/-]create$/iu.test(arg))),
+  "register-scheduledtask": () => "critical",
+  git: ({ args }) => critical(gitHooksPath(args)),
+  "@reboot": () => "critical",
+};
 
 const commandSeverity = (words: string[], piped: boolean, code: boolean): Severity | undefined => {
   const [command = "", ...args] = words;
-  const sub = args[0] ?? "";
-  switch (name(command).toLowerCase()) {
-    case "crontab":
-      // In prose, `crontab is a tool` is a sentence. A command takes a file, `-`, or a pipe.
-      if (!code && !piped && !args.some((arg) => arg.startsWith("-") || PATHLIKE.test(arg))) {
-        return undefined;
-      }
-      return crontab(args);
-    case "launchctl":
-      return /^(?:load|bootstrap|enable)$/u.test(sub) ? "critical" : undefined;
-    case "systemctl":
-      return systemctl(args) ? "critical" : undefined;
-    case "schtasks":
-      return args.some((arg) => /^[/-]create$/iu.test(arg)) ? "critical" : undefined;
-    case "register-scheduledtask":
-      return "critical";
-    case "reg":
-      return /^add$/iu.test(sub) && args.some((arg) => RUN_KEY.test(arg)) ? "critical" : undefined;
-    case "new-itemproperty":
-    case "set-itemproperty":
-      return args.some((arg) => RUN_KEY.test(arg)) ? "critical" : undefined;
-    case "git":
-      return gitHooksPath(args) ? "critical" : undefined;
-    case "@reboot":
-      return "critical";
-    default:
-      return undefined;
-  }
+  return COMMANDS[name(command).toLowerCase()]?.({ args, piped, code });
 };
 
 const writeSeverity = ({ path, append }: Write, statement: Statement): Severity | undefined => {
@@ -123,39 +109,46 @@ const commandMatches = (statement: Statement, command: Command, index: number): 
   const found = [
     commandSeverity(command.words, index > 0, code),
     ...writes(command.words).map((write) => writeSeverity(write, statement)),
-    PRELOAD.test(command.text) ? "critical" : undefined,
+    PRELOAD.test(command.text) || RUN_KEY.test(command.text) ? "critical" : undefined,
   ];
   return found.filter((severity): severity is Severity => severity !== undefined);
 };
 
-const DETAIL_LENGTH = 160;
+export interface PersistenceMatch {
+  severity: Severity;
+  line: number;
+  statement: Statement;
+  prohibited: boolean;
+}
 
-export const persistence = (
+export const persistenceMatches = (
   statements: Statement[],
   { afterProhibition, demoted }: ProseJudge,
-): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const found = statements.flatMap((statement) => {
+): PersistenceMatch[] =>
+  statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
     const prohibited = prose && afterProhibition(statement.index);
-    const judge = (severity: Severity): Severity => {
-      if (prohibited) return "info";
-      const comment = statement.kind === "comment";
-      return comment || (prose && demoted(statement.index)) ? lower(severity) : severity;
-    };
+    const lowered = statement.kind === "comment" || (prose && demoted(statement.index));
     return statement.commands.flatMap((command, index) =>
       commandMatches(statement, command, index).map((severity) => ({
+        severity: prohibited ? "info" : lowered ? lower(severity) : severity,
+        line: statement.line,
         statement,
         prohibited,
-        severity: judge(severity),
       })),
     );
   });
+
+export const persistence = (
+  statements: Statement[],
+  judge: ProseJudge,
+): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
+  const found = persistenceMatches(statements, judge);
   const best = strongest(found);
   if (!best) return undefined;
-  const detail = [
-    excerpt(best.statement.text, DETAIL_LENGTH),
-    ...(best.prohibited ? ["(in a warning)"] : []),
-    ...(found.length > 1 ? [`(${found.length} matches)`] : []),
-  ].join(" ");
-  return { severity: best.severity, line: best.statement.line, detail };
+  return {
+    severity: best.severity,
+    line: best.line,
+    detail: matchDetail(best.statement.text, best.prohibited, found.length),
+  };
 };

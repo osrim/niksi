@@ -39,21 +39,19 @@ const transfer = ({ index, text }: Sentence): Phrase | undefined => {
   return { index: index + verb.index, sentence: text, severity };
 };
 
-// `text` is the whole file, where API names are read. `sentences` are its prose.
+// API names are read in the whole text, transfers in its prose sentences.
+export const moneyPhrases = (text: string, sentences: Sentence[]): Phrase[] => [
+  ...sentences.flatMap((sentence) => transfer(sentence) ?? []),
+  ...[...text.matchAll(API)].map((match): Phrase => ({
+    index: match.index,
+    sentence: match[0],
+    severity: "info",
+  })),
+];
+
 export const moneyMovement = (
   text: string,
   sentences: Sentence[],
   judge: ProseJudge,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined =>
-  reportPhrases(
-    text,
-    [
-      ...sentences.flatMap((sentence) => transfer(sentence) ?? []),
-      ...[...text.matchAll(API)].map((match): Phrase => ({
-        index: match.index,
-        sentence: match[0],
-        severity: "info",
-      })),
-    ],
-    judge,
-  );
+  reportPhrases(text, moneyPhrases(text, sentences), judge);

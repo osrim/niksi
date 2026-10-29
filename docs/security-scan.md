@@ -130,7 +130,7 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | `rm -r` of `/`, `~`, `$HOME`, a system directory such as `/usr`, `/etc`, or `/Library`, or `$VAR/` without `${VAR:?}`, and every `sudo rm -r` | `critical` |
 | Any other `rm -r` | `info` |
 | A concealment phrase, when the skill also has a `warn` or `critical` network, credential, persistence, or money finding, or when the phrase is in hidden text | `critical` |
-| An approval-bypass phrase within three lines of a `warn` or `critical` `money-movement`, `persistence`, `destructive`, or `curl-pipe-shell` finding in the same file | `critical` |
+| An approval-bypass phrase within three lines of a `warn` or `critical` `money-movement`, `persistence`, `destructive`, or `curl-pipe-shell` match in the same file | `critical` |
 | Any other concealment or approval-bypass phrase, and "ignore previous instructions" | `warn` |
 | A sentence that fetches a URL and obeys what it says, with `before every`, `before each`, or `always`, or in hidden text | `critical` |
 | Any other sentence that fetches a URL and obeys what it says | `warn` |
@@ -253,7 +253,7 @@ The `persistence` rule looks for commands that install something to run again la
 | `launchctl load`, `bootstrap`, or `enable`, and a write into `Library/LaunchAgents` or `Library/LaunchDaemons` | `critical` |
 | `systemctl enable` or `systemctl link`, with or without `--user`, and a write into `/etc/systemd/system` or `~/.config/systemd/user` | `critical` |
 | A write into `.git/hooks/<name>` other than a `.sample` file, and `git config core.hooksPath <path>` | `critical` |
-| `schtasks /create`, `Register-ScheduledTask`, and `reg add`, `New-ItemProperty`, or `Set-ItemProperty` on a `CurrentVersion\Run` or `RunOnce` key | `critical` |
+| `schtasks /create`, `Register-ScheduledTask`, and any statement that names a `CurrentVersion\Run` or `RunOnce` key | `critical` |
 | `LD_PRELOAD=` or `DYLD_INSERT_LIBRARIES=`, and a write into `/etc/ld.so.preload` | `critical` |
 | An append to `~/.ssh/authorized_keys` | `critical` |
 | A write into a shell start file, when the statement names `/tmp`, `curl`, `wget`, or a URL | `critical` |
@@ -262,7 +262,7 @@ The `persistence` rule looks for commands that install something to run again la
 
 A write is `>`, `>>`, `tee`, or the destination of `cp`, `mv`, `install`, `ln`, or `rsync`. An append is `>>` or `tee -a`. A shell start file is `.bashrc`, `.zshrc`, `.profile`, `.bash_profile`, `.zprofile`, `.zshenv`, or `config.fish`. For example, `printf "@reboot python3 /tmp/helper.py\n" | crontab -` is `critical`, `echo 'export PATH=$PATH:~/bin' >> ~/.zshrc` is `warn`, and `source ~/.zshrc` is not a finding.
 
-A command counts at the start of a statement or after a pipe, so "Edit the crontab file by hand" is not a finding. A match in a `#` or `//` comment is `warn`. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
+A command counts at the start of a statement or after a pipe, so "Edit the crontab file by hand" is not a finding. A match in a `#` or `//` comment drops one level. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
 
 ### Money movement
 

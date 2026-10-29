@@ -2,7 +2,7 @@ import type { MarkdownMap } from "../skill/markdown.ts";
 import { lineAt } from "../skill/text.ts";
 import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
-import { excerpt } from "./redact.ts";
+import { matchDetail } from "./redact.ts";
 import { lower, strongest } from "./severity.ts";
 
 export interface Sentence {
@@ -63,27 +63,40 @@ export interface Phrase {
   severity: Severity;
 }
 
-const DETAIL_LENGTH = 160;
+export interface JudgedPhrase extends Phrase {
+  line: number;
+  quiet: boolean;
+}
 
 // A prohibition before the phrase makes it info. Docs and demo prose lower it one level.
-export const reportPhrases = (
+export const judgePhrases = (
   text: string,
   phrases: Phrase[],
   { afterProhibition, demoted }: ProseJudge,
-): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
-  const judged = phrases
+): JudgedPhrase[] =>
+  phrases
     .toSorted((a, b) => a.index - b.index)
     .map((phrase) => {
       const quiet = afterProhibition(phrase.index);
       const lowered = demoted(phrase.index) ? lower(phrase.severity) : phrase.severity;
-      return Object.assign(phrase, { quiet, severity: quiet ? "info" : lowered });
+      return Object.assign(phrase, {
+        line: lineAt(text, phrase.index),
+        quiet,
+        severity: quiet ? "info" : lowered,
+      });
     });
+
+export const reportPhrases = (
+  text: string,
+  phrases: Phrase[],
+  judge: ProseJudge,
+): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
+  const judged = judgePhrases(text, phrases, judge);
   const best = strongest(judged);
   if (!best) return undefined;
-  const detail = [
-    excerpt(best.sentence, DETAIL_LENGTH),
-    ...(best.quiet ? ["(in a warning)"] : []),
-    ...(judged.length > 1 ? [`(${judged.length} matches)`] : []),
-  ].join(" ");
-  return { severity: best.severity, line: lineAt(text, best.index), detail };
+  return {
+    severity: best.severity,
+    line: best.line,
+    detail: matchDetail(best.sentence, best.quiet, judged.length),
+  };
 };

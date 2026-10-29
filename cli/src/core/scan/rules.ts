@@ -14,12 +14,12 @@ import { embeddedSecrets } from "./embedded-secret.ts";
 import { hiddenHtml } from "./hidden-html.ts";
 import { invisibleCharacters } from "./invisible.ts";
 import type { Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
-import { moneyMovement } from "./money-movement.ts";
-import { persistence } from "./persistence.ts";
+import { moneyMovement, moneyPhrases } from "./money-movement.ts";
+import { persistence, persistenceMatches } from "./persistence.ts";
 import { injections, promptInjection } from "./prompt-injection.ts";
-import { proseSentences } from "./prose.ts";
+import { judgePhrases, proseSentences } from "./prose.ts";
 import { remoteInstructions } from "./remote-instructions.ts";
-import { lower, stronger } from "./severity.ts";
+import { lower, stronger, strongest } from "./severity.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 
@@ -520,6 +520,13 @@ const deleteSeverity: Judge = ({ groups }) => {
   return sudo || important ? "critical" : "info";
 };
 
+const DESTRUCTIVE: PatternRule = {
+  rule: "destructive",
+  severity: deleteSeverity,
+  pattern:
+    /\b(?<sudo>sudo(?:[ \t]+-\S*(?:[ \t]+[^\s-]\S*)??)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
+};
+
 const PATTERN_RULES: PatternRule[] = [
   {
     rule: "base64-exec",
@@ -541,12 +548,7 @@ const PATTERN_RULES: PatternRule[] = [
     severity: envSeverity,
     pattern: new RegExp(`${CREDENTIAL_READ}|${ENV_DUMP}|${DOTENV_PATH}`, "giu"),
   },
-  {
-    rule: "destructive",
-    severity: deleteSeverity,
-    pattern:
-      /\b(?<sudo>sudo(?:[ \t]+-\S*(?:[ \t]+[^\s-]\S*)??)*[ \t]+)?rm(?<flags>(?:[ \t]+--?[\w-]+)+)(?<targets>(?:[ \t]+[^\s;&|)`]+)*)/gu,
-  },
+  DESTRUCTIVE,
 ];
 
 const lowerIf = (demoted: boolean, severity: Severity): Severity =>
@@ -570,30 +572,42 @@ const proseContext = (file: SkillFile, text: string): ProseContext => {
   };
 };
 
-const patternFinding = (
-  { rule, severity, pattern }: PatternRule,
+interface PatternMatch {
+  match: RegExpExecArray;
+  severity: Severity;
+  quiet: boolean;
+}
+
+const patternMatches = (
+  { severity, pattern }: PatternRule,
   file: SkillFile,
   text: string,
   { afterProhibition, demoted }: ProseContext,
-): Finding | undefined => {
+): PatternMatch[] => {
   const judge = typeof severity === "function" ? severity : () => severity;
-  let count = 0;
-  let best: { match: RegExpExecArray; severity: Severity; quiet: boolean } | undefined;
-  for (const match of text.matchAll(pattern)) {
+  return [...text.matchAll(pattern)].flatMap((match) => {
     const judged = judge(match, file, text);
-    if (!judged) continue;
-    count++;
+    if (!judged) return [];
     const quiet = afterProhibition(match.index);
-    const current = quiet ? "info" : lowerIf(demoted(match.index), judged);
-    if (!best || stronger(current, best.severity)) best = { match, severity: current, quiet };
-  }
+    return [{ match, severity: quiet ? "info" : lowerIf(demoted(match.index), judged), quiet }];
+  });
+};
+
+const patternFinding = (
+  rule: PatternRule,
+  file: SkillFile,
+  text: string,
+  context: ProseContext,
+): Finding | undefined => {
+  const found = patternMatches(rule, file, text, context);
+  const best = strongest(found);
   if (!best) return undefined;
   const detail = [
     best.match[0].trim(),
     ...(best.quiet ? ["(in a warning)"] : []),
-    ...(count > 1 ? [`(${count} matches)`] : []),
+    ...(found.length > 1 ? [`(${found.length} matches)`] : []),
   ].join(" ");
-  return finding(rule, {
+  return finding(rule.rule, {
     severity: best.severity,
     file: file.path,
     line: lineAt(text, best.match.index),
@@ -812,24 +826,28 @@ const statementSeverity = (statement: Statement, context: ProseContext): Severit
 const weakest = (severities: Severity[]): Severity =>
   severities.reduce((a, b) => (stronger(a, b) ? b : a));
 
+const downloadHits = (
+  statements: Statement[],
+  context: ProseContext,
+): { hit: Hit; severity: Severity }[] =>
+  [
+    ...statements
+      .filter(feedsInterpreter)
+      .map((statement) => ({ statements: [statement], detail: commandText(statement) })),
+    ...savedAndRun(statements),
+  ]
+    .toSorted((a, b) => a.statements[0]!.index - b.statements[0]!.index)
+    .map((hit) => ({
+      hit,
+      severity: weakest(hit.statements.map((s) => statementSeverity(s, context))),
+    }));
+
 const downloadedCode: Scanner = ({ files }) =>
   files.flatMap((file) => {
     const text = decodeText(file)?.text;
     if (text === undefined || isSymlink(file.mode)) return [];
-    const context = proseContext(file, text);
-    const prose = isProse(file.path);
-    const statements = shellStatements(text, prose);
-    const hits: Hit[] = [
-      ...statements
-        .filter(feedsInterpreter)
-        .map((statement) => ({ statements: [statement], detail: commandText(statement) })),
-      ...savedAndRun(statements),
-    ].toSorted((a, b) => a.statements[0]!.index - b.statements[0]!.index);
-    let best: { hit: Hit; severity: Severity } | undefined;
-    for (const hit of hits) {
-      const severity = weakest(hit.statements.map((s) => statementSeverity(s, context)));
-      if (!best || stronger(severity, best.severity)) best = { hit, severity };
-    }
+    const hits = downloadHits(shellStatements(text, isProse(file.path)), proseContext(file, text));
+    const best = strongest(hits);
     if (!best) return [];
     const detail = [
       best.hit.detail,
@@ -925,13 +943,25 @@ const CONCEALED_RULES = new Set<Rule>([
   "persistence",
   "money-movement",
 ]);
-const BYPASSED_RULES = new Set<Rule>([
-  "money-movement",
-  "persistence",
-  "destructive",
-  "curl-pipe-shell",
-]);
 const BYPASS_LINES = 3;
+
+// Every `curl-pipe-shell`, `persistence`, `destructive`, and `money-movement` match above info.
+const dangerLines = (file: SkillFile, text: string): { line: number }[] => {
+  const context = proseContext(file, text);
+  const statements = shellStatements(text, isProse(file.path));
+  const sentences = isProse(file.path) ? proseSentences(text, context.map) : [];
+  return [
+    ...downloadHits(statements, context).flatMap(({ hit, severity }) =>
+      hit.statements.map(({ line }) => ({ severity, line })),
+    ),
+    ...persistenceMatches(statements, context),
+    ...patternMatches(DESTRUCTIVE, file, text, context).map(({ match, severity }) => ({
+      severity,
+      line: lineAt(text, match.index),
+    })),
+    ...judgePhrases(text, moneyPhrases(text, sentences), context),
+  ].flatMap(({ severity, line }) => (severity === "info" ? [] : [{ line }]));
+};
 
 // `signals` are the other text findings of the skill, including those inside hidden text.
 const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[] => {
@@ -939,14 +969,16 @@ const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[]
   const concealing = raised.some((signal) => CONCEALED_RULES.has(signal.rule));
   return textRule("prompt-injection", (file, text) => {
     const { map, ...judge } = proseContext(file, text);
-    const dangers = raised.flatMap(({ rule, file: path, line }) =>
-      path === file.path && line !== undefined && BYPASSED_RULES.has(rule) ? [{ line }] : [],
-    );
+    // Most files hold no bypass phrase, so the lines are found only when one asks.
+    let dangers: { line: number }[] | undefined;
     return promptInjection(text, {
       ...judge,
       concealing,
       hidden: (index) => map?.contextAt(index) === "hidden",
-      dangerNear: (line) => combine([{ line }], dangers, { within: BYPASS_LINES }).length > 0,
+      dangerNear: (line) => {
+        dangers ??= dangerLines(file, text);
+        return combine([{ line }], dangers, { within: BYPASS_LINES }).length > 0;
+      },
     });
   })(skill);
 };
@@ -975,13 +1007,13 @@ const hiddenText = ({ files }: ScannedSkill, scan: (body: string) => Finding[]):
   });
 
 const textScan: Scanner = (skill) => {
-  const inner: Finding[] = [];
+  const insideHidden: Finding[] = [];
   const hidden = hiddenText(skill, (body) => {
     const found = scanHiddenText(body);
-    inner.push(...found);
+    insideHidden.push(...found);
     return found;
   });
-  return [...textFindings(skill, inner), ...hidden];
+  return [...textFindings(skill, insideHidden), ...hidden];
 };
 
 // Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.

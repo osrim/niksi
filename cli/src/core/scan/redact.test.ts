@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { excerpt, redact } from "./redact.ts";
+import { excerpt, matchDetail, redact } from "./redact.ts";
 import { AWS_KEY, BEARER, JWT } from "./test-secrets.ts";
 
 test.each([
@@ -39,4 +39,11 @@ test("an excerpt is one line with control and invisible characters replaced, the
     "run this \u{FFFD}[2J now\u{FFFD}",
   );
   expect(excerpt("abcdef", 3)).toBe("abc…");
+});
+
+test("a match detail marks a warning and counts matches", () => {
+  expect(matchDetail("crontab jobs.cron", true, 3)).toBe(
+    "crontab jobs.cron (in a warning) (3 matches)",
+  );
+  expect(matchDetail(`${"a".repeat(170)}`, false, 1)).toBe(`${"a".repeat(160)}…`);
 });

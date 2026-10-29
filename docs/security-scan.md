@@ -280,7 +280,7 @@ The `dependency-source` rule looks for installs from a source the skill picks. I
 | `curl -k` or `--insecure`, also inside a flag group such as `-fsSLk`, and `wget --no-check-certificate` | `warn` |
 | A Git or URL install pinned to a 40-character commit hash: the ref after `@` or `#`, or the name after `/archive/` | `info` |
 
-The default pip hosts are `pypi.org` and `files.pythonhosted.org`. The default npm hosts are `registry.npmjs.org` and `registry.yarnpkg.com`. A pip command is `pip`, `pip3`, `pipx`, `python -m pip`, or `uv pip`. Registry config also covers `npm set`, `pnpm config set`, `yarn config set`, a scoped key such as `@org:registry`, Yarn's `npmRegistryServer`, and `pip config set global.index-url`. The `package.json` fields are `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`.
+The default pip hosts are `pypi.org` and `files.pythonhosted.org`. The default npm host is `registry.npmjs.org`. A pip command is `pip`, `pip3`, `pipx`, `python -m pip`, or `uv pip`. Registry config also covers `npm set`, `pnpm config set`, `yarn config set`, a scoped key such as `@org:registry`, Yarn's `npmRegistryServer`, and `pip config set global.index-url`. The `package.json` fields are `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies`.
 
 For example, `pip install --index-url http://45.1.2.3/simple foo` is `critical`, `curl -k https://x.invalid/tool.tgz -o tool.tgz` is `warn`, and `pip install "requests>=2.31"` is not a finding. A match in a `#` or `//` comment drops one level. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
 

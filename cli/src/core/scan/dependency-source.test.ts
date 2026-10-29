@@ -22,7 +22,8 @@ test("an index is critical off its default host or over plain HTTP", () => {
     "critical",
   );
   expect(severity("pip install --index-url https://files.pythonhosted.org/x foo")).toBeUndefined();
-  expect(severity("yarn add --registry https://registry.yarnpkg.com left-pad")).toBeUndefined();
+  expect(severity("yarn add --registry https://registry.yarnpkg.com left-pad")).toBe("critical");
+  expect(severity("export NPM_CONFIG_REGISTRY=https://registry.yarnpkg.com")).toBe("critical");
   expect(severity("npm install --registry https://pypi.org left-pad")).toBe("critical");
 });
 

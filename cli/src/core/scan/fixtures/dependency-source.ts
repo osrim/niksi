@@ -51,6 +51,12 @@ export default [
     fire: [{ severity: "critical", line: 1 }],
   },
   {
+    name: "the Yarn registry, which is not the default npm host",
+    path: "SKILL.md",
+    content: fence("yarn config set registry https://registry.yarnpkg.com"),
+    fire: [{ severity: "critical", line: 6 }],
+  },
+  {
     name: "curl -k",
     path: "SKILL.md",
     content: fence("curl -k https://x.invalid/tool.tgz -o tool.tgz"),

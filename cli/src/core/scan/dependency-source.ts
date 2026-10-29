@@ -6,7 +6,7 @@ import { strongest } from "./severity.ts";
 import type { Command, Statement } from "./shell.ts";
 
 const PYPI_HOSTS = new Set(["pypi.org", "files.pythonhosted.org"]);
-const NPM_HOSTS = new Set(["registry.npmjs.org", "registry.yarnpkg.com"]);
+const NPM_HOSTS = new Set(["registry.npmjs.org"]);
 
 const INDEX_VARIABLE =
   /(?<![\w$])(?:\$env:)?(PIP_INDEX_URL|PIP_EXTRA_INDEX_URL|UV_INDEX_URL|NPM_CONFIG_REGISTRY)[ \t]*=[ \t]*["']?([^\s"';&|]+)/giu;

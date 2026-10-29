@@ -130,14 +130,21 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | finding | severity |
 | --- | --- |
 | A download fed to a shell or interpreter, or saved and then run | `critical` |
-| A base64 decoder (`b64decode`, `base64_decode`, `base64.decodebytes`, `base64.decodestring`, `atob(`, `Buffer.from(…, 'base64')`, `base64 -d`) and, on the same line, `eval(`, `exec(`, shell `eval "…"`, or a pipe to a shell | `critical` |
+| A decoder (`b64decode`, `base64_decode`, `base64.decodebytes`, `base64.decodestring`, `atob(`, `Buffer.from(…, 'base64')`, `base64 -d`, `codecs.decode(`, `bytes.fromhex(`, `zlib.decompress(`, `marshal.loads(`, `compile(`, a `chr()` join, `String.fromCharCode(`) and, on the same line, `eval(`, `exec(`, `new Function(`, shell `eval "…"`, or a pipe to a shell | `critical` |
+| A shell decoder (`base64 -d`, `xxd -r`, `openssl enc -d`, `printf` or `echo -e` with `\x` escapes, `rev`, `gunzip`) piped to an interpreter that reads stdin, or inside `$(…)` or `<(…)` passed to `eval`, `source`, `exec`, or an interpreter's `-c` or `-e` flag | `critical` |
+| `getattr(…)(` with a name built from pieces, such as `"ex" + "ec"`, and `__import__("os").system(` | `critical` |
+| A shell wired to a socket: `sh -i` redirected to `/dev/tcp` or `/dev/udp`, any `/dev/tcp/<host>/<port>` or `/dev/udp/<host>/<port>`, `nc`, `ncat`, or `netcat` with `-e` or `-c` and `/bin/sh`, `mkfifo` with a pipe to `sh -i` on the same line, `socat` with `exec:` or `system:`, `python -c` with `socket` and `connect(`, `pty.spawn("/bin/sh")`, `php -r` with `fsockopen(`, `ruby -rsocket -e`, and PowerShell `-e`, `-enc`, or `-EncodedCommand` with 20 or more base64 characters | `critical` |
 | An exfiltration host, and on the same line a credential-named variable, an environment dump, `$(cat …)`, or a file upload (`-F`, `-T`, `--upload-file`, `@file`) | `critical` |
 | Any other exfiltration host: webhook.site, requestbin.com, pipedream.net, ngrok, and Discord, Telegram, and Slack webhook URLs | `warn` |
 | `permissions.allow`, a `>`, `>>`, or `tee` into `.claude/settings.json` or `.claude/settings.local.json`, or a `SKILL.md` sentence that names that file and starts with `add`, `write`, `edit`, `modify`, `append`, `set`, `update`, or `change` | `critical` |
 | Any other mention of `.claude/settings.json` or `.claude/settings.local.json` | `warn` |
 | `--dangerously-skip-permissions` | `critical` |
 | `rm -r` of `/`, `~`, `$HOME`, a system directory such as `/usr`, `/etc`, or `/Library`, or `$VAR/` without `${VAR:?}`, and every `sudo rm -r` | `critical` |
+| `dd` with `of=/dev/…` other than `/dev/null`, `/dev/stdout`, `/dev/stderr`, or `/dev/fd/…`, `mkfs` or `mkfs.<type>` with an operand, a fork bomb such as `:(){ :\|:& };:`, and `sudo` or `doas` before `rm`, `dd`, `mkfs`, `chmod`, `chown`, or `tee` with an operand | `critical` |
+| `git push --force` or `-f`, `git reset --hard`, `git clean` with `-f` or `--force`, `chmod 777`, a set-uid or set-gid mode (`u+s`, `g+s`, or a four-digit mode that starts with `2`, `4`, or `6`), `history -c`, and `rm` of `.bash_history` | `warn` |
 | Any other `rm -r` | `info` |
+| A detached or silenced process, when the same file has a `warn` or `critical` `curl-pipe-shell`, `base64-exec`, or `persistence` match | `critical` |
+| Any other detached or silenced process | `warn` |
 | A concealment phrase, when the skill also has a `warn` or `critical` network, credential, persistence, or money finding, or when the phrase is in hidden text | `critical` |
 | An approval-bypass phrase within three lines of a `warn` or `critical` `money-movement`, `persistence`, `destructive`, or `curl-pipe-shell` match in the same file | `critical` |
 | Any other concealment or approval-bypass phrase, and "ignore previous instructions" | `warn` |
@@ -178,6 +185,10 @@ A download is `curl`, `wget`, `fetch`, `iwr`, `irm`, `Invoke-WebRequest`, or `In
 A download is saved and then run when the same file saves it to a path (`-o`, `-O`, `-OutFile`, or `>`) and runs that path with an interpreter, `chmod +x`, or as a command such as `./setup.sh`. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A Python file that calls `urlretrieve` and also uses `subprocess` or a bare `exec(` counts too.
 
 A download that runs from a `#` or `//` comment in a script or fenced code is `warn`.
+
+A process is detached or silenced when it starts with `nohup` or `setsid`, when a statement is `disown`, or when a background job (`&`) sends both stdout and stderr to `/dev/null`, as in `> /dev/null 2>&1 &` or `&> /dev/null &`. `2>/dev/null` alone is not a match, so `npm test 2>/dev/null || true` is not a finding. In Python, it is `start_new_session=True`, or `stdout` and `stderr` both set to `DEVNULL` within five lines. In JavaScript, it is `detached: true` within five lines of `stdio: 'ignore'`, or `.unref()` within five lines after `spawn(` or `fork(`. For example, `nohup python3 /tmp/helper.py > /dev/null 2>&1 &` is `warn`, and `critical` when the same file also downloads `/tmp/helper.py`.
+
+The `base64-exec`, `reverse-shell`, `destructive`, and `silent-exec` rules count each line once. A match in a `#` or `//` comment drops one level. In Markdown prose, a destructive command needs an operand that looks like a path, so "the mkfs command formats a disk" is not a finding.
 
 ### Credentials
 

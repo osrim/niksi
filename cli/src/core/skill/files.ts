@@ -43,8 +43,11 @@ const TEXT_EXTS = new Set([
 export const hasTextExtension = (path: string): boolean =>
   TEXT_EXTS.has(extname(path).toLowerCase());
 
+export const startsWithShebang = (file: SkillFile): boolean =>
+  file.content.subarray(0, 2).toString("latin1") === "#!";
+
 const isTextCandidate = (file: SkillFile): boolean =>
-  hasTextExtension(file.path) || file.content.subarray(0, 2).toString("latin1") === "#!";
+  hasTextExtension(file.path) || startsWithShebang(file);
 
 const startsWith = (buf: Buffer, ...bytes: number[]): boolean =>
   buf.length >= bytes.length && bytes.every((byte, i) => buf[i] === byte);
@@ -70,13 +73,13 @@ const withoutNul = (decoded: string): DecodedText => {
   return { text, nuls: decoded.length - text.length };
 };
 
-const REPLACEMENT = Buffer.from("�");
+const REPLACEMENT = Buffer.from("\uFFFD");
 
 // Bytes before the first invalid sequence decode one to one, so their UTF-8 length is its offset.
 const invalidUtf8Offset = (buf: Buffer, lossy: string): number => {
   let offset = 0;
   let from = 0;
-  for (let at = lossy.indexOf("�"); at !== -1; at = lossy.indexOf("�", at + 1)) {
+  for (let at = lossy.indexOf("\uFFFD"); at !== -1; at = lossy.indexOf("\uFFFD", at + 1)) {
     offset += Buffer.byteLength(lossy.slice(from, at));
     if (!buf.subarray(offset, offset + REPLACEMENT.length).equals(REPLACEMENT)) return offset;
     offset += REPLACEMENT.length;

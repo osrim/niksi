@@ -59,9 +59,9 @@ const EXPECTED: Record<string, Format> = {
 const MEDIA_EXTS = ".png .jpg .jpeg .gif .webp .ico .bmp .svg .tif .tiff .avif .heic";
 const AUDIO_VIDEO_EXTS = ".mp3 .mp4 .m4a .wav .ogg .flac .webm .mov .avi .mkv";
 const FONT_EXTS = ".woff .woff2 .ttf .otf .eot";
-const DOCUMENT_EXTS = ".pdf .doc .docx .xls .xlsx .ppt .pptx .odt .rtf .epub .md";
+const DOCUMENT_EXTS = ".pdf .doc .docx .xls .xlsx .ppt .pptx .odt .rtf .epub";
 const DISGUISES = new Set(
-  [MEDIA_EXTS, AUDIO_VIDEO_EXTS, FONT_EXTS, DOCUMENT_EXTS].join(" ").split(" "),
+  [MEDIA_EXTS, AUDIO_VIDEO_EXTS, FONT_EXTS, DOCUMENT_EXTS, ".md"].join(" ").split(" "),
 );
 
 const BINARY_EXECUTABLES = new Set<Format>([

@@ -1,6 +1,13 @@
 import { isAbsolute, normalize, join, dirname, extname } from "node:path";
 import { LinkifyIt } from "linkify-it";
-import { decodeText, isSymlink, MODE_EXEC, MODE_FILE, type SkillFile } from "../skill/files.ts";
+import {
+  decodeText,
+  isSymlink,
+  MODE_EXEC,
+  MODE_FILE,
+  startsWithShebang,
+  type SkillFile,
+} from "../skill/files.ts";
 import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
@@ -98,9 +105,6 @@ const binaryFinding = (file: SkillFile): Finding =>
       })
     : finding("binary", { severity: "warn", file: file.path, detail: "binary file" });
 
-const isScript = (file: SkillFile): boolean =>
-  file.content.subarray(0, 2).toString("latin1") === "#!";
-
 const fileFlags: Scanner = ({ files }) => {
   const findings: Finding[] = [];
   for (const file of files) {
@@ -121,7 +125,7 @@ const fileFlags: Scanner = ({ files }) => {
     }
     if (file.mode === MODE_EXEC) {
       // The scan reads a script's text, so only an opaque executable needs a look.
-      const script = isScript(file);
+      const script = startsWithShebang(file);
       findings.push(
         finding("executable", {
           severity: script ? "info" : "warn",

@@ -36,7 +36,7 @@ export default [
   {
     name: "a UTF-8 SKILL.md with a byte order mark",
     path: "SKILL.md",
-    content: `﻿${entry("Order a café.")}`,
+    content: `\uFEFF${entry("Order a café.")}`,
     silent: "none",
   },
   {

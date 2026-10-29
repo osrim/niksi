@@ -42,7 +42,7 @@ Control characters in files and diffs show as caret markers, for example `^[` fo
 
 Every file in the skill directory except `.git` and `node_modules`, including files the agent never reads.
 
-A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, `.json`, `.yaml`, `.yml`, or `.toml`, or when it starts with `#!`. The scan reads a text file past its NUL bytes. A text file without a byte order mark must be UTF-8. When it is not, and every second byte of its first 1,024 is zero, the scan reads it as UTF-16LE. Otherwise the scan reads each invalid sequence as U+FFFD. A file with another extension is binary when its first 1,024 bytes contain a NUL.
+A file is text when its extension is `.md`, `.txt`, `.sh`, `.bash`, `.zsh`, `.py`, `.js`, `.mjs`, `.cjs`, `.ts`, `.json`, `.yaml`, `.yml`, or `.toml`, or when it starts with `#!`. The scan reads a text file past its NUL bytes. A text file without a byte order mark must be UTF-8. When it is not, and every second byte of its first 1,024 is zero, the scan reads it as UTF-16LE. Otherwise the scan reads each invalid sequence as U+FFFD. The agent and the pager may read such a file differently from the scan, so the text you review can differ from the text the agent gets. A file with another extension is binary when its first 1,024 bytes contain a NUL.
 
 ### Files
 

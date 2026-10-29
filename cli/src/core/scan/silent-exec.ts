@@ -95,11 +95,10 @@ const textMatches = (text: string, pattern: RegExp): TextMatch[] =>
 
 const languageMatches = (text: string): TextMatch[] => [
   ...textMatches(text, ALONE),
-  ...PAIRINGS.flatMap(({ anchor, partner, within, before }) =>
-    combine(textMatches(text, anchor), textMatches(text, partner), {
-      within,
-      related: (a, p) => !before || p.line <= a.line,
-    }).map((pair) => pair.anchor),
+  ...PAIRINGS.flatMap(({ anchor, partner, within, before = false }) =>
+    combine(textMatches(text, anchor), textMatches(text, partner), { within, before }).map(
+      (pair) => pair.anchor,
+    ),
   ),
 ];
 

@@ -14,7 +14,7 @@ import { mapMarkdown, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
 import { fileName, namedPaths, pathParts } from "./archive.ts";
 import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
-import { combine } from "./combine.ts";
+import { combine, nearest } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
 import { demotes, type ProseJudge } from "./context.ts";
@@ -731,7 +731,7 @@ interface Hit {
 
 const savedAndRun = (statements: Statement[]): Hit[] => {
   const files = combine(steps(statements, downloadTargets), steps(statements, runTargets), {
-    related: (download, run) => download.path === run.path,
+    key: (step) => step.path,
   }).map(({ anchor, partner }) => [anchor.statement, partner.statement] as const);
   const code = statements.filter((s) => s.kind !== "prose");
   const python = combine(
@@ -945,14 +945,14 @@ const promptInjectionText = (skill: ScannedSkill, signals: Finding[]): Finding[]
   return textRule("prompt-injection", (file, text) => {
     const { map, ...judge } = proseContext(file, text);
     // Most files hold no bypass phrase, so the lines are found only when one asks.
-    let dangers: { line: number }[] | undefined;
+    let dangerAt: ReturnType<typeof nearest> | undefined;
     return promptInjection(text, {
       ...judge,
       concealing,
       hidden: (index) => map?.contextAt(index) === "hidden",
       dangerNear: (line) => {
-        dangers ??= dangerLines(file, text);
-        return combine([{ line }], dangers, { within: BYPASS_LINES }).length > 0;
+        dangerAt ??= nearest(dangerLines(file, text), { within: BYPASS_LINES });
+        return dangerAt({ line }) !== undefined;
       },
     });
   })(skill);

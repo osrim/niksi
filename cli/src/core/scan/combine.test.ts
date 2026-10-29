@@ -24,16 +24,39 @@ test("within N lines drops partners further away", () => {
   expect(names(combine([at(10)], [at(10)], { within: 0 }))).toEqual([["L10", "L10"]]);
 });
 
-test("a relation limits which partners count", () => {
+test("on equal distance the partner earlier in the input wins", () => {
+  expect(names(combine([at(10)], [at(12, "after"), at(8, "before")]))).toEqual([["L10", "after"]]);
+  expect(names(combine([at(10)], [at(8, "before"), at(12, "after")]))).toEqual([["L10", "before"]]);
+  expect(names(combine([at(10)], [at(12, "first"), at(30), at(12, "second")]))).toEqual([
+    ["L10", "first"],
+  ]);
+});
+
+test("a key limits partners to those with the anchor's key", () => {
   const anchors = [at(1, "a.sh")];
   const partners = [at(2, "b.sh"), at(9, "a.sh")];
-  expect(
-    names(
-      combine(anchors, partners, { related: (anchor, partner) => anchor.name === partner.name }),
-    ),
-  ).toEqual([["a.sh", "a.sh"]]);
+  expect(names(combine(anchors, partners, { key: (item) => item.name }))).toEqual([
+    ["a.sh", "a.sh"],
+  ]);
+});
+
+test("before limits partners to the anchor's line and earlier", () => {
+  expect(names(combine([at(10)], [at(11), at(5)], { before: true }))).toEqual([["L10", "L5"]]);
+  expect(names(combine([at(10)], [at(10), at(5)], { before: true }))).toEqual([["L10", "L10"]]);
+  expect(names(combine([at(10)], [at(11)], { before: true }))).toEqual([]);
 });
 
 test("an anchor with no partner is left out", () => {
   expect(names(combine([at(1)], []))).toEqual([]);
+});
+
+test("pairing time grows linearly with the matches", () => {
+  const count = 40_000;
+  const anchors = Array.from({ length: count }, (_, i) => at(2 * i + 2));
+  const partners = Array.from({ length: count }, (_, i) => at(2 * i + 1));
+  const start = performance.now();
+  expect(combine(anchors, partners, { within: 20 })).toHaveLength(count);
+  expect(combine(anchors, partners, { key: (item) => item.name })).toEqual([]);
+  expect(combine(anchors, partners.toReversed(), { within: 20, before: true })).toHaveLength(count);
+  expect(performance.now() - start).toBeLessThan(1000);
 });

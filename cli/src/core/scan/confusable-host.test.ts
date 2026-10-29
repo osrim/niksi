@@ -77,3 +77,10 @@ test("one-script words, and words split by punctuation, are not findings", () =>
     confusableHost("https://ru.wikipedia.org/wiki/Python_(\u044f\u0437\u044b\u043a)", nowhere),
   ).toBeUndefined();
 });
+
+test("many URLs before a mixed word scan in linear time", () => {
+  const text = `${"https://acme.com/x normal ".repeat(32_000)}аcme`;
+  const start = performance.now();
+  expect(confusableHost(text, everywhere)?.severity).toBe("warn");
+  expect(performance.now() - start).toBeLessThan(1000);
+});

@@ -67,8 +67,12 @@ export const confusableHost = (
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   if (!LOOKALIKE.test(text) && !/xn--/iu.test(text)) return undefined;
   const urls = linkify.match(text) ?? [];
-  const inUrl = (index: number): boolean =>
-    urls.some((url) => index >= url.index && index < url.lastIndex);
+  // Words arrive in source order, so the URL cursor only moves forward.
+  let next = 0;
+  const inUrl = (index: number): boolean => {
+    while (next < urls.length && urls[next]!.lastIndex <= index) next++;
+    return next < urls.length && index >= urls[next]!.index;
+  };
   const words = [...text.matchAll(WORD)].flatMap(({ 0: word, index }): Hit[] => {
     if (!isCode(index) || inUrl(index)) return [];
     const mixed = mixedScripts(word);

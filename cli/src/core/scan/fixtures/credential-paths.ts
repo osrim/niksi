@@ -63,6 +63,18 @@ export default [
     fire: [{ severity: "warn", line: 5, detail: "~/.ssh/id_rsa.pub" }],
   },
   {
+    name: "a nested public key read in a setup script",
+    path: "scripts/setup.sh",
+    content: "#!/bin/sh\ncat ~/.ssh/keys/id_ed25519.pub\n",
+    fire: [{ severity: "warn", line: 2, detail: "~/.ssh/keys/id_ed25519.pub" }],
+  },
+  {
+    name: "a nested private key read in a script",
+    path: "scripts/grab.sh",
+    content: "#!/bin/sh\ncat ~/.ssh/keys/id_ed25519\n",
+    fire: [{ severity: "critical", line: 2, detail: "~/.ssh/keys/id_ed25519" }],
+  },
+  {
     name: "F6 key generation",
     path: "SKILL.md",
     content: entry("```sh", "ssh-keygen -t rsa -f ~/.ssh/id_rsa", "```"),

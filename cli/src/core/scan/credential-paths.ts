@@ -4,7 +4,7 @@ import { mapHome, type Command, type Statement } from "./shell.ts";
 
 // Paths are matched after mapHome, so `~` stands for every home spelling.
 const PATH_END = String.raw`(?![\w-]|\.[\w-])`;
-const UNDER = String.raw`(?![\w-])(?:[\\/][\w.*-]*)?`;
+const UNDER = String.raw`(?![\w-])(?:[\\/][\w.*-]*)*`;
 const CREDENTIAL_LOCATION = new RegExp(
   [
     String.raw`~[\\/]\.(?:ssh|aws|azure|gnupg|password-store)${UNDER}`,
@@ -22,7 +22,7 @@ const CREDENTIAL_LOCATION = new RegExp(
   "gu",
 );
 
-const PUBLIC_SSH = /[\\/]\.ssh[\\/](?:.*\.pub|authorized_keys|known_hosts(?:\.old)?)$/u;
+const PUBLIC_SSH = /^~[\\/]\.ssh[\\/](?:.*\.pub|authorized_keys|known_hosts(?:\.old)?)$/u;
 
 const READS =
   /(?<![\w-])(?:cat|head|tail|less|cp|scp|rsync|tar|zip|base64|xxd|curl)(?![\w-])|\bopen\(|\breadFile(?:Sync)?\b|\bread_text\b/u;

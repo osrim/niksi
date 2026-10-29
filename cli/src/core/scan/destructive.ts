@@ -102,22 +102,23 @@ const commandSeverity = (
   return strongest([asRoot, own].flatMap((severity) => (severity ? [{ severity }] : [])))?.severity;
 };
 
-// Prose names the command after other words, as in "then run git reset --hard".
-const candidates = (
-  statement: Statement,
-  command: Command,
-): Pick<Command, "words" | "wrappers">[] =>
-  statement.kind === "prose"
-    ? [command, ...command.words.slice(1).map((_, i) => skipWrappers(command.words.slice(i + 1)))]
-    : [command];
+// Reading only this many words from each later start keeps a long prose line linear.
+const PROSE_WORDS = 16;
+
+const severities = (command: Command, prose: boolean): Severity[] => {
+  const found = [commandSeverity(command, prose)];
+  // Prose names the command after other words, as in "then run git reset --hard".
+  const starts = prose ? command.words.length : 1;
+  for (let i = 1; i < starts; i++) {
+    found.push(commandSeverity(skipWrappers(command.words.slice(i, i + PROSE_WORDS)), prose));
+  }
+  return found.filter((severity) => severity !== undefined);
+};
 
 const statementMatches = (statements: Statement[], judge: ProseJudge): LineMatch[] =>
   statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
-    const found = statement.commands
-      .flatMap((command) => candidates(statement, command))
-      .map((candidate) => commandSeverity(candidate, prose))
-      .filter((severity) => severity !== undefined);
+    const found = statement.commands.flatMap((command) => severities(command, prose));
     const best = strongest(found.map((severity) => ({ severity })));
     return best ? [statementMatch(statement, judge, best.severity)] : [];
   });

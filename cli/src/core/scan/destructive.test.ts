@@ -84,3 +84,13 @@ test("one line counts once, and a comment drops one level", () => {
   expect(severity("rm -rf build; dd if=/dev/zero of=/dev/sda")).toBe("critical");
   expect(severity("rm -rf build | dd if=/dev/zero of=/dev/sda")).toBe("critical");
 });
+
+test("a long prose line scans in linear time", () => {
+  for (const word of ["ordinary ", "rm "]) {
+    const text = word.repeat(12_000);
+    const statements = shellStatements(text, true);
+    const start = performance.now();
+    expect(destructive(text, statements, noProseContext)).toBeUndefined();
+    expect(performance.now() - start).toBeLessThan(1000);
+  }
+});

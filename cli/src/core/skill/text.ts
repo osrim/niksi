@@ -1,7 +1,30 @@
 import MarkdownIt from "markdown-it";
 
-export const lineAt = (text: string, index: number): number =>
-  text.slice(0, index).split("\n").length;
+export const lineStarts = (text: string): number[] => {
+  const starts = [0];
+  for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) starts.push(i + 1);
+  return starts;
+};
+
+// Zero-based line that holds `index`.
+export const lineOf = (starts: readonly number[], index: number): number => {
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (starts[mid]! <= index) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+};
+
+// Rules call this once per match on the same text, so the line index is kept for the last text.
+let indexed: { text: string; starts: number[] } | undefined;
+
+export const lineAt = (text: string, index: number): number => {
+  if (indexed?.text !== text) indexed = { text, starts: lineStarts(text) };
+  return lineOf(indexed.starts, index) + 1;
+};
 
 const markdown = new MarkdownIt();
 

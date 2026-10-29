@@ -127,7 +127,6 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 | `permissions.allow`, a `>`, `>>`, or `tee` into `.claude/settings.json` or `.claude/settings.local.json`, or a `SKILL.md` sentence that names that file and starts with `add`, `write`, `edit`, `modify`, `append`, `set`, `update`, or `change` | `critical` |
 | Any other mention of `.claude/settings.json` or `.claude/settings.local.json` | `warn` |
 | `--dangerously-skip-permissions` | `critical` |
-| `~/.ssh`, `id_rsa`, `~/.aws` | `critical` |
 | `rm -r` of `/`, `~`, `$HOME`, a system directory such as `/usr`, `/etc`, or `/Library`, or `$VAR/` without `${VAR:?}`, and every `sudo rm -r` | `critical` |
 | Any other `rm -r` | `info` |
 | Prompt-injection phrases such as "ignore previous instructions" | `warn` |
@@ -149,6 +148,66 @@ A download is `curl`, `wget`, `fetch`, `iwr`, `irm`, `Invoke-WebRequest`, or `In
 A download is saved and then run when the same file saves it to a path (`-o`, `-O`, `-OutFile`, or `>`) and runs that path with an interpreter, `chmod +x`, or as a command such as `./setup.sh`. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A Python file that calls `urlretrieve` and also uses `subprocess` or a bare `exec(` counts too.
 
 A download that runs from a `#` or `//` comment in a script or fenced code is `warn`.
+
+### Credentials
+
+The `credential-paths` rule looks for credential locations. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A credential location is one of these:
+
+- SSH: `~/.ssh` and the files in it.
+- Cloud and tool credentials: `~/.aws`, `~/.config/gcloud`, `application_default_credentials.json`, `~/.azure`, `~/.docker/config.json`, and `~/.kube/config`.
+- Credential files: `~/.git-credentials`, `~/.netrc`, `~/.pgpass`, `~/.npmrc`, and `~/.pypirc`.
+- Key and password directories: `~/.gnupg` and `~/.password-store`.
+- System files: `/etc/shadow`, `/etc/gshadow`, and `/etc/sudoers`.
+- The macOS keychain: `security find-generic-password`, `security find-internet-password`, `security dump-keychain`, and `Library/Keychains`.
+- Browser files: `Login Data` and `Cookies` after a `/`, `key4.db`, `logins.json`, and `cookies.sqlite`.
+
+Public SSH material is a `.pub` file, `~/.ssh/authorized_keys`, or `~/.ssh/known_hosts`.
+
+| finding | severity |
+| --- | --- |
+| A credential location and, in the same statement, `cat`, `head`, `tail`, `less`, `cp`, `scp`, `rsync`, `tar`, `zip`, `base64`, `xxd`, `curl`, `open(`, `readFile`, or `read_text` | `critical` |
+| A credential location in a code block, or in a file that is not Markdown or `.txt` | `critical` |
+| Public SSH material, a statement with `ssh-keygen` or `ssh-copy-id`, or a write into a credential location with `>`, `>>`, or `tee` | `warn` |
+| A credential location in such a code statement that runs `ssh`, `ssh-add`, `ssh-keyscan`, `chmod`, `chown`, `mkdir`, `touch`, `ls`, `cd`, or `export` | `warn` |
+| A credential location in prose or a comment | `warn` |
+
+For example, `cat $HOME/.ssh/id_ed25519` is `critical`, and "Add your public key from `~/.ssh/id_rsa.pub` to the server." is `warn`. A location inside a URL, such as a link to a page named `Cookies`, is not a finding, unless a substitution such as `$(<~/.ssh/id_rsa)` reads it. Prohibitions and demotion work as they do for [text patterns](#text-patterns).
+
+### Embedded secrets
+
+The `embedded-secret` rule looks for tokens and private keys that a skill ships. Its token patterns and entropy floors come from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT). It finds:
+
+- AWS access keys, and GitHub, GitLab, Slack, npm, PyPI, Hugging Face, and DigitalOcean tokens.
+- Anthropic, OpenAI, Google, and SendGrid API keys, and Stripe live keys.
+- Telegram bot tokens with `telegram` or `/bot` in the 40 characters before or after them, and Discord bot tokens assigned to a name with `discord`.
+- JWTs whose first two parts decode to JSON.
+- Private key blocks with at least 64 characters of body.
+
+| finding | severity |
+| --- | --- |
+| A secret within five lines of `curl`, `wget`, `fetch(`, `fetch` before a URL, `iwr`, `irm`, `Invoke-WebRequest`, `Invoke-RestMethod`, `requests.`, or an exfiltration host. A private key counts from its `BEGIN` line or its `END` line. | `critical` |
+| Any other secret | `warn` |
+
+These are not secrets:
+
+- A token at or below the entropy floor of its pattern, such as `ghp_` followed by 36 `x` characters.
+- An AWS key that ends in `EXAMPLE`, such as `AKIAIOSFODNN7EXAMPLE`.
+- A Stripe test key.
+- A token that holds a placeholder: six equal characters in a row, `xxxx`, `example`, `sample`, `dummy`, `fake`, `placeholder`, `redacted`, `changeme`, `your`, `test`, `abcdef`, or `123456`.
+- A private key block whose body holds `...`, `…`, `<`, `example`, `redacted`, `placeholder`, or `your`, and a key header with no body, as in "Never paste a `-----BEGIN RSA PRIVATE KEY-----` block into chat."
+
+The detail names the secret and shows its first and last four characters, such as `AWS access key AKIA…Q2LM`. A private key shows its label and line count, such as `OPENSSH PRIVATE KEY block (3 lines)`.
+
+### URL credentials
+
+The `url-credentials` rule looks for a password in a URL, such as `postgres://app:…@db.internal:5432/app`, and for a `-H` or `--header` option with `Authorization: Bearer`, `Authorization: Basic`, `Authorization: Token`, or `X-Api-Key:` and a literal value of 8 or more characters.
+
+| finding | severity |
+| --- | --- |
+| A URL password or header value | `warn` |
+| A placeholder value, or a URL to `localhost`, `127.0.0.1`, `db`, `example.*`, `*.invalid`, `*.test`, or `*.localhost` | `info` |
+
+A placeholder value is a placeholder from [embedded secrets](#embedded-secrets), `password`, `pass`, `pwd`, `changeme`, `secret`, or `token` with optional digits, or a variable or template such as `$VAR`, `${VAR}`, `<value>`, `{{ value }}`, or `%VAR%`. A header value that starts with `$`, such as `Bearer $TOKEN`, is not a literal and is not a finding.
 
 ### Hidden text
 
@@ -177,7 +236,7 @@ Every URL is listed as `info` with its file and line, grouped by host.
 - Lock files are not scanned for URLs: `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `bun.lockb`, `Cargo.lock`, `poetry.lock`, `uv.lock`.
 - Local and test hosts are not listed: `localhost`, loopback and private IPv4 addresses, `example.*`, `*.invalid`, and `*.test`.
 
-Every finding masks secret values as `********`: URL passwords, query values for keys such as `token`, `api_key`, `secret`, and `sig`, and Telegram bot tokens.
+Every finding masks secret values. URL passwords, query values for keys such as `token`, `api_key`, `secret`, and `sig`, Telegram bot tokens in a `/bot` URL, `Authorization` and `X-Api-Key` header values, and private key bodies show as `********`. A token that [embedded secrets](#embedded-secrets) finds shows its first and last four characters, such as `AKIA…Q2LM`.
 
 ## Limits
 

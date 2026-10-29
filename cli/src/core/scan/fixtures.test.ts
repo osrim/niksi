@@ -6,6 +6,7 @@ import { MODE_FILE, readDirFiles } from "../skill/files.ts";
 import { runScanners, type Finding, type Severity } from "./index.ts";
 import { RULES } from "./rules.ts";
 import type { Case, Expected } from "./test-fixture.ts";
+import { SYNTHETIC } from "./test-secrets.ts";
 
 const UNCLAIMED = "unclaimed";
 const RANK: Record<Severity | "none", number> = { none: 0, info: 1, warn: 2, critical: 3 };
@@ -88,6 +89,17 @@ test("every rule fixture fires and stays silent as stated", () => {
   }
   console.table(rows);
   expect(failures).toEqual([]);
+});
+
+test("no finding detail holds a synthetic secret", () => {
+  const leaks = fixtures.flatMap(({ cases }) =>
+    cases.flatMap((c) =>
+      scanCase(UNCLAIMED, c)
+        .filter((f) => SYNTHETIC.some((secret) => f.detail.includes(secret)))
+        .map((f) => `${c.name}: ${f.rule}`),
+    ),
+  );
+  expect(leaks).toEqual([]);
 });
 
 const corpus = join(import.meta.dir, "..", "..", "..", "testdata", "benign-skills");

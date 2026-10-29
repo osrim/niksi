@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import { lineOf, lineStarts } from "./text.ts";
 
 // text.ts parses without HTML. Here raw HTML must end a fence, as it does when rendered.
 const markdown = new MarkdownIt({ html: true });
@@ -60,24 +61,6 @@ interface Tagger {
   starts: number[];
   hidden: Hidden[];
 }
-
-const lineStarts = (text: string): number[] => {
-  const starts = [0];
-  for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) starts.push(i + 1);
-  return starts;
-};
-
-// Zero-based line that holds `index`.
-const lineOf = (starts: number[], index: number): number => {
-  let lo = 0;
-  let hi = starts.length - 1;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (starts[mid]! <= index) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
-};
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
 

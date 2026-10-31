@@ -38,7 +38,7 @@ Rules change between `niksi` versions. A skill approved under older rules can ha
 
 ## Accepted findings
 
-When `add` or `update` writes a skill with critical findings, approved in a terminal or skipped with `--dangerous-skip-critical-approval`, it records their rule ids in the lockfile entry's `review.acceptedRules`. Both ways are recorded the same, with no marker for the flag. Review each accepted rule id in the lockfile diff of the pull request.
+When `add` or `update` writes a skill with critical findings, approved in a terminal or skipped with `--dangerous-skip-critical-approval`, it records their rule ids in the lockfile entry's `review.acceptedRules`. See [lockfile.md](lockfile.md#review) for the field. Both ways are recorded the same, with no marker for the flag. Review each accepted rule id in the lockfile diff of the pull request.
 
 The record holds only for the entry's current `integrity`. When `add` or `update` writes new content, it records the critical findings of that review and drops the earlier ones. A write that keeps the content, such as a moved revision or a skill added to another agent, keeps the record.
 

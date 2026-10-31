@@ -135,6 +135,7 @@ Checked against each tool's documentation on 2026-09-19.
 
 - [Commands](docs/commands.md): every command, flag, and exit code, plus non-interactive use.
 - [Configuration](docs/configuration.md): scope, agents, paths, environment variables, and the lockfile.
+- [Lockfile format](docs/lockfile.md): every field of `niksi-lock.json`, how the integrity is computed, and how versions change.
 - [Security scan](docs/security-scan.md): what the scan catches and what it cannot.
 - [CI](docs/ci.md): the GitHub Action, its modes, and its exit codes.
 

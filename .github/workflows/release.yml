@@ -152,7 +152,7 @@ jobs:
           install="See [Install](https://github.com/osrim/niksi/blob/$TAG/README.md#install) in the README."
           case "$TAG" in *-*)
             args+=(--prerelease)
-            install="Install the alpha channel with \`brew install osrim/tap/niksi-alpha\`, or download the archive for your platform below and put \`nik\` on your \`PATH\`."
+            install="Prereleases are not on npm. Install the alpha channel with \`brew install osrim/tap/niksi-alpha\`, or download the archive for your platform below and put \`nik\` on your \`PATH\`."
           esac
           changelog=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body | bun scripts/release-notes.ts)
           notes=$(cat <<EOF
@@ -196,17 +196,18 @@ jobs:
 
       # No token. The registry trusts this workflow through OIDC and records provenance.
       # The trusted publisher can only stage. Nothing goes live until a maintainer approves
-      # each package with 2FA. See docs/releasing.md.
+      # each package with 2FA. See docs/releasing.md. Prereleases skip npm, so an alpha
+      # needs no approval.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: ${{ !contains(env.TAG, '-') }}
         with:
           node-version: 24 # ships npm 11.19, trusted publishing needs 11.5.1 or newer
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Stage the npm packages
+        if: ${{ !contains(env.TAG, '-') }}
         run: |
           version="${TAG#v}"
-          dist_tag=latest
-          case "$TAG" in *-*) dist_tag=next;; esac
 
           bun scripts/npm-packages.ts "$version" dist/npm
           for dir in dist/npm/niksi-*/; do
@@ -220,7 +221,7 @@ jobs:
             if npm view "$name@$version" version > /dev/null 2>&1; then
               echo "$name@$version is already published"
             else
-              (cd "$dir" && npm stage publish --access public --tag "$dist_tag" --provenance)
+              (cd "$dir" && npm stage publish --access public --tag latest --provenance)
             fi
           done
           echo "Staged. Approve with: npm stage list, then npm stage approve <stage-id>" >> "$GITHUB_STEP_SUMMARY"

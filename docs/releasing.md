@@ -1,6 +1,6 @@
 # Releasing
 
-For maintainers. A release is a tag, a GitHub Release with four binaries, one or two Homebrew formulas, and five npm packages.
+For maintainers. A release is a tag, a GitHub Release with four binaries, one or two Homebrew formulas, and, for a stable version, five npm packages.
 
 ## Version scheme
 
@@ -43,7 +43,7 @@ The `release` job runs on `ubuntu-latest` after all matrix jobs pass. It holds t
 2. Downloads the tarballs and writes `checksums.txt`.
 3. Uploads them to a GitHub Release. `cli/scripts/release-notes.ts` groups the generated notes by PR title type: `feat`, `fix`, and other.
 4. Renders `Formula/niksi-alpha.rb` and, for a stable version, `Formula/niksi.rb` with `cli/scripts/brew-formula.ts`, then pushes them to `osrim/homebrew-tap` with the `TAP_DEPLOY_KEY` secret.
-5. Renders the npm packages with `cli/scripts/npm-packages.ts`, unpacks one binary into each platform package, and stages them with `npm stage publish`.
+5. For a stable version, renders the npm packages with `cli/scripts/npm-packages.ts`, unpacks one binary into each platform package, and stages them with `npm stage publish`.
 
 Step 4 runs after the Release. The asset must be public before the formula points at it. From then on `brew upgrade` serves the new version. The script never moves a formula to an older version, so a patch release tagged after an alpha leaves `niksi-alpha` on the alpha.
 
@@ -118,7 +118,7 @@ bun run release --preid alpha   # pre-minor or pre-patch for the first alpha, pr
 bun run release                 # the final version, when the alphas are done
 ```
 
-A tag with `-` becomes a GitHub prerelease. The update notice and `releases/latest` skip it. The tap step updates only `niksi-alpha`, so `niksi` users never see it. npm stages it under the `next` dist-tag, so `npm install -g niksi` never picks it.
+A tag with `-` becomes a GitHub prerelease. The update notice and `releases/latest` skip it. The tap step updates only `niksi-alpha`, so `niksi` users never see it. The npm step skips it, so an alpha needs no approval and never reaches npm.
 
 To follow every release, alphas included, on your own machines:
 
@@ -127,7 +127,7 @@ brew install osrim/tap/niksi-alpha   # brew uninstall niksi first: both formulas
 brew upgrade niksi-alpha             # after each release
 ```
 
-`niksi-alpha` follows stable releases too, so it never falls behind `niksi`. The update notice stays quiet about newer alphas, so run `brew upgrade` yourself. On npm, `npm install -g niksi@next` gets the latest alpha once you approve it.
+`niksi-alpha` follows stable releases too, so it never falls behind `niksi`. The update notice stays quiet about newer alphas, so run `brew upgrade` yourself.
 
 While an alpha is out, `cli/package.json` on `main` holds the alpha version, and `osrim/niksi@main` downloads the alpha binaries.
 

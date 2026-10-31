@@ -205,7 +205,7 @@ jobs:
 
 The job summary shows the number of scanned skills and the findings by severity. The job log shows every finding. [security-scan.md](security-scan.md) explains each rule.
 
-`nik add` runs with `--dangerous-skip-critical-approval`, so it writes skills with critical findings into the temporary project, and `nik audit` can count them. That `nik add` records the findings as accepted in the temporary lockfile, so `nik audit` reports them without exit `3`. The step counts critical findings in the `nik audit --json` output instead, and fails with exit `3` when there is one. Nothing outside the temporary project changes.
+`nik add` runs with `--dangerous-skip-critical-approval`, so it writes skills with critical findings into the temporary project, and `nik audit` can count them. That `nik add` records the findings as accepted in the temporary lockfile, so they do not change the `nik audit` exit code. The step counts critical findings in the `nik audit --json` output instead, and fails with exit `3` when there is one. Nothing outside the temporary project changes.
 
 ### Add the badge
 

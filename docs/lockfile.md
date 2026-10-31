@@ -179,7 +179,7 @@ A skill with two files:
 
 - JSON with two-space indentation, as JavaScript's `JSON.stringify(value, null, 2)` writes it, and one line feed at the end.
 - `lockfileVersion` first, then `skills`.
-- Skill names sorted in UTF-16 code unit order.
+- Skill names that are integer indexes (`0`, or a digit string without a leading `0` below 4294967295, such as `2` and `10`) first, in numeric order, because `JSON.stringify` writes such keys first whatever their insertion order. Then the other skill names, sorted in UTF-16 code unit order.
 - Entry fields in the order of the [entry fields](#entry-fields) table. `review` fields in the order `acceptedRules`, `external`, and external verdict fields in the order `tool`, `version`, `result`, `findings`.
 - Every array element on its own line.
 

@@ -12,7 +12,7 @@ The GitHub Action at a tag downloads the binaries of that tag's release. A workf
 
 ## Release notes
 
-The release notes are the version's entry in `CHANGELOG.md`, under the heading `## [X.Y.Z](...)`. In Claude Code, run `/start-release X.Y.Z` on `main` to draft the entry from the commits since the previous release. The skill leaves the entry uncommitted and replies with the remaining steps.
+The release notes are the version's entry in `CHANGELOG.md`, under the heading `## [X.Y.Z](...)`. In Claude Code, run `nik install --agent claude` once per checkout to link the skill from `niksi-lock.json`, then run `/start-release X.Y.Z` on `main` to draft the entry from the commits since the previous release. The skill leaves the entry uncommitted and replies with the remaining steps.
 
 An alpha gets its own entry. A stable version's entry covers every commit since the previous stable version, alphas included, because stable users never saw the alphas.
 
@@ -140,7 +140,7 @@ While an alpha is out, `cli/package.json` on `main` holds the alpha version, and
 ## When a release fails
 
 - Never reuse a version. A version that reached the tap or the registry is on users' machines. npm refuses a version it saw before, even after `npm unpublish`.
-- Runner or network failure: re-run from the Actions tab with `workflow_dispatch` and the tag as input. Existing assets are replaced.
+- Runner or network failure: re-run from the Actions tab with `workflow_dispatch` and the tag as input. Existing assets are replaced. For a tag cut before `CHANGELOG.md` existed, also pick the tag as the workflow ref, so the tag's own `release.yml` runs. The current one fails on the missing entry.
 - Failure before the tap step, fix needed in code: delete the tag and the Release, merge the fix on `main`, then tag again by hand. `cli/package.json` already holds `X.Y.Z`, so `bumpp` is not run again.
 
   ```sh

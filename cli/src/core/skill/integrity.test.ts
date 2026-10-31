@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -96,4 +96,18 @@ test("readDirFiles → writeFiles → readDirFiles is integrity-stable", async (
   const again = join(dir, "roundtrip-2");
   await writeFiles(again, await readDirFiles(out));
   expect(await integrityOfDir(again)).toBe(integrityOf(fetched));
+});
+
+test("integrityOf matches the worked example in docs/lockfile.md", async () => {
+  const spec = await readFile(
+    join(import.meta.dir, "..", "..", "..", "..", "docs", "lockfile.md"),
+    "utf8",
+  );
+  const example = spec.split("### Worked example\n")[1]!.split("\n## ")[0]!;
+  const files = [...example.matchAll(/^\| `([^`]+)` \| `(\d{6})` \| `([^`]*)` \|$/gmu)].map(
+    ([, path, mode, content]) => file(path!, content!.replaceAll("\\n", "\n"), mode),
+  );
+  const documented = /The integrity is `(sha256-[^`]+)`/u.exec(example)?.[1];
+  expect(files.map((f) => f.path)).toEqual(["SKILL.md", "scripts/hello.sh"]);
+  expect(integrityOf(files)).toBe(documented!);
 });

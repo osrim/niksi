@@ -203,7 +203,7 @@ Path copies show their project-relative destination. A disabled skill shows `dis
 }
 ```
 
-Each skill carries its lockfile fields (see [configuration.md](configuration.md#lockfile)) plus `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
+Each skill carries its lockfile fields (see [lockfile.md](lockfile.md#entry-fields)) plus `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
 
 ## `audit`
 

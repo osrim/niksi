@@ -356,7 +356,7 @@ An unknown shell exits `2`.
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
-`--dangerous-skip-critical-approval` applies only to the current invocation, including dependencies reviewed by `add`. It does not imply `--yes`, `--all`, a scope, an agent, `--copy`, or `--path`. Warn finding review and write confirmation keep their existing behavior. The flag is never saved in the lockfile or configuration and has no environment-variable equivalent. The critical findings it skipped are recorded as accepted for that content; see security-scan.md.
+`--dangerous-skip-critical-approval` applies only to the current invocation, including dependencies reviewed by `add`. It does not imply `--yes`, `--all`, a scope, an agent, `--copy`, or `--path`. Warn finding review and write confirmation keep their existing behavior. The flag is never saved in the lockfile or configuration and has no environment-variable equivalent. The critical findings it skipped are recorded as accepted for that content; see [security-scan.md](security-scan.md#accepted-findings).
 
 `add` asks for the scope when neither flag is present. `--path` selects project scope without asking. The other commands default to project scope.
 

@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DetectedAgent } from "../core/install/agents.ts";
 import { captureEnv } from "../test-env.ts";
-import { agentRows, preferredAgents, shadowNote, type AgentRow } from "./destination.ts";
+import {
+  agentRows,
+  needsAgents,
+  preferredAgents,
+  shadowNote,
+  type AgentRow,
+} from "./destination.ts";
 
 const SGR = new RegExp(`${"\\u001B"}\\[[\\d;]*m`, "gu");
 const plain = (text: string): string => text.replace(SGR, "");
@@ -124,4 +130,19 @@ test("the note names the install that loses, per agent's own rule", () => {
   expect(shadowNote("project", "qwen")).toBe("Qwen Code loads this one and ignores that one.");
   expect(shadowNote("project", "cline")).toBe("Cline loads that one and ignores this install.");
   expect(shadowNote("global", "cline")).toBe("Cline loads this one and ignores that one.");
+});
+
+test("only a link entry without recorded agents needs agents chosen", () => {
+  const skill = {
+    name: "demo",
+    source: "https://github.com/o/r",
+    path: "",
+    integrity: "sha256-//////////////////////////////////////////8=",
+    track: "auto" as const,
+  };
+  expect(needsAgents([skill])).toBe(true);
+  expect(needsAgents([{ ...skill, agents: ["claude"] }])).toBe(false);
+  expect(needsAgents([{ ...skill, copy: true, agents: ["claude"] }])).toBe(false);
+  expect(needsAgents([{ ...skill, copy: true, copyPath: "skills" }])).toBe(false);
+  expect(needsAgents([])).toBe(false);
 });

@@ -129,7 +129,7 @@ The store is a download cache. A lockfile entry installs without the network whe
 
 ```json
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 2,
   "skills": {
     "pdf": {
       "source": "https://github.com/anthropics/skills",
@@ -139,7 +139,10 @@ The store is a download cache. A lockfile entry installs without the network whe
       "integrity": "sha256-Y7e8N/hx+rfGdAq0eQxb/7nXc6OLzBdbqVICpPivokY=",
       "track": "auto",
       "copy": true,
-      "copyPath": "custom-directory"
+      "copyPath": "custom-directory",
+      "review": {
+        "acceptedRules": ["curl-pipe-shell"]
+      }
     }
   }
 }
@@ -157,13 +160,20 @@ The store is a download cache. A lockfile entry installs without the network whe
 | `tag` | Installed tag. |
 | `pinnedAs` | The ref you typed after `@`, when it is not a branch or commit. |
 | `copy` | `true` when the skill was added with `--copy`. |
-| `agents` | Agents that received an agent copy. Link and path-copy entries do not record agents. |
+| `agents` | Agents that received an agent copy, or the agents a link entry links to. `install` and `enable` restore a link entry to these agents. Path-copy entries do not record agents. |
 | `copyPath` | Normalized project-relative destination root for a path copy. |
+| `review` | What the review of this content decided. It holds only for the entry's current `integrity`, and `add` or `update` drop it when `integrity` changes. Absent when there is nothing to record. |
+| `review.acceptedRules` | Rule ids of the critical findings approved for this integrity, in a terminal or with `--dangerous-skip-critical-approval`. `nik audit` reports their findings as accepted, and they do not change its exit code. See [security-scan.md](security-scan.md#accepted-findings). |
+| `review.external` | Verdict of an external scanner: `tool`, `version`, `result`, and the number of `findings`. No current command writes it. A write keeps it while the `integrity` is unchanged. |
 | `disabled` | `true` after `nik disable`. Absent means enabled. The entry keeps its placement. `install` and `update` skip it until `nik enable` clears it. |
 
-A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. Link entries have neither. `disabled` does not depend on placement. It is the last key. Lockfile version 1 remains in use.
+A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. A link entry has no `copyPath`, and may have a non-empty `agents` array. `review` and `disabled` do not depend on placement. `disabled` is the last key, after `review`.
 
-Releases without path-copy support reject path-copy entries because they have
+`niksi` writes lockfile version 2. It still reads version 1, in which only agent copies record `agents` and no entry has `review`. The next command that writes the lockfile rewrites it as version 2. Commands that only read the lockfile, such as `install`, `list`, and `audit`, leave it at version 1. A version 1 link entry has no recorded agents, so `install` links it to the agents you choose.
+
+Releases before lockfile version 2 reject a version 2 lockfile with
+`unsupported lockfile version 2`. Releases without path-copy support reject
+path-copy entries because they have
 `copy: true` but no `agents`. Without disable support, releases drop `disabled`
 and install the entry. Without discovery-root support, releases drop `root`
 and check dependencies across the whole source.

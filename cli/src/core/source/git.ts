@@ -142,21 +142,33 @@ export interface TreeEntry {
   path: string;
 }
 
+// Lossy decoding maps distinct invalid bytes to U+FFFD, so two Git paths could name one file.
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+const decodeTree = (buf: Buffer, rev: string): string => {
+  try {
+    return utf8.decode(buf);
+  } catch {
+    throw new Error(`a path at ${rev} is not valid UTF-8`);
+  }
+};
+
 export const lsTreeEntries = async (
   clone: string,
   rev: string,
   path: string,
 ): Promise<TreeEntry[]> => {
-  const args = ["ls-tree", "-r", "--end-of-options", rev, ...(path ? ["--", path] : [])];
+  // Without -z, git C-quotes a path with a tab, a quote, a newline, or a non-ASCII byte.
+  const args = ["ls-tree", "-r", "-z", "--end-of-options", rev, ...(path ? ["--", path] : [])];
   const result = await git(args, clone);
   if (result.code !== 0) return [];
-  return result.out
-    .split("\n")
+  return decodeTree(result.buf, rev)
+    .split("\0")
     .filter(Boolean)
-    .map((line) => {
-      const [meta, entryPath] = line.split("\t") as [string, string];
-      const [mode, , oid] = meta.split(" ");
-      return { mode: mode!, oid: oid!, path: entryPath };
+    .map((record) => {
+      const tab = record.indexOf("\t");
+      const [mode, , oid] = record.slice(0, tab).split(" ");
+      return { mode: mode!, oid: oid!, path: record.slice(tab + 1) };
     });
 };
 

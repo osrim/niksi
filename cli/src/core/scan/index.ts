@@ -17,6 +17,7 @@ export interface Finding {
   file?: string;
   line?: number;
   detail: string;
+  accepted?: true;
 }
 
 export interface ScannedSkill {
@@ -27,6 +28,20 @@ export interface ScannedSkill {
 export type Scanner = (skill: ScannedSkill) => Finding[];
 
 export const CRITICAL_EXIT = 3;
+
+export const criticalRules = (findings: Finding[]): Rule[] =>
+  [
+    ...new Set(
+      findings.filter((found) => found.severity === "critical").map((found) => found.rule),
+    ),
+  ].toSorted();
+
+export const markAccepted = (findings: Finding[], acceptedRules: readonly string[]): Finding[] =>
+  findings.map((found) =>
+    found.severity === "critical" && acceptedRules.includes(found.rule)
+      ? { ...found, accepted: true }
+      : found,
+  );
 
 export const runScanners = (skill: ScannedSkill): Finding[] => {
   const { members, unread } = readArchives(skill.files);

@@ -1,4 +1,4 @@
-import { defaultAgents, type AgentId } from "./agents.ts";
+import { AGENT_IDS, defaultAgents, type AgentId } from "./agents.ts";
 import type { Destination } from "./apply.ts";
 import {
   canonicalPath,
@@ -72,9 +72,8 @@ export const locationsOf = async (
 
 export const recordedLocations = (skill: InstalledSkill): string[] => {
   const placement = placementOf(skill);
-  if (placement.kind === "link") return [];
-  if (placement.kind === "agent-copy") return placement.agents;
-  return [placement.copyPath];
+  if (placement.kind === "path-copy") return [placement.copyPath];
+  return placement.agents;
 };
 
 export const lackingAgents = async (
@@ -119,6 +118,15 @@ export const installedPath = async (skill: InstalledSkill, scope: Scope): Promis
   return await pathCopyTarget(skill.name, placement.copyPath);
 };
 
+// Every present copy, since agent copies can drift apart and each one is loaded.
+export const installedPaths = async (skill: InstalledSkill, scope: Scope): Promise<string[]> => {
+  const placement = placementOf(skill);
+  if (placement.kind !== "agent-copy") return [await installedPath(skill, scope)];
+  return presentAgents(skill.name, scope, placement.agents).map((agent) =>
+    skillPath(skill.name, scope, agent),
+  );
+};
+
 export const addDestination = (
   entry: LockEntry | undefined,
   dest: {
@@ -146,11 +154,12 @@ export const updateDestination = async (
 ): Promise<DestinationResult> => {
   const placement = placementOf(skill);
   if (placement.kind === "link") {
-    const linked = await linkedAgents(skill.name, scope);
-    const agents = linked.length > 0 ? linked : defaultAgents(scope);
+    const held = new Set([...placement.agents, ...(await linkedAgents(skill.name, scope))]);
+    const agents =
+      held.size > 0 ? AGENT_IDS.filter((agent) => held.has(agent)) : defaultAgents(scope);
     return {
       destination: { kind: "link", scope, lock, agents },
-      defaulted: linked.length === 0,
+      defaulted: held.size === 0,
     };
   }
   if (placement.kind === "agent-copy") {
@@ -172,7 +181,9 @@ export const installDestination = async (
   chosen: AgentId[],
 ): Promise<Destination> => {
   const placement = placementOf(skill);
-  if (placement.kind === "link") return { kind: "link", scope, agents: chosen };
+  if (placement.kind === "link") {
+    return { kind: "link", scope, agents: placement.agents.length > 0 ? placement.agents : chosen };
+  }
   if (placement.kind === "agent-copy") {
     const state = await copyState(skill.name, skill.integrity, scope, placement.agents);
     return {

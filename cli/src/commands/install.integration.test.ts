@@ -171,3 +171,72 @@ test("install --yes restores a modified link skill", async () => {
   expect(await readFile(file, "utf8")).toContain("name: demo");
   expect(await isLink(join(root, ".claude", "skills", "demo"))).toBe(true);
 });
+
+test("a teammate's install restores recorded link agents and picks agents only for the rest", async () => {
+  const origin = await project("agents-origin", "recorded", "legacy");
+  const added = await runCli(
+    origin,
+    "add",
+    "./skills/recorded",
+    "-p",
+    "--agent",
+    "claude,universal",
+    "-y",
+  );
+  expect(added.exitCode).toBe(0);
+  await addLink(origin, "./skills/legacy");
+  const lockfile = join(origin, "niksi-lock.json");
+  const written = JSON.parse(await readFile(lockfile, "utf8"));
+  expect(written.lockfileVersion).toBe(2);
+  expect(written.skills.recorded.agents).toEqual(["universal", "claude"]);
+  delete written.skills.legacy.agents;
+  await writeFile(lockfile, JSON.stringify(written));
+  const { root, run } = await checkout(origin, "agents-checkout");
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+
+  const result = await run(root, "install", "--agent", "opencode", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect(await isLink(join(root, ".claude", "skills", "recorded"))).toBe(true);
+  expect(await isLink(join(root, ".agents", "skills", "recorded"))).toBe(true);
+  expect(await isLink(join(root, ".opencode", "skills", "recorded"))).toBe(false);
+  expect(await isLink(join(root, ".opencode", "skills", "legacy"))).toBe(true);
+  expect(await isLink(join(root, ".claude", "skills", "legacy"))).toBe(false);
+  expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+});
+
+test("the next write rewrites a version 1 lockfile as version 2", async () => {
+  const root = await project("v1-rewrite", "old", "new");
+  await addLink(root, "./skills/old");
+  const lockfile = join(root, "niksi-lock.json");
+  const written = JSON.parse(await readFile(lockfile, "utf8"));
+  delete written.skills.old.agents;
+  await writeFile(lockfile, JSON.stringify({ ...written, lockfileVersion: 1 }));
+
+  await addLink(root, "./skills/new");
+
+  const rewritten = JSON.parse(await readFile(lockfile, "utf8"));
+  expect(rewritten.lockfileVersion).toBe(2);
+  expect(rewritten.skills.old).toEqual(written.skills.old);
+  expect(rewritten.skills.new.agents).toEqual(["claude"]);
+});
+
+test("install says it ignores --agent when every link entry records its agents", async () => {
+  const origin = await project("agent-ignored-origin", "recorded");
+  await addLink(origin, "./skills/recorded");
+  const { root, run } = await checkout(origin, "agent-ignored-checkout");
+
+  const flagged = await run(root, "install", "--agent", "opencode", "--yes");
+
+  expect(flagged.exitCode).toBe(0);
+  expect(flagged.stdout).toContain(
+    "Ignoring --agent. Every lockfile entry records its destination.",
+  );
+  expect(await isLink(join(root, ".claude", "skills", "recorded"))).toBe(true);
+  expect(await isLink(join(root, ".opencode", "skills", "recorded"))).toBe(false);
+
+  const plain = await run(root, "install", "--yes");
+
+  expect(plain.exitCode).toBe(0);
+  expect(plain.stdout).not.toContain("--agent");
+});

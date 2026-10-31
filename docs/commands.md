@@ -85,9 +85,9 @@ Restoring a modified skill discards your edits, so `install` asks first. Without
 
 Agent copies install to the agents recorded in the entry. Path copies install to their recorded destination roots.
 
-Link entries install to the agents you pass with `--agent`, or to the saved or detected defaults. A lockfile without link entries selects no agents.
+Link entries install to the agents recorded in the entry. A link entry without recorded agents, such as one from a version 1 lockfile, installs to the agents you pass with `--agent`, or to the saved or detected defaults. A lockfile without such an entry selects no agents, and `install --agent` says that it ignores the flag. `install` does not write the lockfile, so it does not record those agents.
 
-`install` skips disabled entries. It prints their count and names, and it names `nik enable`. It selects agents only when an enabled link entry exists. Its summary counts enabled entries only.
+`install` skips disabled entries. It prints their count and names, and it names `nik enable`. It selects agents only when an enabled link entry without recorded agents exists. Its summary counts enabled entries only.
 
 ## `update`
 
@@ -213,14 +213,16 @@ nik audit [-g|-p] [--json]
 
 `audit` scans every installed skill with the current rules. `add` and `update` scan a skill once, when they write it. Run `audit` after you upgrade `niksi` to check skills you approved under older rules.
 
-- `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads the first copy present in a recorded agent's skills directory. A path copy reads its destination.
+- `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads every copy present in a recorded agent's skills directory and scans copies with the same content once. A path copy reads its destination.
 - `audit` does not use the network and does not write. It skips the update notice and its release check. When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
 - It prints the findings of each skill with their severities. It asks nothing, so a critical finding never needs a terminal.
+- A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted finding(s)`, apart from the other findings. It does not change the exit code. See [security-scan.md](security-scan.md#accepted-findings).
+- An acceptance holds only while the files on disk match the entry's `integrity`. For an agent copy, every present copy must match. For a modified skill, `audit` accepts no finding and says that the skill is modified.
 - It skips disabled and missing skills and names them. Run `nik install` to restore a missing skill, then audit again.
-- It does not report modified skills. `list` does.
+- It reports a modified skill only when the entry accepts rules. `list` reports every modified skill.
 - It takes no positional arguments; passing one exits `2`.
 - A skill that cannot be read is reported on stderr and left out of the scan. The batch continues.
-- It exits `3` when a skill has a critical finding, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings do not change the exit code.
+- It exits `3` when a skill has a critical finding that is not accepted, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each scanned skill. `missing` and `disabled` hold the names of the skills `audit` did not scan.
 
@@ -252,7 +254,7 @@ nik audit [-g|-p] [--json]
 }
 ```
 
-`file` and `line` are absent when a finding has no location. `confidence` is `high`, `medium`, or `low`. A `critical` match with `low` confidence has `severity` `warn`. Rule names and confidence are in [security-scan.md](security-scan.md#confidence).
+`file` and `line` are absent when a finding has no location. An accepted critical finding has `accepted: true`. Other findings have no `accepted` field. `confidence` is `high`, `medium`, or `low`. A `critical` match with `low` confidence has `severity` `warn`. Rule names and confidence are in [security-scan.md](security-scan.md#confidence).
 
 ## `disable`
 
@@ -279,7 +281,7 @@ nik enable [...skills|source] [-g|-p] [-a] [-y] [--agent <id>]
 `enable` clears the mark and restores each skill as `install` does. It reads the store or the source and checks the recorded integrity. A local source must still have the skill and match the recorded integrity, as in `install`. It does not review, scan, or check dependencies.
 
 - Select skills and sources as in `disable`. `--all` selects every disabled skill. A skill that is already enabled prints `name: already enabled`.
-- Link entries need agents. `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt. Agent copies and path copies restore to their recorded agents or destination root. A selection with no link entries selects no agents.
+- Link entries restore to their recorded agents. A link entry without recorded agents needs agents: `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt, and records them in the entry. Agent copies and path copies restore to their recorded agents or destination root. A selection with no link entry that lacks recorded agents selects no agents.
 - If the content of an entry does not match its integrity, `enable` reports it as `install` does. The entry stays disabled. The command exits `1`.
 
 For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `niksi` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
@@ -354,7 +356,7 @@ An unknown shell exits `2`.
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
-`--dangerous-skip-critical-approval` applies only to the current invocation, including dependencies reviewed by `add`. It does not imply `--yes`, `--all`, a scope, an agent, `--copy`, or `--path`. Warn finding review and write confirmation keep their existing behavior. The flag is never saved in the lockfile or configuration and has no environment-variable equivalent.
+`--dangerous-skip-critical-approval` applies only to the current invocation, including dependencies reviewed by `add`. It does not imply `--yes`, `--all`, a scope, an agent, `--copy`, or `--path`. Warn finding review and write confirmation keep their existing behavior. The flag is never saved in the lockfile or configuration and has no environment-variable equivalent. The critical findings it skipped are recorded as accepted for that content; see [security-scan.md](security-scan.md#accepted-findings).
 
 `add` asks for the scope when neither flag is present. `--path` selects project scope without asking. The other commands default to project scope.
 
@@ -437,5 +439,5 @@ The report is written outside the repository, so `git add -A` does not commit it
 | `0` | Success or nothing to do. |
 | `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `audit`, also a warn finding. |
 | `2` | Invalid usage, or a prompt had no terminal and no flag. |
-| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill. |
+| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. |
 | `130` | Cancelled. |

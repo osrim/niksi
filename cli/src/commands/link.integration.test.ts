@@ -81,6 +81,7 @@ test("add with flags writes a link, a canonical copy, and a lockfile entry", asy
     root: "skills/demo",
     integrity: expect.stringMatching(/^sha256-/u),
     track: "auto",
+    agents: ["claude"],
   });
 });
 
@@ -146,7 +147,9 @@ test("an entry recorded under the typed directory keeps working", async () => {
 
   const disabled = await runCli(root, "disable", "./skills", "--yes");
   expect(disabled.exitCode).toBe(0);
-  expect(await readSkills(root)).toEqual({ legacy: { ...recorded, disabled: true } });
+  expect(await readSkills(root)).toEqual({
+    legacy: { ...recorded, agents: ["claude"], disabled: true },
+  });
   expect(existsSync(join(root, ".claude", "skills", "legacy"))).toBe(false);
 });
 

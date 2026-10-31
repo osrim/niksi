@@ -1,5 +1,5 @@
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { loadLock, splitDisabled } from "../core/install/lockfile.ts";
+import { loadLock, recordLinkAgents, splitDisabled } from "../core/install/lockfile.ts";
 import {
   installedSkills,
   locationAgents,
@@ -84,8 +84,11 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
     items: names,
     name: (name) => name,
     apply: async (name) => {
-      await removeInstalledSkill(name, scope, locations.get(name)!);
-      loaded.lock.skills[name]!.disabled = true;
+      const location = locations.get(name)!;
+      await removeInstalledSkill(name, scope, location);
+      const entry = loaded.lock.skills[name]!;
+      recordLinkAgents(entry, locationAgents(location));
+      entry.disabled = true;
       return { success: "disabled" };
     },
     scope,

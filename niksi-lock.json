@@ -1,0 +1,12 @@
+{
+  "lockfileVersion": 1,
+  "skills": {
+    "start-release": {
+      "source": "local:.",
+      "path": "skills/start-release",
+      "root": "skills/start-release",
+      "integrity": "sha256-MKUjUQQbXaLqj/nQoJLMwLkHLKdxUOBcxZCB3RLUtQg=",
+      "track": "auto"
+    }
+  }
+}

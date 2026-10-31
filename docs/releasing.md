@@ -10,15 +10,21 @@ The version lives in `cli/package.json`. The tag is the version with a `v` prefi
 
 The GitHub Action at a tag downloads the binaries of that tag's release. A workflow that uses `osrim/niksi@vX.Y.Z` fails until `release.yml` uploads them. For that reason, the `action` job in `checks.yml` runs on pull requests only: `bumpp` pushes the release commit to `main` before the binaries exist.
 
+## Release notes
+
+The release notes are the version's entry in `CHANGELOG.md`, under the heading `## [X.Y.Z](...)`. In Claude Code, run `nik install --agent claude` once per checkout to link the skill from `niksi-lock.json`, then run `/start-release X.Y.Z` on `main` to draft the entry from the commits since the previous release. The skill leaves the entry uncommitted and replies with the remaining steps.
+
+An alpha gets its own entry. A stable version's entry covers every commit since the previous stable version, alphas included, because stable users never saw the alphas.
+
 ## Release command
 
-From `cli/`, on `main`, with a clean tree:
+From `cli/`, on `main`, with the `CHANGELOG.md` entry as the only change:
 
 ```sh
-bun run release
+bun run release X.Y.Z
 ```
 
-`bumpp` asks for the bump, writes `cli/package.json`, commits `chore: release vX.Y.Z`, tags `vX.Y.Z`, and pushes. The tag push starts `release.yml`.
+`bumpp` writes `cli/package.json`, commits it with `CHANGELOG.md` as `chore: release vX.Y.Z`, tags `vX.Y.Z`, and pushes. The tag push starts `release.yml`. `cli/bump.config.ts` stops the bump when `CHANGELOG.md` has no entry for the version.
 
 `bumpp` is a pinned dev dependency. Do not run `bunx bumpp`. `bunx` fetches the latest version and its dependencies at release time and runs them on the machine that holds push rights. The pin, the lockfile hash, and the three-day `minimumReleaseAge` in `bunfig.toml` cover `bumpp` like any other dependency.
 
@@ -39,9 +45,9 @@ Each matrix job checks `nik --version`, runs `nik add` and `nik install` against
 
 The `release` job runs on `ubuntu-latest` after all matrix jobs pass. It holds the release token, the tap deploy key, and the npm OIDC token, so it never runs `bun install`. The two scripts it runs import only builtins and `package.json`.
 
-1. Checks that `cli/package.json` matches the tag.
+1. Checks that `cli/package.json` matches the tag and that `CHANGELOG.md` has an entry for the version.
 2. Downloads the tarballs and writes `checksums.txt`.
-3. Uploads them to a GitHub Release. `cli/scripts/release-notes.ts` groups the generated notes by PR title type: `feat`, `fix`, and other.
+3. Uploads them to a GitHub Release, with the `CHANGELOG.md` entry and an Install section as the notes.
 4. Renders `Formula/niksi-alpha.rb` and, for a stable version, `Formula/niksi.rb` with `cli/scripts/brew-formula.ts`, then pushes them to `osrim/homebrew-tap` with the `TAP_DEPLOY_KEY` secret.
 5. For a stable version, renders the npm packages with `cli/scripts/npm-packages.ts`, unpacks one binary into each platform package, and stages them with `npm stage publish`.
 
@@ -111,11 +117,11 @@ macOS on Apple silicon and Intel. Linux on x64 and arm64 with glibc 2.17 or newe
 
 ## Alpha releases
 
-An alpha is a numbered prerelease of the next version, such as `0.5.0-alpha.0`. Run the release command with an alpha preid:
+An alpha is a numbered prerelease of the next version, such as `0.5.0-alpha.0`. Run `/start-release` and the release command with the full alpha version:
 
 ```sh
-bun run release --preid alpha   # pre-minor or pre-patch for the first alpha, prerelease after that
-bun run release                 # the final version, when the alphas are done
+bun run release 0.5.0-alpha.0   # each alpha
+bun run release 0.5.0           # the final version, when the alphas are done
 ```
 
 A tag with `-` becomes a GitHub prerelease. The update notice and `releases/latest` skip it. The tap step updates only `niksi-alpha`, so `niksi` users never see it. The npm step skips it, so an alpha needs no approval and never reaches npm.
@@ -134,7 +140,7 @@ While an alpha is out, `cli/package.json` on `main` holds the alpha version, and
 ## When a release fails
 
 - Never reuse a version. A version that reached the tap or the registry is on users' machines. npm refuses a version it saw before, even after `npm unpublish`.
-- Runner or network failure: re-run from the Actions tab with `workflow_dispatch` and the tag as input. Existing assets are replaced.
+- Runner or network failure: re-run from the Actions tab with `workflow_dispatch` and the tag as input. Existing assets are replaced. For a tag cut before `CHANGELOG.md` existed, also pick the tag as the workflow ref, so the tag's own `release.yml` runs. The current one fails on the missing entry.
 - Failure before the tap step, fix needed in code: delete the tag and the Release, merge the fix on `main`, then tag again by hand. `cli/package.json` already holds `X.Y.Z`, so `bumpp` is not run again.
 
   ```sh

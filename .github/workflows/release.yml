@@ -146,7 +146,7 @@ jobs:
           install="See [Install](https://github.com/osrim/niksi/blob/$TAG/README.md#install) in the README."
           case "$TAG" in *-*)
             args+=(--prerelease)
-            install="Prereleases are not in Homebrew. Download the archive for your platform below and put \`nik\` on your \`PATH\`."
+            install="Install the alpha channel with \`brew install osrim/tap/niksi-alpha\`, or download the archive for your platform below and put \`nik\` on your \`PATH\`."
           esac
           changelog=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body | bun scripts/release-notes.ts)
           notes=$(cat <<EOF
@@ -159,9 +159,9 @@ jobs:
           )
           gh release create "$TAG" dist/*.tar.gz dist/checksums.txt "${args[@]}" --title "$TAG" --notes "$notes"
 
-      # Last: the asset must be public before the formula points at it.
+      # Last: the asset must be public before the formula points at it. niksi-alpha follows
+      # every release, niksi only stable ones.
       - name: Update the Homebrew tap
-        if: ${{ !contains(env.TAG, '-') }}
         env:
           TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
@@ -172,13 +172,15 @@ jobs:
 
           tap="$RUNNER_TEMP/tap"
           git clone --depth 1 git@github.com:osrim/homebrew-tap.git "$tap"
-          mkdir -p "$tap/Formula"
-          bun scripts/brew-formula.ts "${TAG#v}" dist/checksums.txt > "$tap/Formula/niksi.rb"
+          bun scripts/brew-formula.ts alpha "${TAG#v}" dist/checksums.txt "$tap"
+          case "$TAG" in *-*) ;; *)
+            bun scripts/brew-formula.ts stable "${TAG#v}" dist/checksums.txt "$tap"
+          esac
 
           cd "$tap"
-          git add Formula/niksi.rb
+          git add Formula
           if git diff --cached --quiet; then
-            echo "Formula/niksi.rb unchanged, nothing to push"
+            echo "Formulas unchanged, nothing to push"
           else
             git -c user.name=github-actions[bot] \
                 -c user.email=41898282+github-actions[bot]@users.noreply.github.com \

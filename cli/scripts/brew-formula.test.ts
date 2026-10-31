@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { renderFormula, sha256For } from "./brew-formula.ts";
+import { formulaVersion, renderFormula, sha256For, supersedes } from "./brew-formula.ts";
 
 const ARM = "a".repeat(64);
 const X64 = "b".repeat(64);
@@ -18,7 +18,7 @@ test("sha256For picks the line for the asset", () => {
 });
 
 test("renderFormula points each platform at its tagged asset", () => {
-  const formula = renderFormula("0.1.0", CHECKSUMS);
+  const formula = renderFormula("stable", "0.1.0", CHECKSUMS);
   for (const name of ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"]) {
     expect(formula).toContain(
       `url "https://github.com/osrim/niksi/releases/download/v0.1.0/niksi-${name}.tar.gz"`,
@@ -31,6 +31,37 @@ test("renderFormula points each platform at its tagged asset", () => {
   expect(formula).not.toContain("depends_on :macos");
   expect(formula).toContain('bin.install "nik"');
   expect(formula).toContain('generate_completions_from_executable(bin/"nik", "completion")');
+  expect(formula).toContain("class Niksi < Formula");
+  expect(formula).toContain('conflicts_with "osrim/tap/niksi-alpha"');
   expect(formula).toContain("ski was renamed to niksi. The command is now nik.");
-  expect(() => renderFormula("0.1.0", `${ARM}  niksi-darwin-arm64.tar.gz\n`)).toThrow("x64");
+  expect(() => renderFormula("stable", "0.1.0", `${ARM}  niksi-darwin-arm64.tar.gz\n`)).toThrow(
+    "x64",
+  );
+});
+
+test("the alpha formula is its own formula that conflicts with the stable one", () => {
+  const formula = renderFormula("alpha", "0.5.0-alpha.1", CHECKSUMS);
+  expect(formula).toContain("class NiksiAlpha < Formula");
+  expect(formula).toContain('desc "Install, review, and share agent skills (alpha channel)"');
+  expect(formula).toContain(
+    'url "https://github.com/osrim/niksi/releases/download/v0.5.0-alpha.1/niksi-linux-x64.tar.gz"',
+  );
+  expect(formula).toContain('conflicts_with "osrim/tap/niksi", because:');
+  expect(formula).toContain("brew uninstall niksi-alpha && brew install osrim/tap/niksi");
+  expect(formula).not.toContain("ski was renamed");
+});
+
+test("formulaVersion reads the version a rendered formula holds", () => {
+  expect(formulaVersion(renderFormula("alpha", "0.5.0-alpha.1", CHECKSUMS))).toBe("0.5.0-alpha.1");
+  expect(formulaVersion("class Niksi < Formula\nend\n")).toBeNull();
+});
+
+test("supersedes never moves a formula to an older version", () => {
+  expect(supersedes("0.5.0-alpha.0", null)).toBe(true);
+  expect(supersedes("0.5.0-alpha.1", "0.5.0-alpha.0")).toBe(true);
+  expect(supersedes("0.5.0-alpha.10", "0.5.0-alpha.9")).toBe(true);
+  expect(supersedes("0.5.0", "0.5.0-alpha.3")).toBe(true);
+  expect(supersedes("0.4.2", "0.4.2")).toBe(true);
+  expect(supersedes("0.4.3", "0.5.0-alpha.1")).toBe(false);
+  expect(supersedes("0.5.0-alpha.3", "0.5.0")).toBe(false);
 });

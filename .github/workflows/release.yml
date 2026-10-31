@@ -102,8 +102,10 @@ jobs:
   release:
     needs: build
     # Two tags in flight would clone the same tap commit, and the second push would fail.
+    # queue: max keeps every waiting tag, where the default keeps only the newest.
     concurrency:
       group: release-publish
+      queue: max
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15

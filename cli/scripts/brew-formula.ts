@@ -109,6 +109,21 @@ export const formulaVersion = (formula: string): string | null =>
 export const supersedes = (version: string, existing: string | null): boolean =>
   existing === null || Bun.semver.order(version, existing) >= 0;
 
+export const writeFormula = async (
+  channel: Channel,
+  version: string,
+  checksums: string,
+  tapDir: string,
+): Promise<string> => {
+  const path = join(tapDir, "Formula", `${formulaName(channel)}.rb`);
+  const file = Bun.file(path);
+  const existing = (await file.exists()) ? formulaVersion(await file.text()) : null;
+  if (!supersedes(version, existing)) return `${path}: kept ${existing}, newer than ${version}`;
+  await mkdir(join(tapDir, "Formula"), { recursive: true });
+  await Bun.write(path, renderFormula(channel, version, checksums));
+  return `${path}: ${existing ?? "new"} -> ${version}`;
+};
+
 if (import.meta.main) {
   const [channel, version, checksumsPath, tapDir] = Bun.argv.slice(2);
   if ((channel !== "stable" && channel !== "alpha") || !version || !checksumsPath || !tapDir) {
@@ -117,14 +132,6 @@ if (import.meta.main) {
     );
     process.exit(2);
   }
-  const path = join(tapDir, "Formula", `${formulaName(channel)}.rb`);
-  const file = Bun.file(path);
-  const existing = (await file.exists()) ? formulaVersion(await file.text()) : null;
-  if (supersedes(version, existing)) {
-    await mkdir(join(tapDir, "Formula"), { recursive: true });
-    await Bun.write(path, renderFormula(channel, version, await Bun.file(checksumsPath).text()));
-    console.info(`${path}: ${existing ?? "new"} -> ${version}`);
-  } else {
-    console.info(`${path}: kept ${existing}, newer than ${version}`);
-  }
+  const checksums = await Bun.file(checksumsPath).text();
+  console.info(await writeFormula(channel, version, checksums, tapDir));
 }

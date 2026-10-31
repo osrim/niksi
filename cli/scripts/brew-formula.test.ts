@@ -1,5 +1,17 @@
-import { expect, test } from "bun:test";
-import { formulaVersion, renderFormula, sha256For, supersedes } from "./brew-formula.ts";
+import { afterAll, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  formulaVersion,
+  renderFormula,
+  sha256For,
+  supersedes,
+  writeFormula,
+} from "./brew-formula.ts";
+
+const tmp = await mkdtemp(join(tmpdir(), "niksi-brew-formula-"));
+afterAll(() => rm(tmp, { recursive: true, force: true }));
 
 const ARM = "a".repeat(64);
 const X64 = "b".repeat(64);
@@ -64,4 +76,17 @@ test("supersedes never moves a formula to an older version", () => {
   expect(supersedes("0.4.2", "0.4.2")).toBe(true);
   expect(supersedes("0.4.3", "0.5.0-alpha.1")).toBe(false);
   expect(supersedes("0.5.0-alpha.3", "0.5.0")).toBe(false);
+});
+
+test("writeFormula writes a newer version and keeps a newer existing formula", async () => {
+  const path = join(tmp, "Formula", "niksi-alpha.rb");
+  await writeFormula("alpha", "0.5.0-alpha.1", CHECKSUMS, tmp);
+  const alpha = await readFile(path, "utf8");
+  expect(formulaVersion(alpha)).toBe("0.5.0-alpha.1");
+
+  expect(await writeFormula("alpha", "0.4.3", CHECKSUMS, tmp)).toContain("kept 0.5.0-alpha.1");
+  expect(await readFile(path, "utf8")).toBe(alpha);
+
+  await writeFormula("alpha", "0.5.0", CHECKSUMS, tmp);
+  expect(formulaVersion(await readFile(path, "utf8"))).toBe("0.5.0");
 });

@@ -50,8 +50,13 @@ const sectionTitle = (severity: Severity, bucket: Finding[]): string =>
     ? `${plural(bucket.length, "critical finding")}`
     : plural(bucket.length, `${severity} finding`);
 
-const detailOf = (finding: Finding): string =>
-  finding.confidence === "low" ? `${finding.detail}${dim(" (low confidence)")}` : finding.detail;
+const detailOf = (finding: Finding): string => {
+  const marks = [
+    ...(finding.confidence === "low" ? ["low confidence"] : []),
+    ...(finding.accepted ? ["accepted"] : []),
+  ];
+  return marks.length > 0 ? `${finding.detail}${dim(` (${marks.join(", ")})`)}` : finding.detail;
+};
 
 const locationOf = (finding: Finding): string =>
   finding.file ? (finding.line ? `${finding.file}:${finding.line}` : finding.file) : "";
@@ -91,9 +96,11 @@ export const logFindings = (name: string, findings: Finding[]): void => {
     p.log.success(message);
     return;
   }
-  const worst: Severity = findings.some((finding) => finding.severity === "critical")
+  const worst: Severity = findings.some(
+    (finding) => finding.severity === "critical" && !finding.accepted,
+  )
     ? "critical"
-    : findings.some((finding) => finding.severity === "warn")
+    : findings.some((finding) => finding.severity !== "info")
       ? "warn"
       : "info";
   LOG_BY_SEVERITY[worst](message);

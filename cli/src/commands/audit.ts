@@ -10,7 +10,7 @@ import {
 } from "../core/install/destination.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { Scope } from "../core/paths.ts";
-import { CRITICAL_EXIT, runScanners, type Finding, type Severity } from "../core/scan/index.ts";
+import { CRITICAL_EXIT, markAccepted, runScanners, type Finding } from "../core/scan/index.ts";
 import { readDirFiles } from "../core/skill/files.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { logFindings, logSkillError, logWarn, warn } from "../ui/report.ts";
@@ -19,7 +19,7 @@ import { skillName, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings.",
+    "Scan installed skills with the current rules. Exits 1 on warn or accepted critical findings and 3 on other critical findings.",
   examples: ["$ nik audit", "$ nik audit -g", "$ nik audit --json"],
 };
 
@@ -39,9 +39,19 @@ interface Audit {
   failed: boolean;
 }
 
-const flagged = (scanned: Scanned[], severity: Severity): number =>
-  scanned.filter(({ findings }) => findings.some((finding) => finding.severity === severity))
-    .length;
+type Flag = "critical" | "warn";
+
+const flags = (finding: Finding, flag: Flag): boolean =>
+  finding.severity === flag && !finding.accepted;
+
+const flagged = (scanned: Scanned[], flag: Flag): number =>
+  scanned.filter(({ findings }) => findings.some((finding) => flags(finding, flag))).length;
+
+const acceptedCount = (scanned: Scanned[]): number =>
+  scanned.reduce(
+    (sum, { findings }) => sum + findings.filter(({ accepted }) => accepted).length,
+    0,
+  );
 
 const openLock = (scope: Scope): Promise<LoadedLockfile> => {
   if (legacyLayoutPresent(scope)) {
@@ -65,7 +75,11 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
         continue;
       }
       const files = await readDirFiles(await installedPath(skill, scope));
-      audit.scanned.push({ skill, findings: runScanners({ name: skill.name, files }) });
+      const findings = runScanners({ name: skill.name, files });
+      audit.scanned.push({
+        skill,
+        findings: markAccepted(findings, skill.review?.acceptedRules ?? []),
+      });
     } catch (cause) {
       logSkillError(skill.name, cause);
       audit.failed = true;
@@ -76,7 +90,9 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
 
 const setExitCode = ({ scanned, failed }: Audit): void => {
   if (flagged(scanned, "critical") > 0) process.exitCode = CRITICAL_EXIT;
-  else if (failed || flagged(scanned, "warn") > 0) process.exitCode = 1;
+  else if (failed || flagged(scanned, "warn") > 0 || acceptedCount(scanned) > 0) {
+    process.exitCode = 1;
+  }
 };
 
 export const run = async (options: AuditOptions): Promise<void> => {
@@ -116,10 +132,14 @@ const reportRemedy = ({ scanned }: Audit, scope: Scope): void => {
 };
 
 const summaryLine = ({ scanned }: Audit, scope: Scope): string => {
-  const notes = (["critical", "warn"] as const).flatMap((severity) => {
-    const count = flagged(scanned, severity);
-    return count > 0 ? [`${count} with ${severity} findings`] : [];
-  });
+  const accepted = acceptedCount(scanned);
+  const notes = [
+    ...(["critical", "warn"] as const).flatMap((flag) => {
+      const count = flagged(scanned, flag);
+      return count > 0 ? [`${count} with ${flag} findings`] : [];
+    }),
+    ...(accepted > 0 ? [`${accepted} accepted`] : []),
+  ];
   const result = notes.length > 0 ? notes.join(", ") : "no warn or critical findings";
   return `${scanned.length} skill(s) scanned (${scope}): ${result}.`;
 };

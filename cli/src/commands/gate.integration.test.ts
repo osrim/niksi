@@ -19,6 +19,7 @@ const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
 
 const WARN_PROMPT = "Continue with warned and 1 warn finding(s)?";
 const DOWN = "\u001b[B";
+const UP = "\u001b[A";
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-gate-cli-test-")));
@@ -100,6 +101,36 @@ test("--yes accepts a warn finding without asking", async () => {
   expect(linked(root, "warned")).toBe(true);
 });
 
+const reviewOf = async (root: string, name: string): Promise<unknown> =>
+  JSON.parse(await readFile(join(root, "niksi-lock.json"), "utf8")).skills[name].review;
+
+test("approving a critical finding in a terminal records its rule as accepted", async () => {
+  const root = await project("critical-approved", { name: "dangerous", file: "hooks.json" });
+
+  const result = await runTerminal(
+    root,
+    [
+      { on: "Approve dangerous with 1 critical finding(s)?", send: `${UP}\r` },
+      { on: "Add clean, dangerous?", send: "\r" },
+    ],
+    ...ADD,
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(linked(root, "dangerous")).toBe(true);
+  expect(await reviewOf(root, "dangerous")).toEqual({ acceptedRules: ["agent-config"] });
+  expect(await reviewOf(root, "clean")).toBeUndefined();
+});
+
+test("--dangerous-skip-critical-approval records the skipped rules the same way", async () => {
+  const root = await project("critical-skipped", { name: "dangerous", file: "hooks.json" });
+
+  const result = await runCli(root, ...ADD, "--yes", "--dangerous-skip-critical-approval");
+
+  expect(result.exitCode).toBe(0);
+  expect(await reviewOf(root, "dangerous")).toEqual({ acceptedRules: ["agent-config"] });
+});
+
 test("a critical finding without a terminal exits 3 and the rest of the batch lands", async () => {
   const root = await project("critical", { name: "dangerous", file: "hooks.json" });
 
@@ -127,6 +158,7 @@ test("--yes without a terminal accepts a critical match with low confidence as w
   expect(result.exitCode).toBe(0);
   expect(linked(root, "quiet")).toBe(true);
   expect(await recorded(root)).toEqual(["quiet"]);
+  expect(await reviewOf(root, "quiet")).toBeUndefined();
   const listed = await runCli(root, "list", "--json");
   expect(listed.exitCode).toBe(0);
   expect(JSON.parse(listed.stdout).skills).toEqual([

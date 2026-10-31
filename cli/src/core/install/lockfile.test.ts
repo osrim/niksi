@@ -97,7 +97,7 @@ test("missing lockfile reads as empty", async () => {
 test("a legacy global lockfile remains the read and write target", async () => {
   await withXdgRoots("legacy", async ({ config, legacy }) => {
     await mkdir(dirname(legacy), { recursive: true });
-    await writeFile(legacy, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
+    await writeFile(legacy, serializeLock({ lockfileVersion: 2, skills: { tdd: entry } }));
 
     const loaded = await loadLock("global");
     expect(loaded.file).toBe(legacy);
@@ -125,7 +125,7 @@ test("a new global lockfile is created at the config path", async () => {
 test("an existing config-path global lockfile is loaded", async () => {
   await withXdgRoots("config", async ({ config }) => {
     await mkdir(dirname(config), { recursive: true });
-    await writeFile(config, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
+    await writeFile(config, serializeLock({ lockfileVersion: 2, skills: { tdd: entry } }));
 
     const loaded = await loadLock("global");
     expect(loaded.file).toBe(config);
@@ -137,8 +137,8 @@ test("the config-path global lockfile wins when both paths exist", async () => {
   await withXdgRoots("both", async ({ config, legacy }) => {
     await mkdir(dirname(config), { recursive: true });
     await mkdir(dirname(legacy), { recursive: true });
-    await writeFile(config, serializeLock({ lockfileVersion: 1, skills: { tdd: entry } }));
-    await writeFile(legacy, serializeLock({ lockfileVersion: 1, skills: { mine: local } }));
+    await writeFile(config, serializeLock({ lockfileVersion: 2, skills: { tdd: entry } }));
+    await writeFile(legacy, serializeLock({ lockfileVersion: 2, skills: { mine: local } }));
 
     const loaded = await loadLock("global");
     expect(loaded.file).toBe(config);
@@ -164,7 +164,7 @@ test("global parse errors name the lockfile selected by precedence", async () =>
 
 test("roundtrip preserves entries; entries are sorted by name; keys in entry order", async () => {
   const lock: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: {
       zeta: { ...entry, tag: "v1.2.0" },
       alpha: { ...entry, track: "pin", pinnedAs: "v1" },
@@ -177,7 +177,7 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
 
   const raw = await readFile(lockPath("global"), "utf8");
   expect(JSON.parse(raw)).toEqual({
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: {
       alpha: {
         source: entry.source,
@@ -213,7 +213,7 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
       },
     },
   });
-  expect(raw.startsWith('{\n  "lockfileVersion": 1,')).toBe(true);
+  expect(raw.startsWith('{\n  "lockfileVersion": 2,')).toBe(true);
   expect(raw.indexOf("alpha")).toBeLessThan(raw.indexOf("zeta"));
   expect(raw.endsWith("\n")).toBe(true);
   expect(raw).not.toContain("null");
@@ -230,7 +230,7 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
 test("a copy entry keeps copy and agents through a round trip, in the documented key order", async () => {
   const copy = { ...entry, copy: true as const, agents: ["claude", "universal"] as const };
   await writeGlobal({
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: { tdd: { ...copy, agents: [...copy.agents] } },
   });
   const read = await readLock("global");
@@ -247,13 +247,13 @@ test("a copy entry keeps copy and agents through a round trip, in the documented
     "copy",
     "agents",
   ]);
-  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 2, skills: { tdd: entry } });
   expect(await readFile(lockPath("global"), "utf8")).not.toContain("copy");
 });
 
 test("a path copy survives serialization with one project-relative placement", () => {
   const lock: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: {
       tdd: { ...entry, copy: true, copyPath: "custom-directory" },
     },
@@ -273,7 +273,7 @@ test("a path copy survives serialization with one project-relative placement", (
 });
 
 test("isApproved matches only the exact (source, path, integrity) entry; the commit is not part of it", () => {
-  const lock: Lockfile = { lockfileVersion: 1, skills: { tdd: entry } };
+  const lock: Lockfile = { lockfileVersion: 2, skills: { tdd: entry } };
   const at = { source: entry.source, path: entry.path, integrity };
   expect(isApproved(lock, "tdd", at)).toBe(true);
   expect(isApproved(lock, "other", at)).toBe(false);
@@ -286,7 +286,7 @@ test("isApproved matches only the exact (source, path, integrity) entry; the com
   expect(isApproved(lock, "tdd", { ...at, source: "https://github.com/o/fork" })).toBe(false);
   expect(isApproved(lock, "tdd", { ...at, path: "" })).toBe(false);
   const moved: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: { tdd: { ...entry, commit: "b".repeat(40) } },
   };
   expect(isApproved(moved, "tdd", at)).toBe(true);
@@ -297,7 +297,7 @@ test("isApproved matches a local skill by its directory, whichever shape recorde
   process.chdir(tmp);
   try {
     const recorded = { ...entry, source: "local:./skills/demo", path: "" };
-    const lock: Lockfile = { lockfileVersion: 1, skills: { demo: recorded } };
+    const lock: Lockfile = { lockfileVersion: 2, skills: { demo: recorded } };
     const at = { source: "local:.", path: "skills/demo", integrity: recorded.integrity };
     expect(isApproved(lock, "demo", at)).toBe(true);
     expect(isApproved(lock, "demo", { ...at, path: "skills/other" })).toBe(false);
@@ -308,7 +308,7 @@ test("isApproved matches a local skill by its directory, whichever shape recorde
 
 test("isApproved does not see a entry from the other scope", async () => {
   const at = { source: entry.source, path: entry.path, integrity };
-  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 2, skills: { tdd: entry } });
   expect(isApproved(await readLock("global"), "tdd", at)).toBe(true);
 
   const dir = join(tmp, "scoped");
@@ -344,7 +344,7 @@ test("parse errors: bad version, unparseable JSON, bad track, missing or non-SRI
 
 const lockWith = (fields: Record<string, string>): string =>
   JSON.stringify({
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: { a: { source: entry.source, path: "", integrity, track: "auto", ...fields } },
   });
 
@@ -440,7 +440,7 @@ test("projectRoot treats every skills directory root as a marker, not detection-
 
 test("an entry with a kiro agent copy round-trips", async () => {
   const copy = { ...entry, copy: true as const, agents: ["kiro" as const] };
-  await writeGlobal({ lockfileVersion: 1, skills: { tdd: { ...copy, agents: [...copy.agents] } } });
+  await writeGlobal({ lockfileVersion: 2, skills: { tdd: { ...copy, agents: [...copy.agents] } } });
   expect((await readLock("global")).skills["tdd"]).toEqual(copy);
 });
 
@@ -510,7 +510,11 @@ test("parseLock requires one normalized project-relative destination for a path 
 });
 
 test("placementOf reads exactly one placement from an entry", () => {
-  expect(placementOf(entry)).toEqual({ kind: "link" });
+  expect(placementOf(entry)).toEqual({ kind: "link", agents: [] });
+  expect(placementOf({ ...entry, agents: ["claude", "universal"] })).toEqual({
+    kind: "link",
+    agents: ["claude", "universal"],
+  });
   expect(placementOf({ ...entry, copy: true, agents: ["claude"] })).toEqual({
     kind: "agent-copy",
     agents: ["claude"],
@@ -535,7 +539,7 @@ test("a lockfile carrying installedAt loads without it and re-serializes without
 
 test("readLock rejects path copies in global scope and symlink escapes in project scope", async () => {
   const pathEntry = { ...entry, copy: true as const, copyPath: "published" };
-  await writeGlobal({ lockfileVersion: 1, skills: { demo: pathEntry } });
+  await writeGlobal({ lockfileVersion: 2, skills: { demo: pathEntry } });
   await expect(readLock("global")).rejects.toThrow("path copies require project scope");
 
   const root = join(tmp, "unsafe-lock-project");
@@ -547,7 +551,7 @@ test("readLock rejects path copies in global scope and symlink escapes in projec
     await writeFile(
       join(root, "niksi-lock.json"),
       serializeLock({
-        lockfileVersion: 1,
+        lockfileVersion: 2,
         skills: { demo: pathEntry },
       }),
     );
@@ -557,7 +561,7 @@ test("readLock rejects path copies in global scope and symlink escapes in projec
 
 test("a disabled entry round-trips and serializes disabled last", async () => {
   const lock: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: {
       linked: { ...entry, disabled: true },
       copied: { ...entry, copy: true, copyPath: "custom-directory", disabled: true },
@@ -585,7 +589,7 @@ test("a disabled entry round-trips and serializes disabled last", async () => {
     "copyPath",
     "disabled",
   ]);
-  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 2, skills: { tdd: entry } });
   expect(await readFile(lockPath("global"), "utf8")).not.toContain("disabled");
 });
 
@@ -603,7 +607,7 @@ test("disabled accepts only true, and a lockfile without it parses unchanged", (
 
 test("splitDisabled separates enabled from disabled entries", () => {
   const lock: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: { alpha: entry, beta: { ...entry, disabled: true } },
   };
   const { enabled, disabled } = splitDisabled(lock);
@@ -614,7 +618,7 @@ test("splitDisabled separates enabled from disabled entries", () => {
 
 test("a discovery root round-trips after path, and an entry without one has no root key", async () => {
   const lock: Lockfile = {
-    lockfileVersion: 1,
+    lockfileVersion: 2,
     skills: { tdd: { ...entry, path: "plugins/x/skills/tdd", root: "plugins/x" } },
   };
   expect(parseLock(serializeLock(lock), "niksi-lock.json")).toEqual(lock);
@@ -627,7 +631,7 @@ test("a discovery root round-trips after path, and an entry without one has no r
     "integrity",
     "track",
   ]);
-  await writeGlobal({ lockfileVersion: 1, skills: { tdd: entry } });
+  await writeGlobal({ lockfileVersion: 2, skills: { tdd: entry } });
   expect(await readFile(lockPath("global"), "utf8")).not.toContain("root");
 });
 
@@ -649,4 +653,104 @@ test("parse errors: a root that is not a normalized directory inside the source"
     );
   }
   expect(parseLock(lockWithEntryA(',"root":"plugins/x"'), "f").skills["a"]!.root).toBe("plugins/x");
+});
+
+const v2Entry = (extra: string): string =>
+  `{"lockfileVersion":2,"skills":{"a":{"source":"https://github.com/o/r","path":"","integrity":"${integrity}","track":"auto"${extra}}}}`;
+
+test("a version 1 lockfile reads as version 2 and is written as version 2", () => {
+  const parsed = parseLock(lockWithEntryA(',"copy":true,"agents":["claude"]'), "f");
+  expect(parsed).toEqual({
+    lockfileVersion: 2,
+    skills: {
+      a: {
+        source: "https://github.com/o/r",
+        path: "",
+        integrity,
+        track: "auto",
+        copy: true,
+        agents: ["claude"],
+      },
+    },
+  });
+  expect(serializeLock(parsed).startsWith('{\n  "lockfileVersion": 2,')).toBe(true);
+  expect(emptyLock().lockfileVersion).toBe(2);
+});
+
+test("a version 2 link entry records its agents without copy", () => {
+  const parsed = parseLock(v2Entry(',"agents":["universal","claude"]'), "f");
+  expect(parsed.skills["a"]!.agents).toEqual(["universal", "claude"]);
+  expect(placementOf(parsed.skills["a"]!)).toEqual({
+    kind: "link",
+    agents: ["universal", "claude"],
+  });
+  expect(() => parseLock(v2Entry(',"agents":[]'), "f")).toThrow(
+    "f: a: agents must name at least one agent",
+  );
+  expect(() => parseLock(v2Entry(',"copyPath":"market"'), "f")).toThrow(
+    "f: a: Set copy to true when an entry contains copyPath",
+  );
+  expect(() => parseLock(v2Entry(',"copy":true'), "f")).toThrow(
+    "f: a: Set exactly one of agents or copyPath when copy is true",
+  );
+});
+
+test("a review round-trips between copyPath and disabled, with its keys in order", () => {
+  const review = {
+    acceptedRules: ["curl-pipe-shell", "reverse-shell"],
+    external: { tool: "cisco-ai-skill-scanner", version: "2.2.0", result: "warn", findings: 2 },
+  };
+  const lock: Lockfile = {
+    lockfileVersion: 2,
+    skills: {
+      tdd: { ...entry, copy: true, copyPath: "custom-directory", review, disabled: true },
+    },
+  };
+  const text = serializeLock(lock);
+  expect(parseLock(text, "niksi-lock.json")).toEqual(lock);
+  const raw = JSON.parse(text).skills.tdd;
+  expect(Object.keys(raw)).toEqual([
+    "source",
+    "branch",
+    "path",
+    "commit",
+    "integrity",
+    "track",
+    "copy",
+    "copyPath",
+    "review",
+    "disabled",
+  ]);
+  expect(Object.keys(raw.review)).toEqual(["acceptedRules", "external"]);
+  expect(Object.keys(raw.review.external)).toEqual(["tool", "version", "result", "findings"]);
+  expect(
+    parseLock(v2Entry(',"review":{"acceptedRules":["curl-pipe-shell"]}'), "f").skills["a"]!.review,
+  ).toEqual({ acceptedRules: ["curl-pipe-shell"] });
+  expect(serializeLock({ lockfileVersion: 2, skills: { tdd: entry } })).not.toContain("review");
+});
+
+const review = (value: string): string => v2Entry(`,"review":${value}`);
+
+test("parse errors: a review without content, rule ids, or a complete external verdict", () => {
+  expect(() => parseLock(review("{}"), "f")).toThrow(
+    "f: a: review must contain acceptedRules or external",
+  );
+  expect(() => parseLock(review('{"acceptedRules":[]}'), "f")).toThrow(
+    "f: a: acceptedRules must name at least one rule",
+  );
+  expect(() => parseLock(review('{"acceptedRules":["Curl Pipe"]}'), "f")).toThrow(
+    "f: a: acceptedRules must hold rule ids such as curl-pipe-shell",
+  );
+  expect(() => parseLock(review('{"external":{"tool":"x","version":"1"}}'), "f")).toThrow("f: a: ");
+  expect(() =>
+    parseLock(review('{"external":{"tool":"x","version":"1","result":"warn","findings":-1}}'), "f"),
+  ).toThrow("f: a: ");
+});
+
+test("a version 1 lockfile keeps its own rules: agents need copy, and review is not read", () => {
+  expect(() => parseLock(lockWithEntryA(',"agents":["claude"]'), "f")).toThrow(
+    "f: a: Set copy to true when an entry contains agents or copyPath",
+  );
+  const parsed = parseLock(lockWithEntryA(',"review":{"acceptedRules":["curl-pipe-shell"]}'), "f");
+  expect(parsed.skills["a"]!.review).toBeUndefined();
 });

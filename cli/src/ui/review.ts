@@ -1,4 +1,5 @@
 import type { Lockfile } from "../core/install/lockfile.ts";
+import { criticalRules } from "../core/scan/index.ts";
 import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
 import { missingDeps, type MissingDep } from "../core/skill/deps.ts";
@@ -31,8 +32,12 @@ export interface ReviewRequest {
   options: ReviewOptions;
 }
 
+export interface ReviewedSkill extends SkillFiles {
+  acceptedRules: string[];
+}
+
 export interface ReviewResult {
-  approved: SkillFiles[];
+  approved: ReviewedSkill[];
   declined: string[];
   blocked: string[];
 }
@@ -54,7 +59,13 @@ const reviewBatch = async (
     request.options,
     decisions,
   );
-  result.approved.push(...review.approved.map(({ skill, files }) => ({ skill, files })));
+  result.approved.push(
+    ...review.approved.map(({ name, skill, files }) => ({
+      skill,
+      files,
+      acceptedRules: criticalRules(review.findings.get(name) ?? []),
+    })),
+  );
   result.declined.push(...review.declined.map(({ name }) => name));
   result.blocked.push(...review.blocked.map(({ name }) => name));
   return review.approved.length;

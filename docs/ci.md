@@ -51,7 +51,7 @@ jobs:
           agent: claude
 ```
 
-The action passes `agent` to `--agent`, which sets the agents for link entries. Without `agent`, `nik` uses the detected defaults. Agent copies and path copies install to the destination that their lockfile entry records.
+The action passes `agent` to `--agent`, which sets the agents for link entries that record no agents. Without `agent`, `nik` uses the detected defaults. Link entries that record agents, agent copies, and path copies install to the destination that their lockfile entry records.
 
 The step fails in these cases:
 
@@ -205,7 +205,7 @@ jobs:
 
 The job summary shows the number of scanned skills and the findings by severity. The job log shows every finding. [security-scan.md](security-scan.md) explains each rule.
 
-`nik add` runs with `--dangerous-skip-critical-approval`, so it writes skills with critical findings into the temporary project, and `nik audit` can count them. Nothing outside the temporary project changes.
+`nik add` runs with `--dangerous-skip-critical-approval`, so it writes skills with critical findings into the temporary project, and `nik audit` can count them. That `nik add` records the findings as accepted in the temporary lockfile, so `nik audit` reports them without exit `3`. The step counts critical findings in the `nik audit --json` output instead, and fails with exit `3` when there is one. Nothing outside the temporary project changes.
 
 ### Add the badge
 
@@ -223,7 +223,7 @@ Copy it into your README. The badge shows the status of the whole workflow, so k
 | --- | --- | --- | --- |
 | `mode` | all | | `install`, `update`, or `scan`. Required. |
 | `version` | all | the action's release | The `niksi` version to run. |
-| `agent` | `install` | | Agents for link entries, separated by commas. |
+| `agent` | `install` | | Agents for link entries that record no agents, separated by commas. |
 | `source` | `update` | | Update only the skills from this source. Takes the coordinates that `nik update --source` takes, including `local`. |
 | `pull-request` | `update` | `true` | Open or update a pull request. `false` writes only the report. |
 | `branch` | `update` | `niksi-update` | The pull request branch. It must differ from the branch the workflow runs on. |

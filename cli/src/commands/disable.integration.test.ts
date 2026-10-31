@@ -415,3 +415,28 @@ test("disable catches a referrer installed from another source", async () => {
   expect(disabled.stdout).toContain("grilling is referenced by planner");
   expect((await readLockJson(project))["grilling"]!["disabled"]).toBe(true);
 });
+
+test("a link keeps its agents through disable, and enable records agents for an entry without them", async () => {
+  const { project, source } = await setup("link-agents");
+  await makeSkill(source, "alpha");
+  await makeSkill(source, "beta");
+  await addLink(project, source, "alpha");
+  await addLink(project, source, "beta");
+  expect((await runCli(project, "disable", "alpha", "beta", "-y")).exitCode).toBe(0);
+  const lockfile = join(project, "niksi-lock.json");
+  const written = JSON.parse(await readFile(lockfile, "utf8"));
+  expect(written.skills.alpha.agents).toEqual(["claude"]);
+  delete written.skills.beta.agents;
+  await writeFile(lockfile, JSON.stringify(written));
+
+  const enabled = await runCli(project, "enable", "--all", "-y", "--agent", "opencode");
+
+  expect(enabled.exitCode).toBe(0);
+  expect((await lstat(join(project, ".claude", "skills", "alpha"))).isSymbolicLink()).toBe(true);
+  expect(existsSync(join(project, ".opencode", "skills", "alpha"))).toBe(false);
+  expect((await lstat(join(project, ".opencode", "skills", "beta"))).isSymbolicLink()).toBe(true);
+  const lock = await readLockJson(project);
+  expect(lock["alpha"]!["agents"]).toEqual(["claude"]);
+  expect(lock["beta"]!["agents"]).toEqual(["opencode"]);
+  expect(lock["beta"]!["disabled"]).toBeUndefined();
+});

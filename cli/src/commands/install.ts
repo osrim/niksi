@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { placementOf, readLock, splitDisabled } from "../core/install/lockfile.ts";
+import { readLock, splitDisabled } from "../core/install/lockfile.ts";
 import {
   installedSkills,
   modifiedSkills,
@@ -16,7 +16,7 @@ import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
-import { chooseAgents, warnScopeCollisions } from "../ui/destination.ts";
+import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 
 export const help: CommandHelp = {
   description: "Restore every skill in niksi-lock.json. Modified files need confirmation.",
@@ -41,17 +41,11 @@ export const run = async (options: InstallOptions): Promise<void> => {
     p.outro("Nothing to install.");
     return;
   }
-  const links = skills.filter((skill) => placementOf(skill).kind === "link");
-  const agents = links.length > 0 ? await chooseAgents(options, scope) : [];
+  const agents = needsAgents(skills) ? await chooseAgents(options, scope) : [];
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }
-
-  warnScopeCollisions(
-    links.map((skill) => skill.name),
-    scope,
-    agents,
-  );
+  warnLinkCollisions(skills, scope, agents);
 
   const modified = await modifiedSkills(skills, scope);
   let restore = false;

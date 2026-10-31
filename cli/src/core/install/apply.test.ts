@@ -650,6 +650,35 @@ test("a write without a review keeps the recorded review only for the same integ
   expect(lock.skills["kept-review"]!.review).toBeUndefined();
 });
 
+test("a reviewed write keeps the external verdict only for the same integrity", async () => {
+  const lock = emptyLock();
+  const external = {
+    tool: "cisco-ai-skill-scanner",
+    version: "2.2.0",
+    result: "warn",
+    findings: 2,
+  };
+  const plan = { name: "external", source: "https://github.com/o/r", path: "", revision };
+  const destination: Destination = { kind: "link", scope: "global", agents: ["claude"], lock };
+  await applySkill({ ...plan, files: lazy, acceptedRules: ["curl-pipe-shell"] }, destination);
+  lock.skills["external"]!.review = { acceptedRules: ["curl-pipe-shell"], external };
+
+  await applySkill({ ...plan, files: lazy, acceptedRules: ["reverse-shell"] }, destination);
+  expect(lock.skills["external"]!.review).toEqual({ acceptedRules: ["reverse-shell"], external });
+
+  await applySkill({ ...plan, files: lazy, acceptedRules: [] }, destination);
+  expect(lock.skills["external"]!.review).toEqual({ external });
+
+  const changed: SkillFile[] = [
+    { path: "SKILL.md", content: Buffer.from("changed\n"), mode: "100644" },
+  ];
+  await applySkill(
+    { ...plan, files: () => Promise.resolve(changed), acceptedRules: ["curl-pipe-shell"] },
+    destination,
+  );
+  expect(lock.skills["external"]!.review).toEqual({ acceptedRules: ["curl-pipe-shell"] });
+});
+
 test("a link entry records its recorded, linked, and new agents in agent order", async () => {
   const lock = emptyLock();
   const plan = {

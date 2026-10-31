@@ -66,10 +66,13 @@ const reviewOf = (
   previous: LockEntry | undefined,
   integrity: string,
 ): Review | undefined => {
-  if (plan.acceptedRules !== undefined) {
-    return plan.acceptedRules.length > 0 ? { acceptedRules: plan.acceptedRules } : undefined;
-  }
-  return previous?.integrity === integrity ? previous.review : undefined;
+  const kept = previous?.integrity === integrity ? previous.review : undefined;
+  if (plan.acceptedRules === undefined) return kept;
+  const review: Review = {
+    ...(plan.acceptedRules.length > 0 ? { acceptedRules: plan.acceptedRules } : {}),
+    ...(kept?.external ? { external: kept.external } : {}),
+  };
+  return Object.keys(review).length > 0 ? review : undefined;
 };
 
 const recordedLinkAgents = (previous: LockEntry | undefined): AgentId[] => {

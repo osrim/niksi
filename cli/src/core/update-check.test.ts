@@ -97,6 +97,12 @@ test("the upgrade hint names brew only for a Cellar binary", () => {
   expect(upgradeHint(join(tmp, "plain", "niksi"))).toBe(download);
 });
 
+test("the upgrade hint names the alpha formula for a niksi-alpha binary", () => {
+  expect(upgradeHint("/opt/homebrew/Cellar/niksi-alpha/0.5.0-alpha.1/bin/nik")).toBe(
+    "Run `brew upgrade osrim/tap/niksi-alpha` to update.",
+  );
+});
+
 test("the upgrade hint names npm for a binary inside node_modules", () => {
   expect(upgradeHint("/usr/local/lib/node_modules/@osrim/niksi-darwin-arm64/nik")).toBe(
     "Run `npm install -g niksi` to update.",

@@ -70,7 +70,7 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 
 `core/install/lockfile.ts` splits a lockfile into enabled and disabled entries. Commands that select a batch read that split. `list` shows every entry and reads the `disabled` flag per row.
 
-`core/install/lockfile.ts` derives one `Placement` from each entry: link, agent copy, or path copy. A link placement carries the recorded agents, which are empty when the entry records none, as in a version 1 lockfile. For a link, `applySkill` records the union of the recorded agents and the agents linked on disk after the write. `disable` and `enable` fill in the agents of a link entry that records none. `core/install/destination.ts` switches on that placement.
+`core/install/lockfile.ts` derives one `Placement` from each entry: link, agent copy, or path copy. A link placement carries the recorded agents, which are empty when the entry records none, as in a version 1 lockfile. For a link, `applySkill` records the union of the recorded agents and the agents linked on disk after the write. `disable` and `enable` fill in the agents of a link entry that records none through `recordLinkAgents`. `core/install/destination.ts` switches on that placement.
 
 `core/install/lockfile.ts` reads lockfile versions 1 and 2, each with its own entry rules, and always writes version 2.
 

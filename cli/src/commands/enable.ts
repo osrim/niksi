@@ -1,5 +1,5 @@
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { loadLock, placementOf, splitDisabled } from "../core/install/lockfile.ts";
+import { loadLock, recordLinkAgents, splitDisabled } from "../core/install/lockfile.ts";
 import { installedSkills, locationsOf } from "../core/install/destination.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { displayLabel } from "../core/source/revision.ts";
@@ -65,9 +65,7 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
     apply: async (entry) => {
       const applied = await restoreSkill(entry, scope, agents);
       const recorded = loaded.lock.skills[entry.name]!;
-      if (placementOf(recorded).kind === "link" && recorded.agents === undefined) {
-        recorded.agents = agents;
-      }
+      recordLinkAgents(recorded, agents);
       delete recorded.disabled;
       return { ...applied, success: `enabled @ ${displayLabel(entry)}` };
     },

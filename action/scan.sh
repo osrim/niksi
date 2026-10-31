@@ -59,8 +59,10 @@ echo "badge=$(badge)" >> "$GITHUB_OUTPUT"
 # Audit exits 1 for a warn or accepted finding, or for a skill it cannot read, which it
 # leaves out of the JSON.
 if [ "$status" -eq 1 ] && [ "$skills" -eq "$recorded" ]; then status=0; fi
-if [ "$critical" -gt 0 ]; then status=3; fi
-if [ "$status" -ne 0 ]; then
+if [ "$critical" -gt 0 ]; then
+  status=3
+  echo "::error::$critical critical finding(s). See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
+elif [ "$status" -ne 0 ]; then
   echo "::error::nik audit exited $status. See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
 fi
 exit "$status"

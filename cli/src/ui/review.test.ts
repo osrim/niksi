@@ -362,6 +362,30 @@ describe("reviewNewSkills", () => {
     expect(result.asked).toEqual(["scripted"]);
   });
 
+  test("each approved skill carries the rules of its critical findings", async () => {
+    const { decisions } = scripted({ approve: ["risky"] });
+    const result = await reviewNewSkills(
+      {
+        source,
+        rev: { track: "auto" },
+        root: "",
+        skills,
+        selected: ["risky", "other"].map((name) => skills.find((skill) => skill.name === name)!),
+        lock: emptyLock(),
+        other: { scope: "global", enabled: emptyLock() },
+        scope: "project",
+        agents: ["claude"],
+        options: {},
+      },
+      decisions,
+    );
+
+    expect(result.approved.map(({ skill, acceptedRules }) => [skill.name, acceptedRules])).toEqual([
+      ["risky", ["agent-config"]],
+      ["other", []],
+    ]);
+  });
+
   test("--dangerous-skip-critical-approval also applies to an offered dependency", async () => {
     const result = await review(["needs-risky"], {
       options: { dangerousSkipCriticalApproval: true },

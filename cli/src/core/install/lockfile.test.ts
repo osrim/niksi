@@ -9,10 +9,12 @@ import {
   loadLock,
   parseLock,
   placementOf,
+  recordLinkAgents,
   readLock,
   serializeLock,
   splitDisabled,
   writeLock,
+  type LockEntry,
   type Lockfile,
 } from "./lockfile.ts";
 import { lockPath, projectRoot } from "../paths.ts";
@@ -753,4 +755,17 @@ test("a version 1 lockfile keeps its own rules: agents need copy, and review is 
   );
   const parsed = parseLock(lockWithEntryA(',"review":{"acceptedRules":["curl-pipe-shell"]}'), "f");
   expect(parsed.skills["a"]!.review).toBeUndefined();
+});
+
+test("recordLinkAgents fills in only a link entry that records no agents", () => {
+  const link: LockEntry = { ...entry };
+  recordLinkAgents(link, []);
+  expect(link.agents).toBeUndefined();
+  recordLinkAgents(link, ["claude"]);
+  expect(link.agents).toEqual(["claude"]);
+  recordLinkAgents(link, ["universal"]);
+  expect(link.agents).toEqual(["claude"]);
+  const copy = { ...entry, copy: true as const, copyPath: "skills" };
+  recordLinkAgents(copy, ["claude"]);
+  expect(copy).toEqual({ ...entry, copy: true, copyPath: "skills" });
 });

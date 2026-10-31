@@ -267,7 +267,7 @@ const SKILL_NAME = /^(?!\.\.?$)[^/\\]+$/u;
 
 const VersionSchema = z.object({
   lockfileVersion: z.literal([1, 2], {
-    error: (issue) => `unsupported lockfile version ${String(issue.input)}`,
+    error: (issue) => `unsupported lockfile version ${String(JSON.stringify(issue.input))}`,
   }),
 });
 

@@ -60,6 +60,14 @@ test("skills/<name>/SKILL.md layout", async () => {
   ]);
 });
 
+test("a skill directory that git would quote is found by its name on disk", async () => {
+  const [dir, sha] = await repoWith("quoted", {
+    "skills/café/SKILL.md": "---\nname: cafe\n---\n",
+  });
+  const skills = await discoverSkills(dir, sha, "quoted");
+  expect(skills.map((s) => [s.name, s.path])).toEqual([["cafe", "skills/café"]]);
+});
+
 test("fallback walk: depth cap, dot-dirs skipped, topmost SKILL.md per branch", async () => {
   const [dir, sha] = await repoWith("walk", {
     "packages/tools/pdf/SKILL.md": "---\ndescription: pdf\n---\n",

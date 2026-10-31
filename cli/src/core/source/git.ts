@@ -147,16 +147,18 @@ export const lsTreeEntries = async (
   rev: string,
   path: string,
 ): Promise<TreeEntry[]> => {
-  const args = ["ls-tree", "-r", "--end-of-options", rev, ...(path ? ["--", path] : [])];
+  // Without -z, git C-quotes a path with a tab, a quote, a newline, or a non-ASCII byte.
+  const args = ["ls-tree", "-r", "-z", "--end-of-options", rev, ...(path ? ["--", path] : [])];
   const result = await git(args, clone);
   if (result.code !== 0) return [];
-  return result.out
-    .split("\n")
+  return result.buf
+    .toString("utf8")
+    .split("\0")
     .filter(Boolean)
-    .map((line) => {
-      const [meta, entryPath] = line.split("\t") as [string, string];
-      const [mode, , oid] = meta.split(" ");
-      return { mode: mode!, oid: oid!, path: entryPath };
+    .map((record) => {
+      const tab = record.indexOf("\t");
+      const [mode, , oid] = record.slice(0, tab).split(" ");
+      return { mode: mode!, oid: oid!, path: record.slice(tab + 1) };
     });
 };
 

@@ -31,6 +31,8 @@ beforeAll(async () => {
   await mkdir(join(repo, "pstack", "single"), { recursive: true });
   await writeFile(join(repo, "pstack", "skills", "tdd", "SKILL.md"), "---\nname: tdd\n---\n");
   await writeFile(join(repo, "pstack", "single", "SKILL.md"), "single\n");
+  await writeFile(join(repo, "pstack", "single", "café.txt"), "café\n");
+  await writeFile(join(repo, "pstack", "single", 'tab\t"quote".txt'), "tab\n");
   await Promise.all([
     writeFile(join(repo, "pstack", "skills", "tdd", "large.bin"), LARGE_FILE),
     ...Array.from({ length: SUPPORTING_FILE_COUNT }, (_, index) =>
@@ -128,6 +130,16 @@ test("fetching many files uses a bounded number of git processes and preserves e
   expect(many.files.some((file) => file.path === "vendor")).toBeFalse();
   expect(many.files.find((file) => file.path === "large.bin")?.content).toEqual(LARGE_FILE);
   expect(integrityOf(many.files)).toBe(await integrityOfDir(join(repo, "pstack", "skills", "tdd")));
+});
+
+test("a path that git would quote reads as the name on disk", async () => {
+  const source = new GitSource(repo);
+  const rev = await source.resolve("main");
+
+  const files = await source.fetchFiles(rev.commit, "pstack/single");
+
+  expect(files.map((file) => file.path)).toEqual(["SKILL.md", "café.txt", 'tab\t"quote".txt']);
+  expect(integrityOf(files)).toBe(await integrityOfDir(join(repo, "pstack", "single")));
 });
 
 test("a source fetched once in a run is reused by later calls and other instances", async () => {

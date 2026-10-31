@@ -11,7 +11,8 @@ import {
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { Scope } from "../core/paths.ts";
 import { CRITICAL_EXIT, markAccepted, runScanners, type Finding } from "../core/scan/index.ts";
-import { readDirFiles } from "../core/skill/files.ts";
+import { readDirFiles, type SkillFile } from "../core/skill/files.ts";
+import { integrityOf } from "../core/skill/integrity.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { logFindings, logSkillError, logWarn, warn } from "../ui/report.ts";
 import { emptyScopeMessage, reportDisabled } from "../ui/status.ts";
@@ -30,6 +31,8 @@ interface AuditOptions extends ScopeOptions {
 interface Scanned {
   skill: InstalledSkill;
   findings: Finding[];
+  // The entry accepts rules, but the files on disk are not the content it accepted them for.
+  modified: boolean;
 }
 
 interface Audit {
@@ -62,6 +65,15 @@ const openLock = (scope: Scope): Promise<LoadedLockfile> => {
   return loadLock(scope);
 };
 
+const scanSkill = (skill: InstalledSkill, files: SkillFile[]): Scanned => {
+  const findings = runScanners({ name: skill.name, files });
+  const recorded = skill.review?.acceptedRules ?? [];
+  if (recorded.length > 0 && integrityOf(files) !== skill.integrity) {
+    return { skill, findings, modified: true };
+  }
+  return { skill, findings: markAccepted(findings, recorded), modified: false };
+};
+
 const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit> => {
   const audit: Audit = { scanned: [], missing: [], disabled: [], failed: false };
   for (const skill of installedSkills(lock)) {
@@ -74,12 +86,7 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
         audit.missing.push(skill.name);
         continue;
       }
-      const files = await readDirFiles(await installedPath(skill, scope));
-      const findings = runScanners({ name: skill.name, files });
-      audit.scanned.push({
-        skill,
-        findings: markAccepted(findings, skill.review?.acceptedRules ?? []),
-      });
+      audit.scanned.push(scanSkill(skill, await readDirFiles(await installedPath(skill, scope))));
     } catch (cause) {
       logSkillError(skill.name, cause);
       audit.failed = true;
@@ -108,11 +115,19 @@ export const run = async (options: AuditOptions): Promise<void> => {
 
   p.log.step(`Scanning installed skills (${tildify(loaded.file)})`);
   const audit = await auditLock(loaded, scope);
-  for (const { skill, findings } of audit.scanned) logFindings(skill.name, findings);
+  for (const scanned of audit.scanned) reportScanned(scanned, scope);
   reportSkipped(audit, scope);
   reportRemedy(audit, scope);
   setExitCode(audit);
   p.outro(summaryLine(audit, scope));
+};
+
+const reportScanned = ({ skill, findings, modified }: Scanned, scope: Scope): void => {
+  logFindings(skill.name, findings);
+  if (!modified) return;
+  warn(
+    `${skillName(skill.name)}: modified, so no critical finding is accepted.\nRun \`nik install${scopeFlag(scope)}\` to restore the reviewed files.`,
+  );
 };
 
 const reportSkipped = ({ missing, disabled }: Audit, scope: Scope): void => {

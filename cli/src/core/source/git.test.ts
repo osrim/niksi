@@ -266,6 +266,24 @@ test("missing branches and invalid trees use the documented failure values", asy
   expect(await diffSubtree(clone, "missing", firstSha, "")).toBe("");
 });
 
+test("lsTreeEntries rejects a path that is not valid UTF-8", async () => {
+  const clone = await ensureClone(remote);
+  const blob = (
+    await $`git -C ${clone} hash-object -w --stdin < ${Buffer.from("x\n")}`.text()
+  ).trim();
+  const records = ["a\xff", "a\xfe"].map((name) =>
+    Buffer.concat([
+      Buffer.from(`100644 blob ${blob}\t`),
+      Buffer.from(name, "latin1"),
+      Buffer.of(0),
+    ]),
+  );
+  const tree = (await $`git -C ${clone} mktree -z < ${Buffer.concat(records)}`.text()).trim();
+  await expect(lsTreeEntries(clone, tree, "")).rejects.toThrow(
+    `a path at ${tree} is not valid UTF-8`,
+  );
+});
+
 // Git's --output writes a file, so any probe file shows that a value was read as an option.
 const optionProbe = (): string => `--output=${join(tmp, "probe")}`;
 const probeFiles = async (): Promise<string[]> =>

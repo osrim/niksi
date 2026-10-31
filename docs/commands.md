@@ -85,7 +85,7 @@ Restoring a modified skill discards your edits, so `install` asks first. Without
 
 Agent copies install to the agents recorded in the entry. Path copies install to their recorded destination roots.
 
-Link entries install to the agents recorded in the entry. A link entry without recorded agents, such as one from a version 1 lockfile, installs to the agents you pass with `--agent`, or to the saved or detected defaults. A lockfile without such an entry selects no agents. `install` does not write the lockfile, so it does not record those agents.
+Link entries install to the agents recorded in the entry. A link entry without recorded agents, such as one from a version 1 lockfile, installs to the agents you pass with `--agent`, or to the saved or detected defaults. A lockfile without such an entry selects no agents, and `install --agent` says that it ignores the flag. `install` does not write the lockfile, so it does not record those agents.
 
 `install` skips disabled entries. It prints their count and names, and it names `nik enable`. It selects agents only when an enabled link entry without recorded agents exists. Its summary counts enabled entries only.
 

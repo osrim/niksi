@@ -14,6 +14,7 @@ import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
+import { warn } from "../ui/report.ts";
 import { reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
@@ -22,6 +23,8 @@ export const help: CommandHelp = {
   description: "Restore every skill in niksi-lock.json. Modified files need confirmation.",
   examples: ["$ nik install", "$ nik i -g", "$ nik install --agent opencode -y"],
 };
+
+const AGENT_IGNORED = "Ignoring --agent. Every lockfile entry records its destination.";
 
 interface InstallOptions extends ScopeOptions {
   yes?: boolean;
@@ -41,7 +44,9 @@ export const run = async (options: InstallOptions): Promise<void> => {
     p.outro("Nothing to install.");
     return;
   }
-  const agents = needsAgents(skills) ? await chooseAgents(options, scope) : [];
+  const agentsNeeded = needsAgents(skills);
+  if (!agentsNeeded && options.agent !== undefined) warn(AGENT_IGNORED);
+  const agents = agentsNeeded ? await chooseAgents(options, scope) : [];
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }

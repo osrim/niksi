@@ -220,3 +220,23 @@ test("the next write rewrites a version 1 lockfile as version 2", async () => {
   expect(rewritten.skills.old).toEqual(written.skills.old);
   expect(rewritten.skills.new.agents).toEqual(["claude"]);
 });
+
+test("install says it ignores --agent when every link entry records its agents", async () => {
+  const origin = await project("agent-ignored-origin", "recorded");
+  await addLink(origin, "./skills/recorded");
+  const { root, run } = await checkout(origin, "agent-ignored-checkout");
+
+  const flagged = await run(root, "install", "--agent", "opencode", "--yes");
+
+  expect(flagged.exitCode).toBe(0);
+  expect(flagged.stdout).toContain(
+    "Ignoring --agent. Every lockfile entry records its destination.",
+  );
+  expect(await isLink(join(root, ".claude", "skills", "recorded"))).toBe(true);
+  expect(await isLink(join(root, ".opencode", "skills", "recorded"))).toBe(false);
+
+  const plain = await run(root, "install", "--yes");
+
+  expect(plain.exitCode).toBe(0);
+  expect(plain.stdout).not.toContain("--agent");
+});

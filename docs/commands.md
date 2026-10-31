@@ -216,7 +216,7 @@ nik audit [-g|-p] [--json]
 - `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads the first copy present in a recorded agent's skills directory. A path copy reads its destination.
 - `audit` does not use the network and does not write. It skips the update notice and its release check. When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
 - It prints the findings of each skill with their severities. It asks nothing, so a critical finding never needs a terminal.
-- A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted`, apart from the other findings. It does not change the exit code. See [security-scan.md](security-scan.md#accepted-findings).
+- A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted finding(s)`, apart from the other findings. It does not change the exit code. See [security-scan.md](security-scan.md#accepted-findings).
 - An acceptance holds only while the files on disk match the entry's `integrity`. For a modified skill, `audit` accepts no finding and says that the skill is modified.
 - It skips disabled and missing skills and names them. Run `nik install` to restore a missing skill, then audit again.
 - It reports a modified skill only when the entry accepts rules. `list` reports every modified skill.

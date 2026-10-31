@@ -221,7 +221,7 @@ jobs:
             if npm view "$name@$version" version > /dev/null 2>&1; then
               echo "$name@$version is already published"
             else
-              (cd "$dir" && npm stage publish --access public --provenance)
+              (cd "$dir" && npm stage publish --access public --tag latest --provenance)
             fi
           done
           echo "Staged. Approve with: npm stage list, then npm stage approve <stage-id>" >> "$GITHUB_STEP_SUMMARY"

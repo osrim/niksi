@@ -229,6 +229,17 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
   expect(localKeys).toEqual(["source", "path", "integrity", "track"]);
 });
 
+test("integer-index skill names are written first, in numeric order", () => {
+  const lock: Lockfile = {
+    lockfileVersion: 2,
+    skills: { a: entry, "10": entry, "2": entry, "01": entry },
+  };
+  const raw = serializeLock(lock);
+  const names = ['"2"', '"10"', '"01"', '"a"'].map((name) => raw.indexOf(`${name}: {`));
+  expect(names).not.toContain(-1);
+  expect(names).toEqual(names.toSorted((x, y) => x - y));
+});
+
 test("a copy entry keeps copy and agents through a round trip, in the documented key order", async () => {
   const copy = { ...entry, copy: true as const, agents: ["claude", "universal"] as const };
   await writeGlobal({

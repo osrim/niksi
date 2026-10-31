@@ -61,7 +61,7 @@ export const placementOf = (entry: LockEntry): Placement => {
 // A link entry from a version 1 lockfile records no agents until a write names them.
 export const recordLinkAgents = (entry: LockEntry, agents: AgentId[]): void => {
   if (placementOf(entry).kind === "link" && entry.agents === undefined && agents.length > 0) {
-    entry.agents = agents;
+    entry.agents = AGENT_IDS.filter((agent) => agents.includes(agent));
   }
 };
 

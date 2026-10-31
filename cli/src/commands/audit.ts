@@ -20,7 +20,7 @@ import { skillName, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Scan installed skills with the current rules. Exits 1 on warn or accepted critical findings and 3 on other critical findings.",
+    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings that the lockfile does not accept.",
   examples: ["$ nik audit", "$ nik audit -g", "$ nik audit --json"],
 };
 
@@ -97,9 +97,7 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
 
 const setExitCode = ({ scanned, failed }: Audit): void => {
   if (flagged(scanned, "critical") > 0) process.exitCode = CRITICAL_EXIT;
-  else if (failed || flagged(scanned, "warn") > 0 || acceptedCount(scanned) > 0) {
-    process.exitCode = 1;
-  }
+  else if (failed || flagged(scanned, "warn") > 0) process.exitCode = 1;
 };
 
 export const run = async (options: AuditOptions): Promise<void> => {

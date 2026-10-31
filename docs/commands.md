@@ -216,13 +216,13 @@ nik audit [-g|-p] [--json]
 - `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads the first copy present in a recorded agent's skills directory. A path copy reads its destination.
 - `audit` does not use the network and does not write. It skips the update notice and its release check. When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
 - It prints the findings of each skill with their severities. It asks nothing, so a critical finding never needs a terminal.
-- A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted`, apart from the other findings. See [security-scan.md](security-scan.md#accepted-findings).
+- A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted`, apart from the other findings. It does not change the exit code. See [security-scan.md](security-scan.md#accepted-findings).
 - An acceptance holds only while the files on disk match the entry's `integrity`. For a modified skill, `audit` accepts no finding and says that the skill is modified.
 - It skips disabled and missing skills and names them. Run `nik install` to restore a missing skill, then audit again.
 - It reports a modified skill only when the entry accepts rules. `list` reports every modified skill.
 - It takes no positional arguments; passing one exits `2`.
 - A skill that cannot be read is reported on stderr and left out of the scan. The batch continues.
-- It exits `3` when a skill has a critical finding that is not accepted, else `1` when a skill has a warn finding or an accepted critical finding, or cannot be read, else `0`. Info findings do not change the exit code.
+- It exits `3` when a skill has a critical finding that is not accepted, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each scanned skill. `missing` and `disabled` hold the names of the skills `audit` did not scan.
 
@@ -437,7 +437,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `audit`, also a warn finding or an accepted critical finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `audit`, also a warn finding. |
 | `2` | Invalid usage, or a prompt had no terminal and no flag. |
-| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. `audit` reports accepted critical findings without exit `3`. |
+| `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. |
 | `130` | Cancelled. |

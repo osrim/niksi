@@ -35,7 +35,7 @@ Linking to claude.
 
 `--path` selects project scope and a destination root. It prints no scope or agent default.
 
-`install` selects agents only when the lockfile has link entries. A lockfile that contains only copies prints no agent default.
+`install` selects agents only when the lockfile has a link entry without recorded agents. A lockfile whose link entries all record agents, or that contains only copies, prints no agent default.
 
 ## Result lines
 

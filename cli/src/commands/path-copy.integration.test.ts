@@ -341,7 +341,8 @@ test("install restores mixed link, agent-copy, and path-copy placements", async 
   const installed = await runCli(project, "install", "--agent", "opencode", "--yes");
   expect(installed.exitCode).toBe(0);
   expect(existsSync(join(project, "published", "alpha", "SKILL.md"))).toBe(true);
-  expect((await lstat(join(project, ".opencode", "skills", "beta"))).isSymbolicLink()).toBe(true);
+  expect((await lstat(join(project, ".claude", "skills", "beta"))).isSymbolicLink()).toBe(true);
+  expect(existsSync(join(project, ".opencode", "skills", "beta"))).toBe(false);
   expect((await lstat(join(project, ".agents", "skills", "gamma"))).isDirectory()).toBe(true);
 });
 

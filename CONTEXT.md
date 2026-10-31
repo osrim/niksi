@@ -58,7 +58,7 @@ Use these terms in code, docs, and output.
 | unrecorded entry | Store content that no lockfile `niksi` can see records: an entry, a temporary directory from an interrupted download, or any other file. | stale entry, orphan, garbage |
 | prune | Delete every unrecorded entry from the store. | clean, gc, purge, clear cache |
 | canonical copy | Real skill directory in the scope's `skills` directory (`.niksi/skills` or `~/.local/share/niksi/skills`) that links point to. One per scope. `niksi` owns it while a link entry names it. | master copy, primary |
-| link | Relative symlink from an agent's skills directory to the canonical copy. | shortcut, alias, pointer |
+| link | Relative symlink from an agent's skills directory to the canonical copy. The lockfile entry records the agents. | shortcut, alias, pointer |
 | copy | Real skill directory that `add --copy` writes: an agent copy or a path copy. | clone, download |
 | agent copy | Copy in an agent's skills directory. The lockfile entry records the agents. | agent-dir copy |
 | path copy | Copy below a destination root. The lockfile entry records `copyPath`. | custom copy, export |
@@ -96,6 +96,7 @@ Use these terms in code, docs, and output.
 | review | One skill's pass through the gate: file list, scan, findings, and at most one question. The question can offer `Read files…`, which opens the files in a pager. Reading is not a question. | verify, validate |
 | gate | UI that shows findings and asks for approval. | prompt, confirmation, checkpoint |
 | approval | Human approval for one source, path, integrity, and scope. | trust, waiver, allowlist entry |
+| accepted | Critical finding whose rule id the lockfile entry records in `review.acceptedRules`, because `add` or `update` approved it for that integrity. `audit` reports it without exit `3`. | ignored, waived, suppressed |
 | declined | The user answered no at the gate. The skill is skipped. | rejected, refused |
 | blocked | Critical findings with no terminal to approve them and no flag to skip approval. The skill is skipped and the command exits `3`. | refused, rejected |
 | skipped | Skill the command did not write: declined, blocked, modified without consent, or failed. | ignored, omitted |

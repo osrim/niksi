@@ -16,7 +16,7 @@ import {
 } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
-import { applySkill, PlacementError } from "./apply.ts";
+import { applySkill, PlacementError, type Destination } from "./apply.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import type { AgentId } from "./agents.ts";
 import { canonicalPath, copyState, linkedAgents, removeCopy, skillPath } from "./link.ts";
@@ -93,6 +93,7 @@ test("a local revision records neither commit nor branch", async () => {
     path: "",
     track: "auto",
     integrity,
+    agents: ["claude"],
   });
   expect("commit" in lock.skills["loc"]!).toBe(false);
   expect("branch" in lock.skills["loc"]!).toBe(false);
@@ -117,6 +118,7 @@ test("a plan with a discovery root records it after the path", async () => {
     root: "plugins/x",
     ...revision,
     integrity,
+    agents: ["claude"],
   });
 });
 
@@ -606,3 +608,63 @@ test.skipIf(asRoot)(
     await chmod(join(leftover!, "old", "locked"), 0o755);
   },
 );
+
+test("a reviewed write records its accepted rules, and a review with none records nothing", async () => {
+  const lock = emptyLock();
+  const plan = { source: "https://github.com/o/r", path: "", revision, files: lazy };
+  await applySkill(
+    { ...plan, name: "accepted", acceptedRules: ["curl-pipe-shell"] },
+    { kind: "link", scope: "global", agents: ["claude"], lock },
+  );
+  expect(lock.skills["accepted"]!.review).toEqual({ acceptedRules: ["curl-pipe-shell"] });
+
+  lock.skills["clean"] = {
+    ...lock.skills["accepted"]!,
+    review: { acceptedRules: ["reverse-shell"] },
+  };
+  await applySkill(
+    { ...plan, name: "clean", acceptedRules: [] },
+    { kind: "link", scope: "global", agents: ["claude"], lock },
+  );
+  expect(lock.skills["clean"]!.review).toBeUndefined();
+});
+
+test("a write without a review keeps the recorded review only for the same integrity", async () => {
+  const lock = emptyLock();
+  const review = {
+    acceptedRules: ["curl-pipe-shell"],
+    external: { tool: "cisco-ai-skill-scanner", version: "2.2.0", result: "warn", findings: 2 },
+  };
+  const plan = { name: "kept-review", source: "https://github.com/o/r", path: "", revision };
+  const destination: Destination = { kind: "link", scope: "global", agents: ["claude"], lock };
+  await applySkill({ ...plan, files: lazy, acceptedRules: ["curl-pipe-shell"] }, destination);
+  lock.skills["kept-review"]!.review = review;
+
+  await applySkill({ ...plan, revision: { ...revision, tag: "v1.0.1" }, files: lazy }, destination);
+  expect(lock.skills["kept-review"]!.review).toEqual(review);
+
+  const changed: SkillFile[] = [
+    { path: "SKILL.md", content: Buffer.from("changed\n"), mode: "100644" },
+  ];
+  await applySkill({ ...plan, files: () => Promise.resolve(changed) }, destination);
+  expect(lock.skills["kept-review"]!.review).toBeUndefined();
+});
+
+test("a link entry records its recorded, linked, and new agents in agent order", async () => {
+  const lock = emptyLock();
+  const plan = {
+    name: "linked",
+    source: "https://github.com/o/r",
+    path: "",
+    revision,
+    files: lazy,
+  };
+  await applySkill(plan, { kind: "link", scope: "global", agents: ["universal"], lock });
+  expect(lock.skills["linked"]!.agents).toEqual(["universal"]);
+  expect(lock.skills["linked"]!.copy).toBeUndefined();
+
+  await applySkill(plan, { kind: "link", scope: "global", agents: ["claude"], lock: emptyLock() });
+  lock.skills["linked"]!.agents = ["opencode"];
+  await applySkill(plan, { kind: "link", scope: "global", agents: ["kiro"], lock });
+  expect(lock.skills["linked"]!.agents).toEqual(["universal", "claude", "opencode", "kiro"]);
+});

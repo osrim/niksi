@@ -70,7 +70,9 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 
 `core/install/lockfile.ts` splits a lockfile into enabled and disabled entries. Commands that select a batch read that split. `list` shows every entry and reads the `disabled` flag per row.
 
-`core/install/lockfile.ts` derives one `Placement` from each entry: link, agent copy, or path copy. `core/install/destination.ts` switches on that placement.
+`core/install/lockfile.ts` derives one `Placement` from each entry: link, agent copy, or path copy. A link placement carries the recorded agents, which are empty when the entry records none, as in a version 1 lockfile. For a link, `applySkill` records the union of the recorded agents and the agents linked on disk after the write. `disable` and `enable` fill in the agents of a link entry that records none. `core/install/destination.ts` switches on that placement.
+
+`core/install/lockfile.ts` reads lockfile versions 1 and 2, each with its own entry rules, and always writes version 2.
 
 `core/install/destination.ts` gives commands the installed location, filesystem path, state, apply destination, and removal operation. Commands do not read `agents` or `copyPath` to decide placement.
 
@@ -118,10 +120,12 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 
 `dangerousSkipCriticalApproval` skips critical approval after findings are printed. It leaves warn finding review controlled by `yes`. Commands pass these options through every review path, including dependencies offered by `add`. The options apply only to the current invocation; placement and persistence code do not use the dangerous flag.
 
+`add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review`. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
+
 - `add` reaches the gate for every new skill and for dependencies it offers to install.
 - `update` reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
-- `audit` never reaches the gate. It calls `runScanners` on the installed files and prints the findings with `logFindings`. It asks nothing and writes nothing.
+- `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted`, and prints the findings with `logFindings`. It asks nothing and writes nothing.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

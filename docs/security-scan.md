@@ -30,11 +30,19 @@ Each finding also has a confidence: `high`, `medium`, or `low`. Severity says ho
 
 A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes` accepts it. The gate, `nik audit`, and `nik update --report` mark it `(low confidence)`. `nik audit --json` gives every finding a `confidence` field.
 
-`add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered or recorded in the lockfile.
+`add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered. The rule ids of the critical findings it skipped are recorded in the lockfile entry as accepted, for that content only, so review them in the lockfile diff.
 
-An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review.
+An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review. `nik audit` reports a critical finding that an approval accepted without exit `3`.
 
-Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings. See [commands.md](commands.md#audit).
+Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and accepted critical findings, and `3` on other critical findings. See [commands.md](commands.md#audit).
+
+## Accepted findings
+
+When `add` or `update` writes a skill with critical findings, approved in a terminal or skipped with `--dangerous-skip-critical-approval`, it records their rule ids in the lockfile entry's `review.acceptedRules`. Both ways are recorded the same, with no marker for the flag. Review each accepted rule id in the lockfile diff of the pull request.
+
+The record holds only for the entry's current `integrity`. When `add` or `update` writes new content, it records the critical findings of that review and drops the earlier ones. A write that keeps the content, such as a moved revision or a skill added to another agent, keeps the record.
+
+`nik audit` marks a critical finding `(accepted)` when the entry accepts its rule. It still prints the finding with its severity and counts it as `N accepted` in the summary. An accepted finding exits `1`, like a warn finding, instead of `3`. A critical finding from any other rule still exits `3`, so a critical finding that nobody approved for this content still fails the audit. The record is not signed: whoever can edit `niksi-lock.json` can also edit `acceptedRules`, so treat a change to it like any other dependency change.
 
 ## Reading files
 

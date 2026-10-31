@@ -84,8 +84,13 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
     items: names,
     name: (name) => name,
     apply: async (name) => {
-      await removeInstalledSkill(name, scope, locations.get(name)!);
-      loaded.lock.skills[name]!.disabled = true;
+      const location = locations.get(name)!;
+      await removeInstalledSkill(name, scope, location);
+      const entry = loaded.lock.skills[name]!;
+      if (location.kind === "link" && entry.agents === undefined && location.agents.length > 0) {
+        entry.agents = location.agents;
+      }
+      entry.disabled = true;
       return { success: "disabled" };
     },
     scope,

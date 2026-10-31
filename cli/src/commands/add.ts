@@ -4,7 +4,6 @@ import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { addDestination } from "../core/install/destination.ts";
 import { normalizeCopyPath } from "../core/install/path-copy.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
-import type { SkillFile } from "../core/skill/files.ts";
 import { loadLock, type Lockfile } from "../core/install/lockfile.ts";
 import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
@@ -33,7 +32,7 @@ import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { createSpinner, fail } from "../ui/prompt.ts";
 import { logWarn } from "../ui/report.ts";
-import { reviewNewSkills } from "../ui/review.ts";
+import { reviewNewSkills, type ReviewedSkill } from "../ui/review.ts";
 import { skillName, tildify } from "../ui/style.ts";
 import {
   chooseAgents,
@@ -187,8 +186,7 @@ export const run = async (
   await land({
     items: [...approved, ...picked.extend],
     name: (item) => item.skill.name,
-    apply: (item) =>
-      "files" in item ? addSkill(item.skill, item.files, context) : extendSkill(item, context),
+    apply: (item) => ("files" in item ? addSkill(item, context) : extendSkill(item, context)),
     scope,
     lock: loaded,
     outro: (added) => `Added ${added} skill(s). ${scope}: ${copyPath ?? agents.join(", ")}.`,
@@ -303,8 +301,7 @@ interface AddContext {
 }
 
 const addSkill = async (
-  skill: DiscoveredSkill,
-  files: SkillFile[],
+  { skill, files, acceptedRules }: ReviewedSkill,
   context: AddContext,
 ): Promise<Applied & { success: string }> => {
   const applied = await applySkill(
@@ -315,6 +312,7 @@ const addSkill = async (
       root: context.root,
       revision: context.rev,
       files: () => Promise.resolve(files),
+      acceptedRules,
     },
     addDestination(context.lock.skills[skill.name], context),
   );

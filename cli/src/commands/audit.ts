@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import { loadLock, type LoadedLockfile } from "../core/install/lockfile.ts";
 import { legacyLayoutPresent } from "../core/install/migrate.ts";
 import {
-  installedPath,
+  installedPaths,
   installedSkills,
   locationOf,
   locationPresent,
@@ -11,6 +11,7 @@ import {
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { Scope } from "../core/paths.ts";
 import { CRITICAL_EXIT, markAccepted, runScanners, type Finding } from "../core/scan/index.ts";
+import { rank } from "../core/scan/severity.ts";
 import { readDirFiles, type SkillFile } from "../core/skill/files.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -65,10 +66,19 @@ const openLock = (scope: Scope): Promise<LoadedLockfile> => {
   return loadLock(scope);
 };
 
-const scanSkill = (skill: InstalledSkill, files: SkillFile[]): Scanned => {
-  const findings = runScanners({ name: skill.name, files });
+// Copies with the same content give the same findings, so scan each distinct content once.
+const scanCopies = (name: string, contents: SkillFile[][]): Finding[] => {
+  const findings = contents.flatMap((files) => runScanners({ name, files }));
+  return [...new Map(findings.map((found) => [JSON.stringify(found), found])).values()].toSorted(
+    (a, b) => rank(b.severity) - rank(a.severity),
+  );
+};
+
+const scanSkill = (skill: InstalledSkill, copies: SkillFile[][]): Scanned => {
+  const contents = new Map(copies.map((files) => [integrityOf(files), files]));
+  const findings = scanCopies(skill.name, [...contents.values()]);
   const recorded = skill.review?.acceptedRules ?? [];
-  if (recorded.length > 0 && integrityOf(files) !== skill.integrity) {
+  if (recorded.length > 0 && [...contents.keys()].some((sum) => sum !== skill.integrity)) {
     return { skill, findings, modified: true };
   }
   return { skill, findings: markAccepted(findings, recorded), modified: false };
@@ -86,7 +96,8 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
         audit.missing.push(skill.name);
         continue;
       }
-      audit.scanned.push(scanSkill(skill, await readDirFiles(await installedPath(skill, scope))));
+      const paths = await installedPaths(skill, scope);
+      audit.scanned.push(scanSkill(skill, await Promise.all(paths.map(readDirFiles))));
     } catch (cause) {
       logSkillError(skill.name, cause);
       audit.failed = true;

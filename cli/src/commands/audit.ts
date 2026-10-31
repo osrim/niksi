@@ -151,7 +151,7 @@ const summaryLine = ({ scanned }: Audit, scope: Scope): string => {
       const count = flagged(scanned, flag);
       return count > 0 ? [`${count} with ${flag} findings`] : [];
     }),
-    ...(accepted > 0 ? [`${accepted} accepted`] : []),
+    ...(accepted > 0 ? [`${accepted} accepted finding(s)`] : []),
   ];
   const result = notes.length > 0 ? notes.join(", ") : "no warn or critical findings";
   return `${scanned.length} skill(s) scanned (${scope}): ${result}.`;

@@ -118,6 +118,15 @@ export const installedPath = async (skill: InstalledSkill, scope: Scope): Promis
   return await pathCopyTarget(skill.name, placement.copyPath);
 };
 
+// Every present copy, since agent copies can drift apart and each one is loaded.
+export const installedPaths = async (skill: InstalledSkill, scope: Scope): Promise<string[]> => {
+  const placement = placementOf(skill);
+  if (placement.kind !== "agent-copy") return [await installedPath(skill, scope)];
+  return presentAgents(skill.name, scope, placement.agents).map((agent) =>
+    skillPath(skill.name, scope, agent),
+  );
+};
+
 export const addDestination = (
   entry: LockEntry | undefined,
   dest: {

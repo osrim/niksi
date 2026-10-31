@@ -12,6 +12,7 @@ import {
   addDestination,
   installDestination,
   installedPath,
+  installedPaths,
   lackingAgents,
   modifiedSkills,
   locationOf,
@@ -199,6 +200,14 @@ test("installedPath returns a present agent copy instead of the canonical link d
   expect(await installedPath(entry("concrete", ["claude", "universal"]), "global")).toBe(
     skillPath("concrete", "global", "universal"),
   );
+});
+
+test("installedPaths returns every present agent copy", async () => {
+  await copySkill("copies", files, "global", "claude", false);
+  await copySkill("copies", files, "global", "opencode", false);
+  expect(
+    await installedPaths(entry("copies", ["universal", "claude", "opencode"]), "global"),
+  ).toEqual([skillPath("copies", "global", "claude"), skillPath("copies", "global", "opencode")]);
 });
 
 const recordedLink = (name: string, agents: AgentId[]): LockEntry & { name: string } => ({

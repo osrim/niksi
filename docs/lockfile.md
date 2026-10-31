@@ -96,14 +96,14 @@ An agent id must be one of `universal`, `claude`, `opencode`, `kiro`, `cline`, a
 
 ## Review
 
-`review` holds only for the entry's current `integrity`. When `add` or `update` reviews content, it replaces `review` with the outcome of that review. A write without a new review, such as adding a skill to another agent or moving the revision of unchanged files, keeps `review` while `integrity` stays the same. When you write a new `integrity` yourself, remove `review` as well, or the old review applies to new content.
+`review` holds only for the entry's current `integrity`. When `add` or `update` reviews content, it replaces `acceptedRules` with the outcome of that review, and keeps `external` while `integrity` stays the same. A write without a new review, such as adding a skill to another agent or moving the revision of unchanged files, keeps `review` while `integrity` stays the same. When you write a new `integrity` yourself, remove `review` as well, or the old review applies to new content.
 
 A `review` object must contain at least one of its fields. `niksi` leaves `review` out when there is nothing to record.
 
 | field | type | required | meaning |
 | --- | --- | --- | --- |
-| `acceptedRules` | array of strings | no | Rule ids of the critical findings approved for this integrity. It must name at least one. Each id must be lowercase letters and digits in groups joined by `-`, such as `curl-pipe-shell`. `nik audit` reports the findings of these rules as accepted, without exit `3`. See [security-scan.md](security-scan.md#accepted-findings). |
-| `external` | object | no | Verdict of an external scanner. No current command writes it, and a review by `add` or `update` drops it. |
+| `acceptedRules` | array of strings | no | Rule ids of the critical findings approved for this integrity. It must name at least one. Each id must be lowercase letters and digits in groups joined by `-`, such as `curl-pipe-shell`. When the installed files still match `integrity`, `nik audit` reports the findings of these rules as accepted, and they do not change its exit code. See [security-scan.md](security-scan.md#accepted-findings). |
+| `external` | object | no | Verdict of an external scanner. No current command writes it. A review by `add` or `update` keeps it while `integrity` stays the same. |
 
 The record is not signed. Whoever can edit the file can edit `acceptedRules`, so review a change to it like any other dependency change.
 
@@ -133,7 +133,7 @@ Each file has three values:
 
 | value | Git source | local directory |
 | --- | --- | --- |
-| path | path relative to the skill directory, with `/` separators | the same |
+| path | path relative to the skill directory, with `/` separators, as the Git tree stores it. Git's quoting of unusual names, such as `"caf\303\251.txt"`, is not part of it. | the same |
 | mode | the tree entry mode: `100644`, `100755`, or `120000` | `120000` for a symlink, else `100755` when any execute bit is set, else `100644` |
 | content | the blob bytes. For a symlink, the target path. | the file bytes. For a symlink, the target path in UTF-8. Symlinks are not followed. |
 
@@ -193,7 +193,7 @@ Fields that this page does not define are ignored, at every level, and are gone 
 
 ## Versions
 
-`niksi` reads lockfile versions 1 and 2 and always writes version 2. Any other `lockfileVersion` fails to load with `unsupported lockfile version <n>`.
+`niksi` reads lockfile versions 1 and 2 and always writes version 2. Any other `lockfileVersion` fails to load with `unsupported lockfile version <value>`, where the value is shown as JSON: the string `"2"` reads `unsupported lockfile version "2"`.
 
 Version 1 differs from version 2 in two rules:
 

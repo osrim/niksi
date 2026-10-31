@@ -768,6 +768,9 @@ test("recordLinkAgents fills in only a link entry that records no agents", () =>
   expect(link.agents).toEqual(["claude"]);
   recordLinkAgents(link, ["universal"]);
   expect(link.agents).toEqual(["claude"]);
+  const unordered: LockEntry = { ...entry };
+  recordLinkAgents(unordered, ["opencode", "claude"]);
+  expect(unordered.agents).toEqual(["claude", "opencode"]);
   const copy = { ...entry, copy: true as const, copyPath: "skills" };
   recordLinkAgents(copy, ["claude"]);
   expect(copy).toEqual({ ...entry, copy: true, copyPath: "skills" });

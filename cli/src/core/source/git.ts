@@ -142,6 +142,17 @@ export interface TreeEntry {
   path: string;
 }
 
+// Lossy decoding maps distinct invalid bytes to U+FFFD, so two Git paths could name one file.
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+const decodeTree = (buf: Buffer, rev: string): string => {
+  try {
+    return utf8.decode(buf);
+  } catch {
+    throw new Error(`a path at ${rev} is not valid UTF-8`);
+  }
+};
+
 export const lsTreeEntries = async (
   clone: string,
   rev: string,
@@ -151,8 +162,7 @@ export const lsTreeEntries = async (
   const args = ["ls-tree", "-r", "-z", "--end-of-options", rev, ...(path ? ["--", path] : [])];
   const result = await git(args, clone);
   if (result.code !== 0) return [];
-  return result.buf
-    .toString("utf8")
+  return decodeTree(result.buf, rev)
     .split("\0")
     .filter(Boolean)
     .map((record) => {

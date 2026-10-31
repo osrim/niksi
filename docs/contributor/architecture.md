@@ -120,7 +120,7 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 
 `dangerousSkipCriticalApproval` skips critical approval after findings are printed. It leaves warn finding review controlled by `yes`. Commands pass these options through every review path, including dependencies offered by `add`. The options apply only to the current invocation; placement and persistence code do not use the dangerous flag.
 
-`add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review`. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
+`add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review` and keeps `review.external` when the integrity is unchanged. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
 
 - `add` reaches the gate for every new skill and for dependencies it offers to install.
 - `update` reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.

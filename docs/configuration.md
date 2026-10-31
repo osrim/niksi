@@ -164,7 +164,7 @@ The store is a download cache. A lockfile entry installs without the network whe
 | `copyPath` | Normalized project-relative destination root for a path copy. |
 | `review` | What the review of this content decided. It holds only for the entry's current `integrity`, and `add` or `update` drop it when `integrity` changes. Absent when there is nothing to record. |
 | `review.acceptedRules` | Rule ids of the critical findings approved for this integrity, in a terminal or with `--dangerous-skip-critical-approval`. `nik audit` reports their findings as accepted, and they do not change its exit code. See [security-scan.md](security-scan.md#accepted-findings). |
-| `review.external` | Verdict of an external scanner: `tool`, `version`, `result`, and the number of `findings`. No current command writes it. |
+| `review.external` | Verdict of an external scanner: `tool`, `version`, `result`, and the number of `findings`. No current command writes it. A write keeps it while the `integrity` is unchanged. |
 | `disabled` | `true` after `nik disable`. Absent means enabled. The entry keeps its placement. `install` and `update` skip it until `nik enable` clears it. |
 
 A copy entry has exactly one placement: a non-empty `agents` array or `copyPath`. A link entry has no `copyPath`, and may have a non-empty `agents` array. `review` and `disabled` do not depend on placement. `disabled` is the last key, after `review`.

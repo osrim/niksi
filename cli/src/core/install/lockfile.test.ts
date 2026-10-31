@@ -324,6 +324,9 @@ test("parse errors: bad version, unparseable JSON, bad track, missing or non-SRI
   expect(() => parseLock('{"lockfileVersion":9,"skills":{}}', "f")).toThrow(
     "unsupported lockfile version 9",
   );
+  expect(() => parseLock('{"lockfileVersion":"2","skills":{}}', "f")).toThrow(
+    'f: unsupported lockfile version "2"',
+  );
   expect(() => parseLock('{"skills":{}}', "f")).toThrow("unsupported lockfile version undefined");
   expect(() => parseLock("not json", "f")).toThrow("f:");
   expect(() => parseLock('{"lockfileVersion":1,"skills":{"a":{"track":"nope"}}}', "f")).toThrow(

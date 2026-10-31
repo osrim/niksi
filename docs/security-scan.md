@@ -42,7 +42,7 @@ When `add` or `update` writes a skill with critical findings, approved in a term
 
 The record holds only for the entry's current `integrity`. When `add` or `update` writes new content, it records the critical findings of that review and drops the earlier ones. A write that keeps the content, such as a moved revision or a skill added to another agent, keeps the record.
 
-`nik audit` marks a critical finding `(accepted)` when the entry accepts its rule. It still prints the finding with its severity and counts it as `N accepted` in the summary. An accepted finding exits `1`, like a warn finding, instead of `3`. A critical finding from any other rule still exits `3`, so a critical finding that nobody approved for this content still fails the audit. The record is not signed: whoever can edit `niksi-lock.json` can also edit `acceptedRules`, so treat a change to it like any other dependency change.
+`nik audit` marks a critical finding `(accepted)` when the entry accepts its rule. It still prints the finding with its severity and counts it as `N accepted` in the summary. An accepted finding exits `1`, like a warn finding, instead of `3`. A critical finding from any other rule still exits `3`, so a critical finding that nobody approved for this content still fails the audit. The record holds only while the installed files match the entry's `integrity`. When they differ, `audit` says that the skill is modified and accepts none of its findings, so content planted after the review cannot borrow an accepted rule. The record is not signed: whoever can edit `niksi-lock.json` can also edit `acceptedRules`, so treat a change to it like any other dependency change.
 
 ## Reading files
 

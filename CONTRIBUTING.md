@@ -49,7 +49,7 @@ bun run test
 ## Submitting a PR
 
 - One change per PR.
-- The title is a lowercase conventional commit, such as `feat: add agent target`. PRs are squash-merged, so the title becomes the commit subject and the release-notes line.
+- The title is a lowercase conventional commit, such as `feat: add agent target`. PRs are squash-merged, so the title becomes the commit subject. Maintainers write the release notes in `CHANGELOG.md` from it.
 - Behavior changes need tests.
 - A change to a contract (commands, exit codes, lockfile) updates its doc in the same PR.
 - Your contribution is licensed under the [MIT license](LICENSE), like the rest of the project.

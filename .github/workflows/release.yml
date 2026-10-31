@@ -124,11 +124,19 @@ jobs:
           bun-version-file: .bun-version
           no-cache: true
 
-      - name: Check that package.json matches the tag
+      - name: Check the version and the CHANGELOG.md entry
         run: |
           version=$(bun -p 'require("./package.json").version')
           if [ "v$version" != "$TAG" ]; then
             echo "cli/package.json is $version, tag is $TAG" >&2
+            exit 1
+          fi
+          awk -v heading="## [$version]" '
+            /^## / { inside = index($0, heading) == 1; next }
+            inside
+          ' ../CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            echo "CHANGELOG.md has no entry for $version" >&2
             exit 1
           fi
 
@@ -154,9 +162,8 @@ jobs:
             args+=(--prerelease)
             install="Prereleases are not on npm. Install the alpha channel with \`brew install osrim/tap/niksi-alpha\`, or download the archive for your platform below and put \`nik\` on your \`PATH\`."
           esac
-          changelog=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body | bun scripts/release-notes.ts)
           notes=$(cat <<EOF
-          $changelog
+          $(cat "$RUNNER_TEMP/notes.md")
 
           ## Install
 

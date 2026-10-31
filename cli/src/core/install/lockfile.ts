@@ -58,6 +58,13 @@ export const placementOf = (entry: LockEntry): Placement => {
   return { kind: "link", agents: entry.agents ?? [] };
 };
 
+// A link entry from a version 1 lockfile records no agents until a write names them.
+export const recordLinkAgents = (entry: LockEntry, agents: AgentId[]): void => {
+  if (placementOf(entry).kind === "link" && entry.agents === undefined && agents.length > 0) {
+    entry.agents = agents;
+  }
+};
+
 export const emptyLock = (): Lockfile => ({ lockfileVersion: 2, skills: {} });
 
 export const splitDisabled = (lock: Lockfile): { enabled: Lockfile; disabled: Lockfile } => {

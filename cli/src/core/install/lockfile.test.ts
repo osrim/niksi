@@ -229,6 +229,17 @@ test("roundtrip preserves entries; entries are sorted by name; keys in entry ord
   expect(localKeys).toEqual(["source", "path", "integrity", "track"]);
 });
 
+test("integer-index skill names are written first, in numeric order", () => {
+  const lock: Lockfile = {
+    lockfileVersion: 2,
+    skills: { a: entry, "10": entry, "2": entry, "01": entry },
+  };
+  const raw = serializeLock(lock);
+  const names = ['"2"', '"10"', '"01"', '"a"'].map((name) => raw.indexOf(`${name}: {`));
+  expect(names).not.toContain(-1);
+  expect(names).toEqual(names.toSorted((x, y) => x - y));
+});
+
 test("a copy entry keeps copy and agents through a round trip, in the documented key order", async () => {
   const copy = { ...entry, copy: true as const, agents: ["claude", "universal"] as const };
   await writeGlobal({
@@ -774,4 +785,50 @@ test("recordLinkAgents fills in only a link entry that records no agents", () =>
   const copy = { ...entry, copy: true as const, copyPath: "skills" };
   recordLinkAgents(copy, ["claude"]);
   expect(copy).toEqual({ ...entry, copy: true, copyPath: "skills" });
+});
+
+const readLockfileSpec = (): Promise<string> =>
+  readFile(join(import.meta.dir, "..", "..", "..", "..", "docs", "lockfile.md"), "utf8");
+
+const specExample = (spec: string): string => {
+  const example = /^## Complete example\n[\s\S]*?^```json\n([\s\S]*?)^```$/mu.exec(spec)?.[1];
+  if (example === undefined) throw new Error("docs/lockfile.md has no complete example");
+  return example;
+};
+
+const specFields = (spec: string): Set<string> => {
+  const fields = new Set<string>();
+  for (const table of spec.split(/^\| field \| type \| required \| meaning \|$/mu).slice(1)) {
+    for (const row of table.split("\n\n")[0]!.split("\n")) {
+      const field = /^\| `([A-Za-z]+)` \|/u.exec(row)?.[1];
+      if (field !== undefined) fields.add(field);
+    }
+  }
+  return fields;
+};
+
+const keysOf = (value: unknown, out = new Set<string>()): Set<string> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return out;
+  for (const [key, child] of Object.entries(value)) {
+    out.add(key);
+    keysOf(child, out);
+  }
+  return out;
+};
+
+test("the complete example in docs/lockfile.md loads as a project lockfile and writes back byte for byte", async () => {
+  const example = specExample(await readLockfileSpec());
+  const root = join(tmp, "spec-example");
+  await mkdir(join(root, ".git"), { recursive: true });
+  await writeFile(join(root, "niksi-lock.json"), example);
+  const lock = await inDir(root, () => readLock("project"));
+  expect(serializeLock(lock)).toBe(example);
+});
+
+test("the complete example in docs/lockfile.md uses every field its tables define", async () => {
+  const spec = await readLockfileSpec();
+  const lock = JSON.parse(specExample(spec)) as { skills: Record<string, unknown> };
+  const used = new Set(Object.keys(lock));
+  for (const skill of Object.values(lock.skills)) keysOf(skill, used);
+  expect(specFields(spec)).toEqual(used);
 });

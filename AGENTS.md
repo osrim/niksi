@@ -11,3 +11,7 @@ Read the relevant reference before changing code:
 - [docs/contributor/architecture.md](docs/contributor/architecture.md) for module boundaries
 
 Use the `linear` MCP server for issues in the `ski` team. Issue IDs start with `SKI-`. Mark an issue `In Progress` when work starts.
+
+Before you propose a command, a flag, a name, or a new mechanism, check how 2 or 3 established CLIs or package managers handle it, and cite them.
+
+For user-facing copy (terminal output, docs), offer 3 options with your pick. Write for what the user gets, in plain words, not for how niksi works.

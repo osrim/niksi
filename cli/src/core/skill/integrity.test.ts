@@ -11,6 +11,7 @@ import {
   type SkillFile,
 } from "./files.ts";
 import { integrityHex, integrityOf, integrityOfDir } from "./integrity.ts";
+import { readDoc } from "../../test-docs.ts";
 
 let dir: string;
 
@@ -96,4 +97,15 @@ test("readDirFiles → writeFiles → readDirFiles is integrity-stable", async (
   const again = join(dir, "roundtrip-2");
   await writeFiles(again, await readDirFiles(out));
   expect(await integrityOfDir(again)).toBe(integrityOf(fetched));
+});
+
+test("integrityOf matches the worked example in docs/lockfile.md", async () => {
+  const spec = await readDoc("lockfile.md");
+  const example = spec.split("### Worked example\n")[1]!.split("\n## ")[0]!;
+  const files = [...example.matchAll(/^\| `([^`]+)` \| `(\d{6})` \| `([^`]*)` \|$/gmu)].map(
+    ([, path, mode, content]) => file(path!, content!.replaceAll("\\n", "\n"), mode),
+  );
+  const documented = /The integrity is `(sha256-[^`]+)`/u.exec(example)?.[1];
+  expect(files.map((f) => f.path)).toEqual(["SKILL.md", "scripts/hello.sh"]);
+  expect(integrityOf(files)).toBe(documented!);
 });

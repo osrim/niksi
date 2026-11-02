@@ -1,9 +1,9 @@
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { loadLock, placementOf, splitDisabled } from "../core/install/lockfile.ts";
+import { loadLock, recordLinkAgents, splitDisabled } from "../core/install/lockfile.ts";
 import { installedSkills, locationsOf } from "../core/install/destination.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { displayLabel } from "../core/source/revision.ts";
-import { chooseAgents, warnScopeCollisions } from "../ui/destination.ts";
+import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
@@ -53,23 +53,20 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
   }
 
   const selected = skills.filter((skill) => names.includes(skill.name));
-  const links = selected.filter((skill) => placementOf(skill).kind === "link");
-  const agents = links.length > 0 ? await chooseAgents(options, scope) : [];
+  const agents = needsAgents(selected) ? await chooseAgents(options, scope) : [];
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }
-  warnScopeCollisions(
-    links.map((skill) => skill.name),
-    scope,
-    agents,
-  );
+  warnLinkCollisions(selected, scope, agents);
 
   await land({
     items: selected,
     name: ({ name }) => name,
     apply: async (entry) => {
       const applied = await restoreSkill(entry, scope, agents);
-      delete loaded.lock.skills[entry.name]!.disabled;
+      const recorded = loaded.lock.skills[entry.name]!;
+      recordLinkAgents(recorded, agents);
+      delete recorded.disabled;
       return { ...applied, success: `enabled @ ${displayLabel(entry)}` };
     },
     onError: (entry, error) => reportRestoreError(entry, scope, error),

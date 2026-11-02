@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import { loadLock, type LoadedLockfile } from "../core/install/lockfile.ts";
 import { legacyLayoutPresent } from "../core/install/migrate.ts";
 import {
-  installedPath,
+  installedPaths,
   installedSkills,
   locationOf,
   locationPresent,
@@ -10,8 +10,10 @@ import {
 } from "../core/install/destination.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { Scope } from "../core/paths.ts";
-import { CRITICAL_EXIT, runScanners, type Finding, type Severity } from "../core/scan/index.ts";
-import { readDirFiles } from "../core/skill/files.ts";
+import { CRITICAL_EXIT, markAccepted, runScanners, type Finding } from "../core/scan/index.ts";
+import { rank } from "../core/scan/severity.ts";
+import { readDirFiles, type SkillFile } from "../core/skill/files.ts";
+import { integrityOf } from "../core/skill/integrity.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { logFindings, logSkillError, logWarn, warn } from "../ui/report.ts";
 import { emptyScopeMessage, reportDisabled } from "../ui/status.ts";
@@ -19,7 +21,7 @@ import { skillName, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings.",
+    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings that the lockfile does not accept.",
   examples: ["$ nik audit", "$ nik audit -g", "$ nik audit --json"],
 };
 
@@ -30,6 +32,8 @@ interface AuditOptions extends ScopeOptions {
 interface Scanned {
   skill: InstalledSkill;
   findings: Finding[];
+  // The entry accepts rules, but the files on disk are not the content it accepted them for.
+  modified: boolean;
 }
 
 interface Audit {
@@ -39,9 +43,19 @@ interface Audit {
   failed: boolean;
 }
 
-const flagged = (scanned: Scanned[], severity: Severity): number =>
-  scanned.filter(({ findings }) => findings.some((finding) => finding.severity === severity))
-    .length;
+type Flag = "critical" | "warn";
+
+const flags = (finding: Finding, flag: Flag): boolean =>
+  finding.severity === flag && !finding.accepted;
+
+const flagged = (scanned: Scanned[], flag: Flag): number =>
+  scanned.filter(({ findings }) => findings.some((finding) => flags(finding, flag))).length;
+
+const acceptedCount = (scanned: Scanned[]): number =>
+  scanned.reduce(
+    (sum, { findings }) => sum + findings.filter(({ accepted }) => accepted).length,
+    0,
+  );
 
 const openLock = (scope: Scope): Promise<LoadedLockfile> => {
   if (legacyLayoutPresent(scope)) {
@@ -50,6 +64,24 @@ const openLock = (scope: Scope): Promise<LoadedLockfile> => {
     );
   }
   return loadLock(scope);
+};
+
+// Copies with the same content give the same findings, so scan each distinct content once.
+const scanCopies = (name: string, contents: SkillFile[][]): Finding[] => {
+  const findings = contents.flatMap((files) => runScanners({ name, files }));
+  return [...new Map(findings.map((found) => [JSON.stringify(found), found])).values()].toSorted(
+    (a, b) => rank(b.severity) - rank(a.severity),
+  );
+};
+
+const scanSkill = (skill: InstalledSkill, copies: SkillFile[][]): Scanned => {
+  const contents = new Map(copies.map((files) => [integrityOf(files), files]));
+  const findings = scanCopies(skill.name, [...contents.values()]);
+  const recorded = skill.review?.acceptedRules ?? [];
+  if (recorded.length > 0 && [...contents.keys()].some((sum) => sum !== skill.integrity)) {
+    return { skill, findings, modified: true };
+  }
+  return { skill, findings: markAccepted(findings, recorded), modified: false };
 };
 
 const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit> => {
@@ -64,8 +96,8 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
         audit.missing.push(skill.name);
         continue;
       }
-      const files = await readDirFiles(await installedPath(skill, scope));
-      audit.scanned.push({ skill, findings: runScanners({ name: skill.name, files }) });
+      const paths = await installedPaths(skill, scope);
+      audit.scanned.push(scanSkill(skill, await Promise.all(paths.map(readDirFiles))));
     } catch (cause) {
       logSkillError(skill.name, cause);
       audit.failed = true;
@@ -92,11 +124,19 @@ export const run = async (options: AuditOptions): Promise<void> => {
 
   p.log.step(`Scanning installed skills (${tildify(loaded.file)})`);
   const audit = await auditLock(loaded, scope);
-  for (const { skill, findings } of audit.scanned) logFindings(skill.name, findings);
+  for (const scanned of audit.scanned) reportScanned(scanned, scope);
   reportSkipped(audit, scope);
   reportRemedy(audit, scope);
   setExitCode(audit);
   p.outro(summaryLine(audit, scope));
+};
+
+const reportScanned = ({ skill, findings, modified }: Scanned, scope: Scope): void => {
+  logFindings(skill.name, findings);
+  if (!modified) return;
+  warn(
+    `${skillName(skill.name)}: modified, so no critical finding is accepted.\nRun \`nik install${scopeFlag(scope)}\` to restore the reviewed files.`,
+  );
 };
 
 const reportSkipped = ({ missing, disabled }: Audit, scope: Scope): void => {
@@ -116,10 +156,14 @@ const reportRemedy = ({ scanned }: Audit, scope: Scope): void => {
 };
 
 const summaryLine = ({ scanned }: Audit, scope: Scope): string => {
-  const notes = (["critical", "warn"] as const).flatMap((severity) => {
-    const count = flagged(scanned, severity);
-    return count > 0 ? [`${count} with ${severity} findings`] : [];
-  });
+  const accepted = acceptedCount(scanned);
+  const notes = [
+    ...(["critical", "warn"] as const).flatMap((flag) => {
+      const count = flagged(scanned, flag);
+      return count > 0 ? [`${count} with ${flag} findings`] : [];
+    }),
+    ...(accepted > 0 ? [`${accepted} accepted finding(s)`] : []),
+  ];
   const result = notes.length > 0 ? notes.join(", ") : "no warn or critical findings";
   return `${scanned.length} skill(s) scanned (${scope}): ${result}.`;
 };

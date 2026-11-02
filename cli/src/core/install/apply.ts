@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs";
-import type { AgentId } from "./agents.ts";
+import { AGENT_IDS, type AgentId } from "./agents.ts";
 import type { SkillFile } from "../skill/files.ts";
-import type { LockEntry, Lockfile } from "./lockfile.ts";
+import { placementOf, type LockEntry, type Lockfile, type Review } from "./lockfile.ts";
 import {
   refuseUnmanaged,
   assertSkillsDirSafe,
   copySkill,
+  linkedAgents,
   linkSkill,
   writeCanonical,
 } from "./link.ts";
@@ -23,6 +24,8 @@ interface ApplyPlan {
   revision: Revision;
   integrity?: string;
   files: () => Promise<SkillFile[]>;
+  // Set when this write passed the gate: the rules of the critical findings it approved.
+  acceptedRules?: string[];
 }
 
 export type Destination = { scope: Scope; lock?: Lockfile } & (
@@ -55,6 +58,36 @@ const refuseAgentTargets = async (
     await assertSkillsDirSafe(scope, agent);
     if (!managed.includes(agent)) await refuseUnmanaged(name, scope, agent);
   }
+};
+
+// A review holds only for the integrity it was given for.
+const reviewOf = (
+  plan: ApplyPlan,
+  previous: LockEntry | undefined,
+  integrity: string,
+): Review | undefined => {
+  const kept = previous?.integrity === integrity ? previous.review : undefined;
+  if (plan.acceptedRules === undefined) return kept;
+  const review: Review = {
+    ...(plan.acceptedRules.length > 0 ? { acceptedRules: plan.acceptedRules } : {}),
+    ...(kept?.external ? { external: kept.external } : {}),
+  };
+  return Object.keys(review).length > 0 ? review : undefined;
+};
+
+const recordedLinkAgents = (previous: LockEntry | undefined): AgentId[] => {
+  if (previous === undefined) return [];
+  const placement = placementOf(previous);
+  return placement.kind === "link" ? placement.agents : [];
+};
+
+const linkAgentsToRecord = async (
+  name: string,
+  scope: Scope,
+  previous: LockEntry | undefined,
+): Promise<AgentId[]> => {
+  const agents = new Set([...recordedLinkAgents(previous), ...(await linkedAgents(name, scope))]);
+  return AGENT_IDS.filter((agent) => agents.has(agent));
 };
 
 export class PlacementError extends Error {
@@ -95,6 +128,7 @@ export const applySkill = async (plan: ApplyPlan, destination: Destination): Pro
   }
 
   const { integrity, restored, files } = await ensureStoreEntry(plan);
+  const previous = destination.lock?.skills[plan.name];
   const entry: LockEntry = {
     source: plan.source,
     path: plan.path,
@@ -111,6 +145,8 @@ export const applySkill = async (plan: ApplyPlan, destination: Destination): Pro
     if (destination.kind === "link") {
       collect(await writeCanonical(plan.name, files, destination.scope));
       for (const agent of destination.agents) await linkSkill(plan.name, destination.scope, agent);
+      const agents = await linkAgentsToRecord(plan.name, destination.scope, previous);
+      if (agents.length > 0) entry.agents = agents;
     } else if (destination.kind === "agent-copy") {
       const { agents, managed, scope } = destination;
       for (const agent of agents) {
@@ -128,6 +164,8 @@ export const applySkill = async (plan: ApplyPlan, destination: Destination): Pro
     if (leftovers.length > 0) throw new PlacementError(e, leftovers);
     throw e;
   }
+  const review = reviewOf(plan, previous, integrity);
+  if (review) entry.review = review;
   if (destination.lock) destination.lock.skills[plan.name] = entry;
   return { integrity, restored, leftovers };
 };

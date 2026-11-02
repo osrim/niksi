@@ -13,7 +13,7 @@ inputs:
     description: The niksi version to run. Defaults to the version of this action's release.
     default: ""
   agent:
-    description: "Install mode: agents for link entries, separated by commas, as in nik install --agent."
+    description: "Install mode: agents for link entries that record no agents, separated by commas, as in nik install --agent."
     default: ""
   source:
     description: "Update mode: update only the skills from this source, as in nik update --source. Defaults to every skill that is not pinned."

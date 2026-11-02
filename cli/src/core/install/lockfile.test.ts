@@ -18,6 +18,7 @@ import {
   type Lockfile,
 } from "./lockfile.ts";
 import { lockPath, projectRoot } from "../paths.ts";
+import { readDoc } from "../../test-docs.ts";
 import { captureEnv } from "../../test-env.ts";
 
 let tmp: string;
@@ -787,9 +788,6 @@ test("recordLinkAgents fills in only a link entry that records no agents", () =>
   expect(copy).toEqual({ ...entry, copy: true, copyPath: "skills" });
 });
 
-const readLockfileSpec = (): Promise<string> =>
-  readFile(join(import.meta.dir, "..", "..", "..", "..", "docs", "lockfile.md"), "utf8");
-
 const specExample = (spec: string): string => {
   const example = /^## Complete example\n[\s\S]*?^```json\n([\s\S]*?)^```$/mu.exec(spec)?.[1];
   if (example === undefined) throw new Error("docs/lockfile.md has no complete example");
@@ -817,7 +815,7 @@ const keysOf = (value: unknown, out = new Set<string>()): Set<string> => {
 };
 
 test("the complete example in docs/lockfile.md loads as a project lockfile and writes back byte for byte", async () => {
-  const example = specExample(await readLockfileSpec());
+  const example = specExample(await readDoc("lockfile.md"));
   const root = join(tmp, "spec-example");
   await mkdir(join(root, ".git"), { recursive: true });
   await writeFile(join(root, "niksi-lock.json"), example);
@@ -826,7 +824,7 @@ test("the complete example in docs/lockfile.md loads as a project lockfile and w
 });
 
 test("the complete example in docs/lockfile.md uses every field its tables define", async () => {
-  const spec = await readLockfileSpec();
+  const spec = await readDoc("lockfile.md");
   const lock = JSON.parse(specExample(spec)) as { skills: Record<string, unknown> };
   const used = new Set(Object.keys(lock));
   for (const skill of Object.values(lock.skills)) keysOf(skill, used);

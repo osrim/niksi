@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -11,6 +11,7 @@ import {
   type SkillFile,
 } from "./files.ts";
 import { integrityHex, integrityOf, integrityOfDir } from "./integrity.ts";
+import { readDoc } from "../../test-docs.ts";
 
 let dir: string;
 
@@ -99,10 +100,7 @@ test("readDirFiles → writeFiles → readDirFiles is integrity-stable", async (
 });
 
 test("integrityOf matches the worked example in docs/lockfile.md", async () => {
-  const spec = await readFile(
-    join(import.meta.dir, "..", "..", "..", "..", "docs", "lockfile.md"),
-    "utf8",
-  );
+  const spec = await readDoc("lockfile.md");
   const example = spec.split("### Worked example\n")[1]!.split("\n## ")[0]!;
   const files = [...example.matchAll(/^\| `([^`]+)` \| `(\d{6})` \| `([^`]*)` \|$/gmu)].map(
     ([, path, mode, content]) => file(path!, content!.replaceAll("\\n", "\n"), mode),

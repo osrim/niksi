@@ -559,6 +559,9 @@ test("add writes a skill from a source that niksi.json allows", async () => {
 
   expect(result.exitCode).toBe(0);
   expect((await readSkills(root)).demo).toMatchObject({ source, commit });
+  expect(await readFile(join(root, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toContain(
+    "version one",
+  );
 });
 
 const warnSource = async (name: string): Promise<string> => {
@@ -586,4 +589,5 @@ test("with denyWarn, add --yes refuses a skill with a warn finding and exits 3",
   expect(await isLink(join(denied.root, ".claude", "skills", "scripted"))).toBe(false);
   expect(allowed.result.exitCode).toBe(0);
   expect(Object.keys(await readSkills(allowed.root))).toEqual(["scripted"]);
+  expect(existsSync(join(allowed.root, ".claude", "skills", "scripted", "run.sh"))).toBe(true);
 });

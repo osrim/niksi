@@ -120,7 +120,7 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 
 `add` and `update` ask their write confirmation through `confirmWrite` in `ui/gate.ts`, not `confirm`. The gate questions and `confirmWrite` offer `Read files…`, which passes the reviewed skills to `ui/pager.ts`. The pager module builds the session text from pure helpers and pipes it to the pager.
 
-`dangerousSkipCriticalApproval` skips critical approval after findings are printed. It leaves warn finding review controlled by `yes`. Commands pass these options through every review path, including dependencies offered by `add`. The options apply only to the current invocation; placement and persistence code do not use the dangerous flag.
+`dangerousSkipCriticalApproval` skips critical approval after findings are printed. It leaves warn finding review controlled by `yes`, except under `denyWarn`, where warn findings gate as critical and the flag skips them too. Commands pass these options through every review path, including dependencies offered by `add`. The options apply only to the current invocation; placement and persistence code do not use the dangerous flag.
 
 `add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review` and keeps `review.external` when the integrity is unchanged. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
 

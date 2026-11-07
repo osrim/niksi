@@ -157,7 +157,7 @@ const renderSourceBlocked = ({ sourceBlocked }: UpdateReport): string[] =>
         "",
         ...sourceBlocked.map(
           ({ name, source }) =>
-            `- ${code(name)}: source ${code(source)} is not allowed by ${code(PROJECT_CONFIG_NAME)}`,
+            `- ${code(name)}: source ${code(source)} is not allowed by ${code("policy.sources")} in ${code(PROJECT_CONFIG_NAME)}`,
         ),
         "",
       ];

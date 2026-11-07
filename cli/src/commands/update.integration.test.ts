@@ -9,6 +9,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -841,10 +842,12 @@ test("update skips a skill whose source niksi.json does not allow, updates the r
   const after = await readSkills(fixture.lockPath);
   expect(after.allowed?.commit).toBe(fixture.upstreamCommit);
   expect(after.denied).toEqual(before.denied);
+  expect(await publishedSkill(fixture.project, "allowed")).toContain("version two");
+  expect(await publishedSkill(fixture.project, "denied")).toContain("version one");
   const report = await readFile(join(fixture.project, "policy.md"), "utf8");
   expect(report).toContain("### Needs a person");
   expect(report).toContain(
-    `- \`denied\`: source \`${deniedSource}\` is not allowed by \`niksi.json\``,
+    `- \`denied\`: source \`${deniedSource}\` is not allowed by \`policy.sources\` in \`niksi.json\``,
   );
   expect(report).not.toContain("no upstream");
 });
@@ -863,6 +866,8 @@ test("with denyWarn, update --yes refuses a skill with a warn finding and update
   const after = await readSkills(fixture.lockPath);
   expect(after.clean?.commit).toBe(upstream);
   expect(after.scripted).toEqual(fixture.before.scripted);
+  expect(await publishedSkill(fixture.project, "clean")).toContain("version two");
+  expect(existsSync(join(fixture.project, "published", "scripted", "run.sh"))).toBe(false);
   const report = await readFile(join(fixture.project, "warn.md"), "utf8");
   expect(report).toContain(
     "`niksi.json` sets `policy.denyWarn`, so warn findings need approval too.",

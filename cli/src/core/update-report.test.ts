@@ -220,8 +220,8 @@ test("skills the project policy blocks need a person and name the rule", () => {
       "",
       "The project policy blocks these skills. Remove them with `nik remove`, or allow their sources in `niksi.json`.",
       "",
-      "- `evil`: source `https://github.com/evil/skills` is not allowed by `niksi.json`",
-      "- `odd`: source `` https://git.example.com/`<b>` `` is not allowed by `niksi.json`",
+      "- `evil`: source `https://github.com/evil/skills` is not allowed by `policy.sources` in `niksi.json`",
+      "- `odd`: source `` https://git.example.com/`<b>` `` is not allowed by `policy.sources` in `niksi.json`",
       "",
     ].join("\n"),
   );

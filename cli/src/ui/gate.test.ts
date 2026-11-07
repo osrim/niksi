@@ -147,6 +147,14 @@ describe("renderFrontmatter", () => {
   });
 });
 
+const scriptedSkill = (name: string) => ({
+  name,
+  files: [
+    skillMd(`---\nname: ${name}\n---\n`),
+    { path: "run.sh", content: Buffer.from("echo hi\n"), mode: MODE_EXEC },
+  ],
+});
+
 describe("reviewSkills", () => {
   const savedExitCode = process.exitCode;
   afterEach(() => {
@@ -178,17 +186,43 @@ describe("reviewSkills", () => {
     }
   });
 
+  test.each([
+    [true, "approved"],
+    [false, "declined"],
+  ] as const)(
+    "with denyWarn in a terminal, -y still asks the critical question about the warn findings, answer %p",
+    async (answer, outcome) => {
+      const output = captureOutput();
+      const restoreTty = setInteractive(true);
+      const asked: { stop: string; rules: string[] }[] = [];
+      try {
+        const script = scriptedSkill("script");
+        const result = await reviewSkills(
+          [script],
+          { yes: true, denyWarn: true },
+          {
+            approve: (_skill, stop, findings) => {
+              asked.push({ stop, rules: findings.map(({ rule }) => rule) });
+              return Promise.resolve(answer);
+            },
+            pickDependencies: () => Promise.resolve([]),
+          },
+        );
+
+        expect(asked).toEqual([{ stop: "critical", rules: ["executable"] }]);
+        expect(result[outcome]).toEqual([script]);
+      } finally {
+        restoreTty();
+        output.restore();
+      }
+    },
+  );
+
   test("with denyWarn, a warn finding blocks the skill without a terminal and names the rule", async () => {
     const output = captureOutput();
     const restoreTty = setInteractive(false);
     try {
-      const script = {
-        name: "script",
-        files: [
-          skillMd("---\nname: script\n---\n"),
-          { path: "run.sh", content: Buffer.from("echo hi\n"), mode: MODE_EXEC },
-        ],
-      };
+      const script = scriptedSkill("script");
 
       const result = await reviewSkills([script], { yes: true, denyWarn: true });
 

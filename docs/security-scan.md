@@ -32,7 +32,7 @@ Each finding also has a confidence: `high`, `medium`, or `low`. Severity says ho
 
 A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes` accepts it. The gate, `nik audit`, and `nik update --report` mark it `(low confidence)`. `nik audit --json` gives every finding a `confidence` field.
 
-`add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`. The flag is never remembered. The rule ids of the critical findings it skipped are recorded in the lockfile entry as accepted, for that content only, so review them in the lockfile diff.
+`add` and `update` accept `--dangerous-skip-critical-approval` in interactive and non-interactive runs. It skips only critical approval for that invocation. The gate still lists every file, runs the scan, and prints every finding with its original severity. Warn finding review and the final write confirmation still use `--yes`, except under `policy.denyWarn` (see [Severities](#severities)). The flag is never remembered. The rule ids of the critical findings it skipped are recorded in the lockfile entry as accepted, for that content only, so review them in the lockfile diff.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review. `nik audit` reports a critical finding that an approval accepted, and the finding does not change its exit code.
 

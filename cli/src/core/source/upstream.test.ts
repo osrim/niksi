@@ -8,6 +8,7 @@ import {
   computeVerdicts,
   requestedNames,
   selectUpdates,
+  type MovedVerdict,
   type OutdatedVerdict,
 } from "./upstream.ts";
 import { integrityOf } from "../skill/integrity.ts";
@@ -323,6 +324,25 @@ describe("cooldown", () => {
   test("0 days turns the cooldown off", async () => {
     const [verdict] = await computeVerdicts([dated], [], { days: 0, now: TAGGED + DAY });
     expect(verdict).toMatchObject({ kind: "outdated", waiting: false });
+  });
+
+  test("a moved skill does not wait, however young its commit", async () => {
+    const repo = join(tmp, "dated-moved");
+    await mkdir(join(repo, "skills", "demo"), { recursive: true });
+    await $`git -C ${repo} init -q -b main --template=`.quiet();
+    await writeFile(join(repo, "skills", "demo", "SKILL.md"), "v1\n");
+    const first = await commitAt(repo, "v1", TAGGED - 30 * DAY);
+    await $`git -C ${repo} -c tag.gpgSign=false tag v1.0.0`.quiet();
+    const files = await sourceFor(repo).fetchFiles(first, "skills/demo");
+    await writeFile(join(repo, "README.md"), "release notes\n");
+    await commitAt(repo, "release only", TAGGED);
+    await $`git -C ${repo} -c tag.gpgSign=false tag v1.1.0`.quiet();
+    await cloneOrFetch(repo);
+    const installed = { ...dated, source: repo, commit: first, integrity: integrityOf(files) };
+    const [verdict] = await computeVerdicts([installed], [], { days: 3, now: TAGGED + DAY });
+    expect(verdict).toMatchObject({ kind: "moved", age: DAY });
+    expect(verdict).not.toHaveProperty("waiting");
+    expect(selectUpdates([verdict as MovedVerdict], [], true).selected).toHaveLength(1);
   });
 
   test("a pinned skill reports pinned, not waiting", async () => {

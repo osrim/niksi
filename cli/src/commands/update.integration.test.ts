@@ -658,6 +658,27 @@ test("--all --yes keeps a skill whose new release is inside the cooldown, and th
   expect(report).toContain(") available, 1 day old, waits for cooldown");
 });
 
+test("--all --yes takes a moved skill inside the cooldown and keeps the outdated one waiting", async () => {
+  const fixture = await setupUpdate("cooldown-moved", ["moved", "fresh"], []);
+  await makeSkill(fixture.repo, "fresh", "version three\n");
+  const upstreamCommit = await commitAll(
+    fixture.repo,
+    "version three",
+    Math.floor(Date.now() / 1000) - DAY,
+  );
+  await tagHead(fixture.repo, "v2.0.0");
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.moved?.commit).toBe(upstreamCommit);
+  expect(after.fresh).toEqual(fixture.before.fresh);
+  expect(result.stdout).toContain("fresh: v2.0.0 available, 1 day old, waits for cooldown");
+  expect(result.stdout).not.toContain("moved: v2.0.0 available");
+  expect(result.stdout).toContain("Updated 1 skill(s).");
+});
+
 test("naming a skill inside the cooldown updates it", async () => {
   const fixture = await setupCooldown("cooldown-named", ["fresh"]);
 

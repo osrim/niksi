@@ -100,7 +100,7 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 
 - Without names, `--all`, or `--source`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
-- `--all` and `--source` leave out an upstream revision younger than the [cooldown](#cooldown). The picker lists it unselected.
+- `--all` and `--source` leave out a changed skill whose upstream revision is younger than the [cooldown](#cooldown). The picker lists it unselected.
 - `--source <coordinate>` selects the skills from one source as `--all` selects them from the scope. It leaves out pinned skills. `update` checks only that source upstream. The coordinate is `owner/repo`, a Git URL, or a local path. A local path selects every recorded skill in that directory or below it. `--source local` selects every local source. To select a directory named `local`, pass `./local`. `--all` with `--source` selects the same skills as `--source` alone.
 - `--source` exits `2` when you pass it twice, pass it with skill names, or give it a coordinate with a skill segment, a forge URL path, or `@ref`. A source with no recorded skills exits `1`.
 - Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
@@ -132,7 +132,7 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 
 ### Cooldown
 
-A new upstream revision waits 3 days before `update` takes it on its own, so a tag pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch when the source has no tag. A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits).
+An upstream revision that changes a skill's files waits 3 days before `update` takes it on its own, so a tag pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch when the source has no tag. A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits). When a source has no tag and its branch gets a commit at least every few days, a changed skill from it can keep waiting under `--all`, because each new commit is young. Run `nik update <skill>` to update it.
 
 - `--all` and `--source` leave a waiting skill at its recorded revision and print why:
 
@@ -144,6 +144,7 @@ A new upstream revision waits 3 days before `update` takes it on its own, so a t
 - The picker shows each candidate's age and marks a waiting one with `waits for cooldown`. Pick it to update it now. A waiting skill you leave unpicked prints the same lines.
 - Naming a skill updates it now: `nik update tdd`. So does an explicit ref in `nik add owner/repo/tdd@v2`.
 - `--yes` accepts confirmations, not upstream revisions. A waiting skill keeps waiting.
+- A skill whose revision moved without file changes has no cooldown. `--all` and `--source` take it at once, and the picker doesn't mark it as waiting.
 - Pinned skills and local sources have no cooldown.
 - `--min-release-age <days>` sets the cooldown for one run. `0` turns it off.
 
@@ -450,7 +451,7 @@ git push -u origin skill-updates
 gh pr create --title "chore: update skills" --body-file "$report"
 ```
 
-The report is written outside the repository, so `git add -A` does not commit it. An upstream revision inside the [cooldown](#cooldown) waits for a later run, and the report lists it under **Not updated**. When critical findings block every update, nothing changes and the script exits `3`, so the job fails instead of hiding the findings.
+The report is written outside the repository, so `git add -A` does not commit it. A changed skill whose upstream revision is inside the [cooldown](#cooldown) waits for a later run, and the report lists it under **Not updated**. When critical findings block every update, nothing changes and the script exits `3`, so the job fails instead of hiding the findings.
 
 ## Exit codes
 

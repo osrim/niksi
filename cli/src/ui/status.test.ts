@@ -50,7 +50,7 @@ describe("describeUpdate", () => {
   });
 
   test("a waiting candidate says it waits for the cooldown", () => {
-    expect(describeUpdate({ ...verdict("outdated"), age: 86_400, waiting: true })).toBe(
+    expect(describeUpdate({ kind: "outdated", ...base(), age: 86_400, waiting: true })).toBe(
       "2 new commit(s) (aaaaaaaa → bbbbbbbb), 1 day old, waits for cooldown",
     );
   });

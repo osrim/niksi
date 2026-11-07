@@ -33,7 +33,6 @@ export interface PinnedVerdict extends Verdict {
 
 export interface MovedVerdict extends Verdict {
   kind: "moved";
-  waiting?: boolean;
 }
 
 export interface OutdatedVerdict extends Verdict {
@@ -110,12 +109,12 @@ const classify = async (
   if (flags.gone) return { kind: "gone", ...verdict };
   if (!flags.outdated && !flags.moved) return { kind: "up-to-date", ...verdict };
   if (skill.track === "pin" && !named) return { kind: "pinned", ...verdict };
-  const waiting = waits(verdict, named, cooldown.days);
-  return { kind: flags.moved ? "moved" : "outdated", ...verdict, waiting };
+  if (flags.moved) return { kind: "moved", ...verdict };
+  return { kind: "outdated", ...verdict, waiting: waits(verdict, named, cooldown.days) };
 };
 
 export const holdsBack = (verdict: UpdatableVerdict, names: string[]): boolean =>
-  names.length === 0 && verdict.waiting === true;
+  names.length === 0 && verdict.kind === "outdated" && verdict.waiting === true;
 
 interface RewrittenRef {
   pinnedAs: string;

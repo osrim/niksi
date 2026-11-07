@@ -118,7 +118,7 @@ export const describeUpdate = (verdict: UpdatableVerdict): string =>
   [
     describeChange(verdict),
     ...(verdict.age === undefined ? [] : [describeAge(verdict.age)]),
-    ...(verdict.waiting ? ["waits for cooldown"] : []),
+    ...(verdict.kind === "outdated" && verdict.waiting ? ["waits for cooldown"] : []),
   ].join(", ");
 
 export const reportWaiting = (verdict: UpdatableVerdict, scope: Scope): void => {

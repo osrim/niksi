@@ -52,7 +52,7 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
   The lockfile records this discovery root as `root`.
 - Named skills must exist in the source and have distinct names.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
-- Without `@ref`, `add` installs the latest release even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
+- Without `@ref`, `add` installs the upstream revision even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
 - `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).
 - `add` offers to review missing dependencies mentioned by approved skills. With
   `--yes` or without a terminal, it prints a `nik add` command instead. This
@@ -100,7 +100,7 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 
 - Without names, `--all`, or `--source`, it opens a picker of every skill with an available update.
 - Pinned skills update only when named.
-- `--all`, `--source`, and the picker leave out a release younger than the [cooldown](#cooldown).
+- `--all` and `--source` leave out an upstream revision younger than the [cooldown](#cooldown). The picker lists it unselected.
 - `--source <coordinate>` selects the skills from one source as `--all` selects them from the scope. It leaves out pinned skills. `update` checks only that source upstream. The coordinate is `owner/repo`, a Git URL, or a local path. A local path selects every recorded skill in that directory or below it. `--source local` selects every local source. To select a directory named `local`, pass `./local`. `--all` with `--source` selects the same skills as `--source` alone.
 - `--source` exits `2` when you pass it twice, pass it with skill names, or give it a coordinate with a skill segment, a forge URL path, or `@ref`. A source with no recorded skills exits `1`.
 - Every update candidate goes through the same selection and confirmation. A skill whose revision moved without file changes shows `no file changes` instead of a diff and skips the review gate.
@@ -132,18 +132,18 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 
 ### Cooldown
 
-A new release waits 3 days before `update` takes it on its own, so a release pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch when the source has no tag. A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits).
+A new upstream revision waits 3 days before `update` takes it on its own, so a tag pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch when the source has no tag. A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits).
 
-- `--all`, `--source`, and the picker leave a waiting skill at its recorded revision and print why:
+- `--all` and `--source` leave a waiting skill at its recorded revision and print why:
 
   ```text
   tdd: v2.0.0 available, 1 day old, waits for cooldown
   Run nik update tdd to update it now.
   ```
 
-- The picker shows each candidate's age and marks a waiting one with `waits for cooldown`. Pick it to update it now.
+- The picker shows each candidate's age and marks a waiting one with `waits for cooldown`. Pick it to update it now. A waiting skill you leave unpicked prints the same lines.
 - Naming a skill updates it now: `nik update tdd`. So does an explicit ref in `nik add owner/repo/tdd@v2`.
-- `--yes` accepts confirmations, not releases. A waiting skill keeps waiting.
+- `--yes` accepts confirmations, not upstream revisions. A waiting skill keeps waiting.
 - Pinned skills and local sources have no cooldown.
 - `--min-release-age <days>` sets the cooldown for one run. `0` turns it off.
 
@@ -155,7 +155,7 @@ The report has these sections. A section with no skills is left out.
 
 - **Updated**: each written skill with its old and new revision, the diff stat, and its findings grouped by severity. A moved revision shows `No file changes.` instead.
 - **Needs a person**: each skill that critical findings blocked, with the same detail and the `nik update` command to run in a terminal.
-- **Not updated**: each other skill and its reason: declined at review, write not confirmed, update available but not selected, waiting for the cooldown with the release's age, write failed, pinned, pinned ref rewritten, no longer in the source, no upstream, or disabled.
+- **Not updated**: each other skill and its reason: declined at review, write not confirmed, update available but not selected, waiting for the cooldown with the upstream revision's age, write failed, pinned, pinned ref rewritten, no longer in the source, no upstream, or disabled.
 - **Up to date**: the names of the checked skills that had no update.
 
 When every section is empty, the report says `No skill changed.` The report puts upstream text, such as tags, file names, and finding details, in code spans and fences, so a skill can't add Markdown or HTML to the page.
@@ -450,7 +450,7 @@ git push -u origin skill-updates
 gh pr create --title "chore: update skills" --body-file "$report"
 ```
 
-The report is written outside the repository, so `git add -A` does not commit it. A release inside the [cooldown](#cooldown) waits for a later run, and the report lists it under **Not updated**. When critical findings block every update, nothing changes and the script exits `3`, so the job fails instead of hiding the findings.
+The report is written outside the repository, so `git add -A` does not commit it. An upstream revision inside the [cooldown](#cooldown) waits for a later run, and the report lists it under **Not updated**. When critical findings block every update, nothing changes and the script exits `3`, so the job fails instead of hiding the findings.
 
 ## Exit codes
 

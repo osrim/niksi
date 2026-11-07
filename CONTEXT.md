@@ -23,7 +23,7 @@ Use these terms in code, docs, and output.
 | ref | Tag, branch, or commit typed after `@`. | revision, reference |
 | pinned | Installed with an explicit ref. It updates only when named. | locked, frozen |
 | upstream | Revision an installed skill would move to. | target, remote, head |
-| cooldown | Number of days a release must age before `update` takes it without being named. The age is the Git committer date of the upstream commit. | quarantine, release delay |
+| cooldown | Number of days an upstream revision must age before `update` takes it without being named. The age is the Git committer date of the upstream commit. | quarantine, release delay |
 | waiting | Update whose upstream revision is younger than the cooldown. `update` keeps the skill at its recorded revision unless you name or pick it. | held, delayed, cooling |
 | verdict | `update`'s classification of one installed skill: up to date, outdated, moved, pinned, rewritten, gone, or unreachable. | status, state |
 | up to date | Installed files match upstream and the revision did not move. | current, fresh, synced |

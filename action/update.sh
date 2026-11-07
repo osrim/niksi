@@ -65,7 +65,7 @@ open_pull_request() {
   if git diff --cached --quiet; then
     echo "Nothing to update."
     if [ -n "$open" ]; then
-      gh pr close "$number" --delete-branch --comment "\`nik update\` found nothing to update, so this pull request is no longer needed."
+      gh pr close "$number" --delete-branch --comment "\`nik update\` found no update to apply, so this pull request is no longer needed. The job summary lists any skill that waits for the cooldown."
     fi
     return
   fi

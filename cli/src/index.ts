@@ -2,6 +2,7 @@
 
 import { cac, type CAC } from "cac";
 import { completeSkills, SKILLS_HELPER } from "./core/completion/skills.ts";
+import { checkReleaseAgeArgs } from "./core/source/release-age.ts";
 import { USAGE_ERROR } from "./core/usage.ts";
 import { nearest } from "./core/suggest.ts";
 import { startUpdateCheck } from "./core/update-check.ts";
@@ -160,6 +161,7 @@ try {
     for (const name of await completeSkills(command, words)) console.log(name);
     process.exit(0);
   }
+  checkReleaseAgeArgs(argv);
   const cli = buildCli();
   cli.parse(argv, { run: false });
   const notice = startUpdateCheck(

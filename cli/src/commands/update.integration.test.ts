@@ -667,7 +667,7 @@ test("naming a skill inside the cooldown updates it", async () => {
   expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
 });
 
-test("--min-release-age sets the cooldown in days, and 0 turns it off", async () => {
+test("--min-release-age sets the cooldown in days", async () => {
   const fixture = await setupCooldown("cooldown-flag", ["fresh"]);
 
   const longer = await runCli(
@@ -712,7 +712,7 @@ test("--min-release-age 0 updates a release from today", async () => {
 test("--min-release-age without a whole number of days exits 2", async () => {
   const fixture = await setupCooldown("cooldown-usage", ["fresh"]);
 
-  for (const value of ["soon", "1.5"]) {
+  for (const value of ["soon", "1.5", ""]) {
     const result = await runCli(fixture.project, "update", "--all", "--min-release-age", value);
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("--min-release-age");

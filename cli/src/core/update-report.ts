@@ -1,7 +1,7 @@
 import { scopeFlag } from "./install/scope.ts";
 import type { Scope } from "./paths.ts";
 import type { Finding, Severity } from "./scan/index.ts";
-import { describeAge } from "./source/release-age.ts";
+import { describeWaiting } from "./source/release-age.ts";
 import { shortId, type Labelled } from "./source/revision.ts";
 import type { UpdateVerdict } from "./source/upstream.ts";
 
@@ -112,7 +112,7 @@ const reason = (skip: ReportedSkip): string => {
     case "unreachable":
       return `no upstream: ${code(skip.error)}`;
     case "waiting":
-      return `${revision(skip.to)} available, ${describeAge(skip.age)}, waits for cooldown`;
+      return describeWaiting(revision(skip.to), skip.age);
     case "pinned":
       return `pinned at ${revision(skip.from)}, latest ${revision(skip.to)}`;
     case "rewritten":

@@ -83,7 +83,7 @@ export class GitSource implements Source {
       moved,
       gone,
       ahead,
-      committedAt: await commitTime(clone, upstream.commit),
+      ...(outdated || moved ? { committedAt: await commitTime(clone, upstream.commit) } : {}),
     };
   }
 

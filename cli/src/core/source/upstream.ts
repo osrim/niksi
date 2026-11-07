@@ -72,26 +72,7 @@ const verdictOf = async (
 ): Promise<UpdateVerdict> => {
   const source = sourceFor(skill.source);
   try {
-    const { revision: upstream, committedAt, ...flags } = await source.upstream(skill);
-    const age = committedAt === undefined ? undefined : cooldown.now - committedAt;
-    const verdict = {
-      skill,
-      source,
-      upstream,
-      ahead: flags.ahead,
-      ...(age === undefined ? {} : { age }),
-    };
-    const rewritten = await rewrittenRef(skill, source);
-    if (rewritten) return { kind: "rewritten", ...verdict, ...rewritten };
-    if (flags.gone) return { kind: "gone", ...verdict };
-    const named = names.has(skill.name);
-    if (skill.track === "pin" && !named && (flags.outdated || flags.moved)) {
-      return { kind: "pinned", ...verdict };
-    }
-    const waiting = !named && age !== undefined && waitsForCooldown(age, cooldown.days);
-    if (flags.moved) return { kind: "moved", ...verdict, waiting };
-    if (flags.outdated) return { kind: "outdated", ...verdict, waiting };
-    return { kind: "up-to-date", ...verdict };
+    return await classify(skill, source, names.has(skill.name), cooldown);
   } catch (e) {
     return {
       kind: "unreachable",
@@ -103,6 +84,38 @@ const verdictOf = async (
     };
   }
 };
+
+const ageSince = (committedAt: number | undefined, now: number): { age?: number } =>
+  committedAt === undefined ? {} : { age: now - committedAt };
+
+const waits = ({ age }: { age?: number }, named: boolean, days: number): boolean =>
+  !named && age !== undefined && waitsForCooldown(age, days);
+
+const classify = async (
+  skill: InstalledSkill,
+  source: Source,
+  named: boolean,
+  cooldown: Cooldown,
+): Promise<UpdateVerdict> => {
+  const { revision: upstream, committedAt, ...flags } = await source.upstream(skill);
+  const verdict = {
+    skill,
+    source,
+    upstream,
+    ahead: flags.ahead,
+    ...ageSince(committedAt, cooldown.now),
+  };
+  const rewritten = await rewrittenRef(skill, source);
+  if (rewritten) return { kind: "rewritten", ...verdict, ...rewritten };
+  if (flags.gone) return { kind: "gone", ...verdict };
+  if (!flags.outdated && !flags.moved) return { kind: "up-to-date", ...verdict };
+  if (skill.track === "pin" && !named) return { kind: "pinned", ...verdict };
+  const waiting = waits(verdict, named, cooldown.days);
+  return { kind: flags.moved ? "moved" : "outdated", ...verdict, waiting };
+};
+
+export const holdsBack = (verdict: UpdatableVerdict, names: string[]): boolean =>
+  names.length === 0 && verdict.waiting === true;
 
 interface RewrittenRef {
   pinnedAs: string;
@@ -153,7 +166,7 @@ export const selectUpdates = (
   );
   if (!requested) return { selected: [], skipped: [], needsPrompt: true };
   const selected = candidates.filter(
-    (verdict) => requested.includes(verdict.skill.name) && (names.length > 0 || !verdict.waiting),
+    (verdict) => requested.includes(verdict.skill.name) && !holdsBack(verdict, names),
   );
   const skipped = requested.filter(
     (name) => !selected.some((verdict) => verdict.skill.name === name),

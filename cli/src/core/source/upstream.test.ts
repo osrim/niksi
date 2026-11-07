@@ -17,6 +17,7 @@ import { skillPath } from "../install/link.ts";
 import { applySkill } from "../install/apply.ts";
 import { emptyLock } from "../install/lockfile.ts";
 import { sourceFor } from "./index.ts";
+import { commitAll as commitAt } from "../../test-cli.ts";
 import type { Cooldown } from "./release-age.ts";
 
 const NO_COOLDOWN: Cooldown = { days: 0, now: 0 };
@@ -273,14 +274,6 @@ test("requestedNames: names win, --all takes every unpinned skill, neither asks"
   expect(requestedNames(skills, [], true)).toEqual(["alpha"]);
   expect(requestedNames(skills, [], false)).toBeUndefined();
 });
-
-const commitAt = async (repo: string, message: string, at: number): Promise<string> => {
-  await $`git -C ${repo} add -A`.quiet();
-  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=test@test -c user.name=test commit -q -m ${message}`
-    .env({ ...process.env, GIT_COMMITTER_DATE: `@${at} +0000` })
-    .quiet();
-  return (await $`git -C ${repo} rev-parse HEAD`.text()).trim();
-};
 
 describe("cooldown", () => {
   const DAY = 86_400;

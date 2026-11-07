@@ -1,7 +1,7 @@
 import * as p from "@clack/prompts";
 import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
-import { describeAge } from "../core/source/release-age.ts";
+import { describeAge, describeWaiting } from "../core/source/release-age.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import {
@@ -124,7 +124,7 @@ export const describeUpdate = (verdict: UpdatableVerdict): string =>
 export const reportWaiting = (verdict: UpdatableVerdict, scope: Scope): void => {
   const { skill, upstream, age = 0 } = verdict;
   p.log.info(
-    `${skillName(skill.name)}: ${displayLabel(upstream)} available, ${describeAge(age)}, waits for cooldown\nRun ${dim(`nik update ${skill.name}${scopeFlag(scope)}`)} to update it now.`,
+    `${skillName(skill.name)}: ${describeWaiting(displayLabel(upstream), age)}\nRun ${dim(`nik update ${skill.name}${scopeFlag(scope)}`)} to update it now.`,
   );
 };
 

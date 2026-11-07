@@ -29,6 +29,7 @@ import {
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import {
   computeVerdicts,
+  holdsBack,
   requestedNames,
   selectUpdates,
   type MovedVerdict,
@@ -238,7 +239,7 @@ const chooseUpdates = async (
   const selectedNames = new Set(selected.map((verdict) => verdict.skill.name));
   for (const verdict of candidates) {
     if (selectedNames.has(verdict.skill.name)) continue;
-    if (names.length === 0 && verdict.waiting) recordWaiting(verdict, report);
+    if (holdsBack(verdict, names)) recordWaiting(verdict, report);
     else {
       p.log.info(`${skillName(verdict.skill.name)}: update available, not selected`);
       report.skipped.push({ kind: "not-selected", name: verdict.skill.name });

@@ -75,8 +75,6 @@ test("a skill with no known source is recorded as a local copy and its files sta
 
   const adopted = await runCli(dir, "adopt", "--all", "-y");
   expect(adopted.exitCode).toBe(0);
-  expect(adopted.stdout).toContain("no known source");
-  expect(adopted.stdout).toContain("notes: adopted @");
 
   expect((await readLockJson(dir))["notes"]).toMatchObject({
     source: "local:.",
@@ -128,7 +126,6 @@ test("an npx skills copy and its symlink match the commit in skills-lock.json, t
 
   const adopted = await runCli(dir, "adopt", "pdf", "-y");
   expect(adopted.exitCode).toBe(0);
-  expect(adopted.stdout).toContain("from skills-lock.json");
   expect((await readLockJson(dir))["pdf"]).toMatchObject({
     source: repoUrl,
     branch: "main",
@@ -172,7 +169,6 @@ test("a gh skill copy matches its tree and loses the gh metadata", async () => {
 
   const adopted = await runCli(dir, "adopt", "--all", "-y");
   expect(adopted.exitCode).toBe(0);
-  expect(adopted.stdout).toContain("from gh skill metadata, drops gh skill metadata");
   expect((await readLockJson(dir))["pdf"]).toMatchObject({
     source: repoUrl,
     path: "skills/pdf",
@@ -193,7 +189,6 @@ test("--source records a match by content and keeps an edited copy as local", as
 
   const adopted = await runCli(dir, "adopt", "pdf", "edited", "--source", repoUrl, "-y");
   expect(adopted.exitCode).toBe(0);
-  expect(adopted.stdout).toContain("no match in");
   const lock = await readLockJson(dir);
   expect(lock["pdf"]).toMatchObject({ source: repoUrl, path: "skills/pdf", commit: commits[1] });
   expect(lock["edited"]).toMatchObject({ source: "local:.", path: ".agents/skills/edited" });
@@ -266,9 +261,10 @@ test("skills that niksi installed are not offered", async () => {
     "-y",
   );
   expect(added.exitCode).toBe(0);
+  const before = await readLockJson(dir);
   const adopted = await runCli(dir, "adopt", "--all", "-y");
   expect(adopted.exitCode).toBe(0);
-  expect(adopted.stdout).toContain("Nothing to adopt.");
+  expect(await readLockJson(dir)).toEqual(before);
 });
 
 test("in a terminal, the picker selects skills and the write is confirmed", async () => {

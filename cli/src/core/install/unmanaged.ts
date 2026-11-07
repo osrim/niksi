@@ -5,7 +5,7 @@ import { readDirFiles, type SkillFile } from "../skill/files.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import { AGENT_IDS, skillsDir, type AgentId } from "./agents.ts";
 import { assertSkillsDirSafe, isManagedLink, skillPath } from "./link.ts";
-import type { Lockfile } from "./lockfile.ts";
+import { isLockfileName, type Lockfile } from "./lockfile.ts";
 
 // A skill directory in agent skills directories that no lockfile entry records.
 export interface UnmanagedSkill {
@@ -77,7 +77,9 @@ export const findUnmanaged = async (
   const byName = new Map<string, Found[]>();
   for (const agent of AGENT_IDS) {
     for (const name of await entriesOf(scope, agent)) {
-      if (name.startsWith(".") || lock.skills[name] !== undefined) continue;
+      if (name.startsWith(".") || !isLockfileName(name) || lock.skills[name] !== undefined) {
+        continue;
+      }
       const found = await probe(scope, agent, name);
       if (found) byName.set(name, [...(byName.get(name) ?? []), found]);
     }

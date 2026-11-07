@@ -47,6 +47,7 @@ beforeAll(async () => {
   await linkSkill("managed", "global", "claude");
   await mkdir(claude("not-a-skill"), { recursive: true });
   await writeSkill(claude(".hidden"), "hidden\n");
+  await writeSkill(claude("back\\slash"), "a name the lockfile cannot hold\n");
 });
 
 afterAll(async () => {

@@ -319,7 +319,11 @@ test("a disabled entry from a source that niksi.json does not allow doesn't stop
 });
 
 test.each([
-  ["a key niksi doesn't know", '{"policy":{"denyWarn":true}}', "unknown key policy.denyWarn"],
+  [
+    "a key niksi doesn't know",
+    '{"policy":{"requiredScope":"project"}}',
+    "unknown key policy.requiredScope",
+  ],
   ["JSON that doesn't parse", "{", "niksi.json: "],
   ["a negative cooldown", '{"minimumReleaseAge":-1}', "minimumReleaseAge"],
 ])("install exits 2 and writes nothing for a niksi.json with %s", async (_, policy, message) => {

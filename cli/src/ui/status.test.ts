@@ -7,6 +7,7 @@ import {
   describeUpdate,
   friendlySource,
   groupLabel,
+  logSourceBlocked,
   reportVerdicts,
   refuseViolations,
   reportWaiting,
@@ -275,5 +276,23 @@ describe("refuseViolations", () => {
   test("no violations print nothing and continue", () => {
     refuseViolations([], "Nothing installed.");
     expect(output.text()).toBe("");
+  });
+});
+
+describe("logSourceBlocked", () => {
+  test("names the skill, the rule, and the remedy, and keeps the batch going", () => {
+    const output = captureOutput();
+    try {
+      logSourceBlocked({
+        name: "evil",
+        reason: "source https://github.com/evil/skills is not allowed by niksi.json",
+      });
+    } finally {
+      output.restore();
+    }
+
+    expect(output.text()).toContain(
+      "evil: source https://github.com/evil/skills is not allowed by niksi.json\n│  Remove it with `nik remove evil`, or allow its source in niksi.json.",
+    );
   });
 });

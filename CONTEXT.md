@@ -94,16 +94,16 @@ Use these terms in code, docs, and output.
 | finding | Scan result with `info`, `warn`, or `critical` severity. | issue, violation, alert |
 | confidence | How sure a finding is: `high`, `medium`, or `low`. A `critical` finding with `low` confidence gates as `warn`. | certainty, likelihood |
 | critical finding | Result that needs human approval unless the invocation skips critical approval. | error, failure |
-| warn finding | Result that pauses for review unless `-y` is set. | warning, minor finding |
+| warn finding | Result that pauses for review unless `-y` is set. When the project policy sets `denyWarn`, it needs approval like a critical finding. | warning, minor finding |
 | review | One skill's pass through the gate: file list, scan, findings, and at most one question. The question can offer `Read files…`, which opens the files in a pager. Reading is not a question. | verify, validate |
 | gate | UI that shows findings and asks for approval. | prompt, confirmation, checkpoint |
 | approval | Human approval for one source, path, integrity, and scope. | trust, waiver, allowlist entry |
 | accepted | Critical finding whose rule id the lockfile entry records in `review.acceptedRules`, because `add` or `update` approved it for that integrity. `audit` reports it, and it does not change the exit code. | ignored, waived, suppressed |
 | declined | The user answered no at the gate. The skill is skipped. | rejected, refused |
-| blocked | Critical findings with no terminal to approve them and no flag to skip approval. The skill is skipped and the command exits `3`. | refused, rejected |
+| blocked | Critical findings, or warn findings under `denyWarn`, with no terminal to approve them and no flag to skip approval. In `update`, also a skill whose source the project policy doesn't allow. The skill is skipped and the command exits `3`. | refused, rejected |
 | skipped | Skill the command did not write: declined, blocked, modified without consent, or failed. | ignored, omitted |
 | project configuration | Committed `niksi.json` at the project root: the project's cooldown and project policy. Only project scope reads it. Code abbreviates it to project config. | project settings, workspace config |
-| project policy | `policy` in the project configuration: the Git sources that the project's skills may come from. `install` and `enable` write nothing while an entry they would restore breaks it. Local sources always pass. | allowlist, rules |
+| project policy | `policy` in the project configuration: the Git sources that the project's skills may come from, and whether a warn finding needs approval (`denyWarn`). `add` refuses a source it doesn't allow before fetching, and `update` blocks a skill from one. `install` and `enable` write nothing while an entry they would restore breaks it. Local sources always pass. | allowlist, rules |
 
 ## Agents
 

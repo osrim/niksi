@@ -12,6 +12,7 @@ const GITHUB_ERROR = "must list organization names, such as osrim";
 const GIT_ERROR = "must list repository URLs, such as https://git.example.com/team/skills";
 const DAYS_ERROR = "must be a whole number of days, 0 or more";
 const OBJECT_ERROR = "must be an object";
+const BOOLEAN_ERROR = "must be true or false";
 
 const SourcesSchema = z.strictObject(
   {
@@ -35,7 +36,13 @@ const ProjectConfigSchema = z.strictObject(
       .nonnegative({ error: DAYS_ERROR })
       .optional(),
     policy: z
-      .strictObject({ sources: SourcesSchema.optional() }, { error: OBJECT_ERROR })
+      .strictObject(
+        {
+          sources: SourcesSchema.optional(),
+          denyWarn: z.boolean({ error: BOOLEAN_ERROR }).optional(),
+        },
+        { error: OBJECT_ERROR },
+      )
       .optional(),
   },
   { error: "must be a JSON object" },

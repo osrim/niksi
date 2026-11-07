@@ -521,3 +521,69 @@ test("add does not warn with --min-release-age 0 or an explicit ref", async () =
   }
   for (const root of [offRoot, pinnedRoot]) await expectInstalledRelease(root, commit);
 });
+
+const clonedRepos = (): Promise<string[]> =>
+  readdir(join(tmp, ".cache", "niksi", "repos")).catch(() => []);
+
+test("add exits 1 before it fetches a source that niksi.json does not allow", async () => {
+  const { repo } = await freshSource("policy-denied-add-source");
+  const root = await project("policy-denied-add");
+  await writeFile(join(root, "niksi.json"), '{"policy":{"sources":{"github":["osrim"]}}}\n');
+
+  const denied = await runCli(
+    root,
+    "add",
+    pathToFileURL(repo).href,
+    "-p",
+    "--agent",
+    "claude",
+    "--yes",
+  );
+
+  expect(denied.exitCode).toBe(1);
+  expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(root, ".niksi"))).toBe(false);
+  expect((await clonedRepos()).some((dir) => dir.includes("policy_denied_add_source"))).toBe(false);
+});
+
+test("add writes a skill from a source that niksi.json allows", async () => {
+  const { repo, commit } = await freshSource("policy-allowed-add-source");
+  const root = await project("policy-allowed-add");
+  const source = pathToFileURL(repo).href;
+  await writeFile(
+    join(root, "niksi.json"),
+    JSON.stringify({ policy: { sources: { git: [source] } } }),
+  );
+
+  const result = await runCli(root, "add", source, "-p", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect((await readSkills(root)).demo).toMatchObject({ source, commit });
+});
+
+const warnSource = async (name: string): Promise<string> => {
+  const repo = join(tmp, name);
+  await makeSkill(repo, "scripted");
+  await writeFile(join(repo, "scripted", "run.sh"), "echo hi\n", { mode: 0o755 });
+  await initRepo(repo);
+  await commitAll(repo, "scripted");
+  return pathToFileURL(repo).href;
+};
+
+test("with denyWarn, add --yes refuses a skill with a warn finding and exits 3", async () => {
+  const source = await warnSource("deny-warn-add-source");
+  const add = async (name: string, config: string) => {
+    const root = await project(name);
+    await writeFile(join(root, "niksi.json"), config);
+    return { root, result: await runCli(root, "add", source, "-p", "--agent", "claude", "--yes") };
+  };
+
+  const denied = await add("deny-warn-add", '{"policy":{"denyWarn":true}}');
+  const allowed = await add("deny-warn-off-add", '{"policy":{"denyWarn":false}}');
+
+  expect(denied.result.exitCode).toBe(3);
+  expect(existsSync(join(denied.root, "niksi-lock.json"))).toBe(false);
+  expect(await isLink(join(denied.root, ".claude", "skills", "scripted"))).toBe(false);
+  expect(allowed.result.exitCode).toBe(0);
+  expect(Object.keys(await readSkills(allowed.root))).toEqual(["scripted"]);
+});

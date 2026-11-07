@@ -116,7 +116,7 @@ reported with the `nik add` command that adds them.
 
 Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 
-New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes` and `dangerousSkipCriticalApproval`. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. `reviewSkills` also returns the findings of each skill, which `update` passes to its report. Only `blocked`, a critical finding without a terminal or the dangerous flag, sets exit code `3`.
+New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes`, `dangerousSkipCriticalApproval`, and `denyWarn`. `add` and `update` set `denyWarn` from the project policy, and the gate then treats a warn finding as critical. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. `reviewSkills` also returns the findings of each skill, which `update` passes to its report. In the gate, only `blocked`, a finding that needs approval without a terminal or the dangerous flag, sets exit code `3`. `update` also sets it when it leaves out a skill whose source the project policy doesn't allow.
 
 `add` and `update` ask their write confirmation through `confirmWrite` in `ui/gate.ts`, not `confirm`. The gate questions and `confirmWrite` offer `Read files…`, which passes the reviewed skills to `ui/pager.ts`. The pager module builds the session text from pure helpers and pipes it to the pager.
 
@@ -124,10 +124,10 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 
 `add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review` and keeps `review.external` when the integrity is unchanged. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
 
-- `add` reaches the gate for every new skill and for dependencies it offers to install.
-- `update` reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
+- `add` checks the source against the project policy before it fetches, then reaches the gate for every new skill and for dependencies it offers to install.
+- `update` leaves out a skill whose source the project policy doesn't allow before it checks upstream. It reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
-- `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted` when `integrityOf` the files equals the entry's `integrity`, and prints the findings with `logFindings`. It asks nothing and writes nothing.
+- `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted` when `integrityOf` the files equals the entry's `integrity`, and prints the findings with `logFindings`. It asks nothing and writes nothing. It ignores `denyWarn`.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

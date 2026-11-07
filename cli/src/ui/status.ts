@@ -58,6 +58,12 @@ export const refuseViolations = (violations: PolicyViolation[], outcome: string)
   );
 };
 
+export const logSourceBlocked = ({ name, reason }: PolicyViolation): void => {
+  logError(
+    `${skillName(name)}: ${reason}\nRemove it with \`nik remove ${name}\`, or allow its source in ${PROJECT_CONFIG_NAME}.`,
+  );
+};
+
 export const warnRestored = (name: string): void => {
   warn(`${skillName(name)}: restored local edits from the source`);
 };

@@ -70,12 +70,19 @@ describe("parseProjectConfig", () => {
       minimumReleaseAge: 7,
       policy: {
         sources: { github: ["osrim", "anthropics"], git: ["https://git.example.com/team/skills"] },
+        denyWarn: true,
       },
     });
   });
 
   test("an empty object sets nothing", () => {
     expect(parseProjectConfig("{}\n", FILE)).toEqual({});
+  });
+
+  test("reads denyWarn", () => {
+    expect(parseProjectConfig('{"policy":{"denyWarn":true}}', FILE)).toEqual({
+      policy: { denyWarn: true },
+    });
   });
 
   test("an empty sources object allows only local sources", () => {
@@ -86,7 +93,6 @@ describe("parseProjectConfig", () => {
 
   test.each([
     ['{"scope":"project"}', "scope"],
-    ['{"policy":{"denyWarn":true}}', "policy.denyWarn"],
     ['{"policy":{"requiredScope":"project"}}', "policy.requiredScope"],
     ['{"policy":{"sources":{"gitlab":["acme"]}}}', "policy.sources.gitlab"],
   ])("%s names the unknown key", (text, key) => {
@@ -117,6 +123,8 @@ describe("parseProjectConfig", () => {
     ['{"policy":{"sources":{"github":["osrim/skills"]}}}', "policy.sources.github"],
     ['{"policy":{"sources":{"github":[""]}}}', "policy.sources.github"],
     ['{"policy":{"sources":{"git":[""]}}}', "policy.sources.git"],
+    ['{"policy":{"denyWarn":"yes"}}', "policy.denyWarn"],
+    ['{"policy":{"denyWarn":1}}', "policy.denyWarn"],
   ])("%s names the invalid key", (text, key) => {
     const error = thrown(() => parseProjectConfig(text, FILE));
     expect(error.name).toBe(USAGE_ERROR);
@@ -164,10 +172,10 @@ describe("readProjectConfig", () => {
   });
 
   test("an invalid niksi.json names its path", async () => {
-    const root = await projectWith("invalid", '{"policy":{"denyWarn":true}}');
+    const root = await projectWith("invalid", '{"policy":{"requiredScope":"project"}}');
 
     await expect(inDir(root, () => readProjectConfig("project"))).rejects.toThrow(
-      usageErrorWith(`${join(root, "niksi.json")}: unknown key policy.denyWarn`),
+      usageErrorWith(`${join(root, "niksi.json")}: unknown key policy.requiredScope`),
     );
   });
 

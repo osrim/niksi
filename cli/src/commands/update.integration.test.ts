@@ -817,3 +817,54 @@ test("the picker shows each candidate's age and the cooldown, and an unpicked sk
   expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
   await expectInstalled(fixture, "fresh", "version one");
 });
+
+test("update skips a skill whose source niksi.json does not allow, updates the rest, and exits 3", async () => {
+  const fixture = await setupUpdate("policy-source", ["allowed"], ["allowed"]);
+  const denied = join(tmp, "policy-source-denied");
+  await makeSkill(denied, "denied", "version one\n");
+  await initRepo(denied);
+  await commitAll(denied, "version one");
+  const deniedSource = pathToFileURL(denied).href;
+  const added = await runCli(fixture.project, "add", deniedSource, "--all", ...PATH_COPY, "--yes");
+  expect(added.exitCode).toBe(0);
+  const before = await readSkills(fixture.lockPath);
+  await writeFile(
+    join(fixture.project, "niksi.json"),
+    JSON.stringify({ policy: { sources: { git: [pathToFileURL(fixture.repo).href] } } }),
+  );
+  // A fetch of the denied source would now fail and report it as unreachable instead.
+  await rm(denied, { recursive: true, force: true });
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", "policy.md");
+
+  expect(result.exitCode).toBe(3);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.allowed?.commit).toBe(fixture.upstreamCommit);
+  expect(after.denied).toEqual(before.denied);
+  const report = await readFile(join(fixture.project, "policy.md"), "utf8");
+  expect(report).toContain("### Needs a person");
+  expect(report).toContain(
+    `- \`denied\`: source \`${deniedSource}\` is not allowed by \`niksi.json\``,
+  );
+  expect(report).not.toContain("no upstream");
+});
+
+test("with denyWarn, update --yes refuses a skill with a warn finding and updates the rest", async () => {
+  const fixture = await setupUpdate("deny-warn-update", ["clean", "scripted"], ["clean"]);
+  await writeFile(join(fixture.repo, "scripted", "run.sh"), "echo hi\n");
+  await chmod(join(fixture.repo, "scripted", "run.sh"), 0o755);
+  const upstream = await commitAll(fixture.repo, "add a script");
+  await tagHead(fixture.repo, "v1.2.0");
+  await writeFile(join(fixture.project, "niksi.json"), '{"policy":{"denyWarn":true}}\n');
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", "warn.md");
+
+  expect(result.exitCode).toBe(3);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.clean?.commit).toBe(upstream);
+  expect(after.scripted).toEqual(fixture.before.scripted);
+  const report = await readFile(join(fixture.project, "warn.md"), "utf8");
+  expect(report).toContain(
+    "`niksi.json` sets `policy.denyWarn`, so warn findings need approval too.",
+  );
+});

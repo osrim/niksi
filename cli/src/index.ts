@@ -14,6 +14,7 @@ enforceColorPolicy();
 
 const LOADERS = {
   add: () => import("./commands/add.ts"),
+  adopt: () => import("./commands/adopt.ts"),
   install: () => import("./commands/install.ts"),
   update: () => import("./commands/update.ts"),
   remove: () => import("./commands/remove.ts"),
@@ -57,6 +58,15 @@ const buildCli = (): CAC => {
     .action(async (coordinate, skills, options) =>
       (await LOADERS.add()).run(coordinate, skills, options),
     );
+  cli
+    .command("adopt [...skills]", "Record skills already in agent skills directories")
+    .option("-g, --global", "Use the global scope")
+    .option("-p, --project", "Use project scope")
+    .option("-a, --all", "Select all unmanaged skills")
+    .option("-y, --yes", "Skip ordinary confirmations")
+    .option("--dangerous-skip-critical-approval", "Skip approval for critical findings. Dangerous.")
+    .option("--source <coordinate>", "Match the skills against one source")
+    .action(async (skills, options) => (await LOADERS.adopt()).run(skills, options));
   cli
     .command("install", "Restore skills from niksi-lock.json")
     .alias("i")

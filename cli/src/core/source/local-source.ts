@@ -15,6 +15,7 @@ import {
   type Changes,
   type Upstream,
   type Source,
+  type SourceVersion,
 } from "./index.ts";
 
 const NO_REVISION: Revision = { track: "auto" };
@@ -90,6 +91,10 @@ export class LocalSource implements Source {
 
   async fetchFiles(_rev: string | undefined, path: string): Promise<SkillFile[]> {
     return readDirFiles(await this.requireDir(path));
+  }
+
+  versions(_rev: Revision, _path: string): Promise<SourceVersion[]> {
+    return Promise.resolve([{}]);
   }
 
   async changes(from: InstalledSkill, _to: string | undefined, before: string): Promise<Changes> {

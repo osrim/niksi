@@ -6,6 +6,7 @@ import {
   findRef,
   git,
   lsTreeEntries,
+  pathVersions,
   readBlobs,
   splitDiff,
   subtreeOid,
@@ -16,7 +17,10 @@ import { repoName } from "./coordinate.ts";
 import { resolveRevision, resolveUpstream, type Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Scope } from "../paths.ts";
-import type { Anchored, Changes, Upstream, Source } from "./index.ts";
+import type { Anchored, Changes, Upstream, Source, SourceVersion } from "./index.ts";
+
+// How many commits that changed a skill path `versions` reads back from the newest.
+const HISTORY_LIMIT = 100;
 
 const commitOf = (skill: InstalledSkill): string => {
   if (!skill.commit) throw new Error(`${skill.name}: lockfile entry has no commit`);
@@ -125,6 +129,14 @@ export class GitSource implements Source {
       content: contents[index]!,
       mode: entry.mode,
     }));
+  }
+
+  // A pinned revision has one version. A followed one also has the branch head and older content.
+  async versions(rev: Revision, path: string): Promise<SourceVersion[]> {
+    const commit = requireCommit(rev.commit);
+    if (rev.track === "pin") return pathVersions(await this.clone(), [commit], path, 0);
+    const head = rev.branch ? [`origin/${rev.branch}`] : [];
+    return pathVersions(await this.clone(), [commit, ...head], path, HISTORY_LIMIT);
   }
 
   async changes(from: InstalledSkill, to: string | undefined, _before: string): Promise<Changes> {

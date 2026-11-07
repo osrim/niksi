@@ -76,6 +76,7 @@ Use these terms in code, docs, and output.
 | enable | Restore a disabled skill from the lockfile with no new review. | re-enable, turn on, reinstall |
 | held | Installed skill that the `add` picker shows but does not offer. | taken |
 | extend | Add an installed skill to more agents without a new review. | relink, widen |
+| adopt | Record an unmanaged skill directory in an agent's skills directory as a lockfile entry, after a review. The files stay where they are. | import, take over, claim |
 | destination | Where `niksi` writes a skill: its scope, placement, and agents or destination root. | target |
 | location | Where an installed skill already is. It includes its placement and the agents or path-copy presence found on disk. | presence |
 | land | Apply a batch, write the lockfile, and hide links from Git. | commit, finalize, flush |

@@ -5,6 +5,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | command | alias | purpose |
 | --- | --- | --- |
 | `add <coordinate> [...skills]` | | Fetch, review, and add skills. |
+| `adopt [...skills]` | | Record skills that are already in agent skills directories. |
 | `install` | `i` | Restore every enabled skill in `niksi-lock.json`. |
 | `update [...skills]` | `up` | Check upstream and update skills. |
 | `remove [...skills]` | `rm` | Remove installed skills. |
@@ -71,6 +72,68 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
 - A path cannot contain `..` or escape the project root through a symlinked ancestor.
 - A matching lockfile entry manages an existing path-copy destination. `niksi` skips other existing directories and continues the batch.
 - `add` holds a disabled skill from the same source. It names `nik enable` and does not offer to extend the skill to more agents.
+
+## `adopt`
+
+```text
+nik adopt [...skills] [-g|-p] [-a] [-y] [--source <coordinate>] [--dangerous-skip-critical-approval]
+```
+
+`adopt` records skills that you installed by hand, with `gh skill`, or with
+`npx skills`, so `niksi` manages them from then on. It leaves each skill where
+it is.
+
+`adopt` looks in every skills directory of the scope (see
+[configuration.md](configuration.md#agents)) for a directory that holds
+`SKILL.md` and that the lockfile does not record. Links that `niksi` wrote are
+not offered.
+
+- Without names or `--all`, a picker opens. `--all` selects every unmanaged
+  skill. An unknown name exits `1` and lists the unmanaged skills. A recorded
+  name prints `name: already recorded`.
+- The same skill in two skills directories is one skill when the copies have
+  the same files. A symlink to a copy in another skills directory, as
+  `npx skills` writes, counts as that copy. `adopt` skips a skill whose copies
+  differ, or a symlink to a directory outside the skills directories, and says
+  what to do. Naming a skipped skill exits `1`.
+
+`adopt` then looks for the source of each skill, in this order:
+
+1. The source you pass with `--source <coordinate>`: `owner/repo`, a Git URL,
+   or a local path. It exits `2` for a coordinate with a skill segment, a forge
+   URL path, or `@ref`, or when you pass it twice.
+2. The `metadata` keys that `gh skill install` writes in `SKILL.md`:
+   `github-repo`, `github-path`, `github-tree-sha`, and `github-pinned`.
+3. The entry with the skill's name in the lockfile of `npx skills`:
+   `skills-lock.json` at the project root in project scope, or
+   `~/.agents/.skill-lock.json` in global scope. Entries from a Git
+   repository count. Local and npm entries don't.
+
+`adopt` compares the files with the source. A Git source is checked at the
+latest release, the head of the default branch, and the last 100 commits that
+changed the skill. A pinned ref from `gh skill` or `npx skills` is checked at
+that ref only.
+
+- When the files match, the entry records that source and the commit that
+  holds those files, with `track: auto`, or `track: pin` for a pinned ref.
+  `nik update` then compares it with the source as it does any other entry.
+- A `gh skill` copy matches when its only change is the metadata in the
+  frontmatter. `adopt` writes the source's `SKILL.md` over the copy, which
+  drops the `gh skill` metadata.
+- When no source is known, or the files differ from the source, `adopt` keeps
+  your files and records the skill directory itself as a local source. Run
+  `nik update` to record later edits.
+- When a source can't be reached, `adopt` skips the skill and exits `1`.
+
+Every entry is an agent copy for the skills directories that hold the skill.
+Before it writes, `adopt` shows each skill with its source and revision, lists
+and scans its files as `add` does, and asks once to confirm. `--yes` accepts
+warn findings and the confirmation. A critical finding needs a terminal, or
+`--dangerous-skip-critical-approval`, and otherwise exits `3`.
+
+`adopt` writes no files except the `SKILL.md` of a `gh skill` copy. If a
+skill's files change between the scan and the write, `adopt` skips it and
+exits `1`.
 
 ## `install`
 
@@ -374,14 +437,15 @@ An unknown shell exits `2`.
 | `-g`, `--global` | all but `prune` and `completion` | Use global scope. |
 | `-p`, `--project` | all but `prune` and `completion` | Use project scope. |
 | `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
-| `-a`, `--all` | `add`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
-| `-y`, `--yes` | `add`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings, or warn findings under `policy.denyWarn`. |
-| `--dangerous-skip-critical-approval` | `add`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
+| `-a`, `--all` | `add`, `adopt`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
+| `-y`, `--yes` | `add`, `adopt`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings, or warn findings under `policy.denyWarn`. |
+| `--dangerous-skip-critical-approval` | `add`, `adopt`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
 | `--copy` | `add` | Write directories instead of links. |
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
 | `--json` | `list`, `audit` | Write JSON only. |
 | `--report <file>` | `update` | Write a Markdown review report. |
 | `--min-release-age <days>` | `add`, `update` | Set the [cooldown](#cooldown) in whole days. Default `3`, or `minimumReleaseAge` from `niksi.json` in project scope. `0` turns it off. |
+| `--source <coordinate>` | `update`, `adopt` | `update` selects the skills from one source. `adopt` compares the skills with one source. |
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
@@ -405,7 +469,7 @@ Running a command from your home directory selects global scope.
 | Warn finding review | Pass `--yes`. Under `policy.denyWarn`, it needs the critical finding approval instead. |
 | Critical finding approval | Run in a terminal, or pass `--dangerous-skip-critical-approval` to skip approval. |
 
-An ordinary prompt with no terminal and no replacement flag exits `2`. In `add` and `update`, critical findings, and warn findings under `policy.denyWarn`, instead block the skill with exit `3` unless `--dangerous-skip-critical-approval` is provided. `install` keeps modified skills and continues when there is no terminal.
+An ordinary prompt with no terminal and no replacement flag exits `2`. In `add`, `adopt`, and `update`, critical findings, and warn findings under `policy.denyWarn`, instead block the skill with exit `3` unless `--dangerous-skip-critical-approval` is provided. `install` keeps modified skills and continues when there is no terminal.
 
 Ctrl-C exits `130`. Files already written stay written.
 
@@ -466,7 +530,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `audit`, also a warn finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. |
 | `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
-| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
+| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
 | `130` | Cancelled. |

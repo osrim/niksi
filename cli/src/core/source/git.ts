@@ -167,10 +167,8 @@ export const pathHistory = async (
     ["rev-list", `--max-count=${limit}`, "--end-of-options", ...starts, ...pathspec],
     clone,
   );
-  const commits = [
-    starts[0]!,
-    ...(listed.code === 0 ? listed.out.split("\n").filter(Boolean) : []),
-  ];
+  if (listed.code !== 0) throw new Error(`cannot read the history of ${path}${gitReason(listed)}`);
+  const commits = [starts[0]!, ...listed.out.split("\n").filter(Boolean)];
   const checked = await git(
     ["cat-file", "--batch-check"],
     clone,

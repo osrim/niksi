@@ -27,6 +27,7 @@ import {
   isBranch,
   listTags,
   lsTreeEntries,
+  pathHistory,
   resolveRef,
   readBlobs,
   splitDiff,
@@ -265,6 +266,18 @@ test("missing branches and invalid trees use the documented failure values", asy
   expect(headCommit(clone, "missing")).rejects.toThrow("branch missing not found upstream");
   expect(await lsTreeEntries(clone, "missing", "")).toEqual([]);
   expect(await diffSubtree(clone, "missing", firstSha, "")).toBe("");
+});
+
+test("pathHistory lists each content of a path and reports a start that does not exist", async () => {
+  const second = await addSecondCommit();
+  const clone = await ensureClone(remote);
+  const demo = "skills/demo";
+  expect(
+    (await pathHistory(clone, [firstSha, "origin/main"], demo, 10)).map((past) => past.commit),
+  ).toEqual([firstSha, second]);
+  await expect(pathHistory(clone, [firstSha, "origin/missing"], demo, 10)).rejects.toThrow(
+    "cannot read the history of skills/demo",
+  );
 });
 
 test("lsTreeEntries rejects a path that is not valid UTF-8", async () => {

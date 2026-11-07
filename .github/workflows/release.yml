@@ -11,6 +11,7 @@ on:
         type: string
 
 permissions: {}
+# No cache saved by another run, such as checks.yml on main, may feed a release.
 cache-mode: none
 
 defaults:
@@ -60,13 +61,10 @@ jobs:
         with:
           ref: refs/tags/${{ env.TAG }}
           persist-credentials: false
-      # A cache written by a PR run must never feed a release. The workflow-level
-      # cache-mode: none is the primary guard. no-cache and package-manager-cache only
-      # spare the actions a call that the cache service would refuse.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: .bun-version
-          no-cache: true
+          no-cache: true # cache-mode: none is the primary guard; this input only skips the refused call
       - run: bun install --frozen-lockfile
         working-directory: .
       # The release job never installs dependencies, so the suite runs here, without secrets.

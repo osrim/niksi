@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
+import type { PolicyViolation } from "../core/policy.ts";
 import { describeAge, describeWaiting } from "../core/source/release-age.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
@@ -45,6 +46,10 @@ export const reportDisabled = (names: string[], scope: Scope): void => {
   p.log.info(
     `${names.length} disabled: ${names.map(skillName).join(", ")}\nRun \`nik enable${scopeFlag(scope)}\`.`,
   );
+};
+
+export const reportViolations = (violations: PolicyViolation[]): void => {
+  for (const { name, reason } of violations) logError(`${skillName(name)}: ${reason}`);
 };
 
 export const warnRestored = (name: string): void => {

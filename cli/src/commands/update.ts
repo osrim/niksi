@@ -19,6 +19,7 @@ import { tildify, type Scope } from "../core/paths.ts";
 import { criticalRules, type Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import { minReleaseAge, unixNow, type Cooldown } from "../core/source/release-age.ts";
+import { readProjectConfig } from "../core/project-config.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import {
   describeSelector,
@@ -91,9 +92,12 @@ interface Selection {
 export const run = async (names: string[], options: UpdateOptions): Promise<void> => {
   const source = sourceSelector(options.source, names);
   const reportPath = await reportTarget(options.report);
-  const days = minReleaseAge(options.minReleaseAge);
   p.intro("nik update");
   const scope = resolveScope(options, p.log.warn) ?? "project";
+  const days = minReleaseAge(
+    options.minReleaseAge,
+    (await readProjectConfig(scope)).minimumReleaseAge,
+  );
   await migrateIfLegacy(scope);
   const report: UpdateReport = { scope, updated: [], blocked: [], skipped: [], upToDate: [] };
   const selection = {

@@ -8,6 +8,7 @@ import {
   friendlySource,
   groupLabel,
   reportVerdicts,
+  reportViolations,
   reportWaiting,
   revisionRange,
 } from "./status.ts";
@@ -221,4 +222,39 @@ describe("reportVerdicts", () => {
       expect(process.exitCode).toBe(named);
     },
   );
+});
+
+describe("reportViolations", () => {
+  let output: CapturedOutput;
+
+  beforeEach(() => {
+    output = captureOutput();
+  });
+
+  afterEach(() => {
+    output.restore();
+  });
+
+  test("prints one line per entry with the rule it breaks", () => {
+    reportViolations([
+      {
+        name: "grilling",
+        reason: "source https://github.com/evil/skills is not allowed by niksi.json",
+      },
+      { name: "tdd", reason: "source git@gitlab.com:acme/skills.git is not allowed by niksi.json" },
+    ]);
+
+    const text = output.text();
+    expect(text).toContain(
+      "grilling: source https://github.com/evil/skills is not allowed by niksi.json",
+    );
+    expect(text).toContain(
+      "tdd: source git@gitlab.com:acme/skills.git is not allowed by niksi.json",
+    );
+  });
+
+  test("no violations print nothing", () => {
+    reportViolations([]);
+    expect(output.text()).toBe("");
+  });
 });

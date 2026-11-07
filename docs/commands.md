@@ -80,6 +80,8 @@ nik install [-g|-p] [-y] [--agent <id>]
 
 `install` does not scan. `add` or `update` reviewed every entry, and `install` verifies each file against the recorded integrity before writing it. An entry whose content does not match is skipped and the command exits `1`.
 
+In project scope, `install` first checks every enabled entry against the policy in `niksi.json`. When an entry comes from a source that the policy doesn't allow, `install` names each such entry and its source, installs nothing, and exits `1`. See [Project settings](configuration.md#project-settings).
+
 For a local source, `install` reads the source directory even when the store holds the recorded content. If the source changed since `niksi-lock.json`, `install` skips the entry, names `nik update <skill>`, and exits `1`. If the source no longer has the skill, `install` skips the entry, names `nik remove <skill>`, and exits `1`.
 
 Restoring a modified skill discards your edits, so `install` asks first. Without a terminal it keeps the edits and installs the other entries. `--yes` restores without asking.
@@ -146,7 +148,8 @@ An upstream revision that changes a skill's files waits 3 days before `update` t
 - `--yes` accepts confirmations, not upstream revisions. A waiting skill keeps waiting.
 - A skill whose revision moved without file changes has no cooldown. `--all` and `--source` take it at once, and the picker doesn't mark it as waiting.
 - Pinned skills and local sources have no cooldown.
-- `--min-release-age <days>` sets the cooldown for one run. `0` turns it off.
+- `minimumReleaseAge` in a project's `niksi.json` sets the cooldown for that project. See [Project settings](configuration.md#project-settings).
+- `--min-release-age <days>` sets the cooldown for one run, over `niksi.json`. `0` turns it off.
 
 ### Update report
 
@@ -373,7 +376,7 @@ An unknown shell exits `2`.
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
 | `--json` | `list`, `audit` | Write JSON only. |
 | `--report <file>` | `update` | Write a Markdown review report. |
-| `--min-release-age <days>` | `add`, `update` | Set the [cooldown](#cooldown) in whole days. Default `3`. `0` turns it off. |
+| `--min-release-age <days>` | `add`, `update` | Set the [cooldown](#cooldown) in whole days. Default `3`, or `minimumReleaseAge` from `niksi.json` in project scope. `0` turns it off. |
 
 `-g` and `-p` cannot be combined. Passing both exits `2`. An unknown `--agent` value exits `2`.
 
@@ -417,7 +420,7 @@ install -m 755 nik /usr/local/bin/nik
 nik install --agent claude --yes
 ```
 
-Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. `CI` disables the update notice and its release check.
+Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. It also exits `1`, and installs nothing, when an entry comes from a source that the policy in `niksi.json` doesn't allow. `CI` disables the update notice and its release check.
 
 `nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
 
@@ -458,7 +461,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `audit`, also a warn finding. |
-| `2` | Invalid usage, or a prompt had no terminal and no flag. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install`, also an entry from a source that the policy in `niksi.json` doesn't allow. Then `install` installs nothing. In `audit`, also a warn finding. |
+| `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
 | `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. |
 | `130` | Cancelled. |

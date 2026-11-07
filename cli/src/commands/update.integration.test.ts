@@ -746,6 +746,44 @@ test("--min-release-age 0 updates a release from today", async () => {
   await expectInstalled(fixture, "fresh", "version three");
 });
 
+test("minimumReleaseAge in niksi.json sets the cooldown, and --min-release-age overrides it", async () => {
+  const fixture = await setupCooldown("cooldown-project", ["fresh"]);
+  await writeFile(join(fixture.project, "niksi.json"), '{"minimumReleaseAge":0}\n');
+
+  const flagged = await runCli(
+    fixture.project,
+    "update",
+    "--all",
+    "--yes",
+    "--min-release-age",
+    "2",
+  );
+  expect(flagged.exitCode).toBe(0);
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+
+  const unflagged = await runCli(fixture.project, "update", "--all", "--yes");
+  expect(unflagged.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
+});
+
+test("an invalid niksi.json exits 2 before update checks upstream", async () => {
+  const fixture = await setupCooldown("cooldown-project-invalid", ["fresh"]);
+  await writeFile(join(fixture.project, "niksi.json"), '{"minimumReleaseAge":"3"}\n');
+
+  const result = await runCli(
+    fixture.project,
+    "update",
+    "--all",
+    "--yes",
+    "--min-release-age",
+    "0",
+  );
+
+  expect(result.exitCode).toBe(2);
+  expect(result.stderr).toContain(`${join(fixture.project, "niksi.json")}: minimumReleaseAge`);
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+});
+
 test("--min-release-age without a whole number of days exits 2", async () => {
   const fixture = await setupCooldown("cooldown-usage", ["fresh"]);
 

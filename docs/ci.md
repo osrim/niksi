@@ -58,6 +58,8 @@ The step fails in these cases:
 - A skill doesn't match its recorded integrity.
 - A local skill's source changed since `niksi-lock.json`. Run `nik update <skill>` and commit the lockfile.
 - A local source no longer has the skill. Run `nik remove <skill>` and commit the lockfile.
+- A skill comes from a source that the policy in `niksi.json` doesn't allow. The step restores nothing. Run `nik remove <skill>`, or allow the source in `niksi.json`. See [Project settings](configuration.md#project-settings).
+- `niksi.json` isn't valid. The step exits `2`.
 
 ## Get pull requests for skill updates
 
@@ -248,8 +250,8 @@ The step exits with the code of `nik`, as listed in [commands.md](commands.md#ex
 | code | install | update | scan |
 | --- | --- | --- | --- |
 | `0` | Every enabled skill is on disk with its recorded integrity. | Every selected skill is up to date or updated. The pull request is open, updated, or closed. | No critical finding. Warn findings pass. |
-| `1` | A skill failed to restore. | A skill failed. No pull request. | `path` isn't a directory, `nik add` failed, or a skill couldn't be read. |
-| `2` | Invalid input. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or when `branch` is the branch it runs on. | Invalid input. |
+| `1` | A skill failed to restore, or a skill comes from a source that `niksi.json` doesn't allow. | A skill failed. No pull request. | `path` isn't a directory, `nik add` failed, or a skill couldn't be read. |
+| `2` | Invalid input, or an invalid `niksi.json`. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or when `branch` is the branch it runs on. | Invalid input. |
 | `3` | | Critical findings blocked a skill. The pull request still carries the other updates. | A skill has a critical finding. |
 
 An unknown `mode` exits `2`. An invalid `version`, a failed download or checksum, or an unsupported runner exits `1`.

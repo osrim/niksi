@@ -14,6 +14,9 @@ import {
 import { placementOf, type LockEntry, type Lockfile } from "./lockfile.ts";
 import type { Scope } from "../paths.ts";
 import { pathCopyDisplay, pathCopyState, pathCopyTarget, removePathCopy } from "./path-copy.ts";
+import { realpathOrNearest } from "./target.ts";
+import { coordinateFor, LOCAL_PREFIX } from "../source/index.ts";
+import { join } from "node:path";
 
 export type InstalledSkill = LockEntry & { name: string };
 
@@ -125,6 +128,21 @@ export const installedPaths = async (skill: InstalledSkill, scope: Scope): Promi
   return presentAgents(skill.name, scope, placement.agents).map((agent) =>
     skillPath(skill.name, scope, agent),
   );
+};
+
+const recordedPaths = async (skill: InstalledSkill, scope: Scope): Promise<string[]> => {
+  const placement = placementOf(skill);
+  if (placement.kind === "link") return [canonicalPath(skill.name, scope)];
+  if (placement.kind === "path-copy") return [await pathCopyTarget(skill.name, placement.copyPath)];
+  return placement.agents.map((agent) => skillPath(skill.name, scope, agent));
+};
+
+// `nik adopt` records a skill with no known source as its own source. Deleting it deletes both.
+export const holdsOwnSource = async (skill: InstalledSkill, scope: Scope): Promise<boolean> => {
+  if (!skill.source.startsWith(LOCAL_PREFIX)) return false;
+  const source = await realpathOrNearest(join(coordinateFor(skill.source), skill.path));
+  const paths = await Promise.all((await recordedPaths(skill, scope)).map(realpathOrNearest));
+  return paths.includes(source);
 };
 
 export const addDestination = (

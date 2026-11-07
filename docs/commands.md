@@ -122,7 +122,8 @@ that ref only.
   drops the `gh skill` metadata.
 - When no source is known, or the files differ from the source, `adopt` keeps
   your files and records the skill directory itself as a local source. Run
-  `nik update` to record later edits.
+  `nik update` to record later edits. `nik disable` refuses such a skill,
+  because removing its files would delete its source.
 - When a source can't be reached, `adopt` skips the skill and exits `1`.
 
 Every entry is an agent copy for the skills directories that hold the skill.
@@ -360,6 +361,9 @@ nik disable [...skills|source] [-g|-p] [-a] [-y]
 - A skill that is already disabled prints `name: already disabled`. `disable` drops it from the batch.
 - `disable` warns when a selected skill is modified, because it discards the edits. One confirmation covers the batch. `--yes` skips it.
 - `disable` warns before it confirms when an enabled skill in the same scope still mentions a selected skill, as `remove` does. A disabled skill that mentions it does not count, because it does not run either.
+- `disable` skips a skill whose copy is also its local source, as `nik adopt`
+  records a skill with no known source, because removing the copy would delete
+  the source. It names `nik remove` and exits `1`.
 - The disabled state is in `niksi-lock.json`. Commit it to share it. `install`, `update`, and `list` read it. `remove` deletes a disabled entry.
 
 ## `enable`

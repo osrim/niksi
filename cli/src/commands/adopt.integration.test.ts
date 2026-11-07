@@ -98,6 +98,11 @@ test("a skill with no known source is recorded as a local copy and its files sta
   expect(updated.exitCode).toBe(0);
   expect((await readLockJson(dir))["notes"]!["integrity"]).not.toBe(recorded);
   expect(await listJson(dir)).toMatchObject([{ name: "notes", modified: false }]);
+
+  const disabled = await runCli(dir, "disable", "notes", "-y");
+  expect(disabled.exitCode).toBe(1);
+  expect(existsSync(join(dir, ".claude", "skills", "notes", "SKILL.md"))).toBe(true);
+  expect((await readLockJson(dir))["notes"]!["disabled"]).toBeUndefined();
 });
 
 test("an npx skills copy and its symlink match the commit in skills-lock.json, then update", async () => {

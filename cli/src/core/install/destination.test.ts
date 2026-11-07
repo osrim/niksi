@@ -12,9 +12,11 @@ import {
   addDestination,
   installDestination,
   installedPath,
+  installedPaths,
   lackingAgents,
   modifiedSkills,
   locationOf,
+  recordedLocations,
   updateDestination,
 } from "./destination.ts";
 import { captureEnv } from "../../test-env.ts";
@@ -198,4 +200,39 @@ test("installedPath returns a present agent copy instead of the canonical link d
   expect(await installedPath(entry("concrete", ["claude", "universal"]), "global")).toBe(
     skillPath("concrete", "global", "universal"),
   );
+});
+
+test("installedPaths returns every present agent copy", async () => {
+  await copySkill("copies", files, "global", "claude", false);
+  await copySkill("copies", files, "global", "opencode", false);
+  expect(
+    await installedPaths(entry("copies", ["universal", "claude", "opencode"]), "global"),
+  ).toEqual([skillPath("copies", "global", "claude"), skillPath("copies", "global", "opencode")]);
+});
+
+const recordedLink = (name: string, agents: AgentId[]): LockEntry & { name: string } => ({
+  ...entry(name),
+  agents,
+});
+
+test("installDestination links a link entry to its recorded agents, not the chosen ones", async () => {
+  expect(
+    await installDestination(recordedLink("inst-recorded", ["universal"]), "global", ["claude"]),
+  ).toEqual({ kind: "link", scope: "global", agents: ["universal"] });
+});
+
+test("updateDestination relinks the recorded agents and the agents linked on disk", async () => {
+  const lock = emptyLock();
+  await linkInto("up-recorded", "opencode");
+  expect(
+    await updateDestination(recordedLink("up-recorded", ["universal"]), "global", lock),
+  ).toEqual({
+    destination: { kind: "link", scope: "global", agents: ["universal", "opencode"], lock },
+    defaulted: false,
+  });
+});
+
+test("recordedLocations names a link entry's recorded agents", () => {
+  expect(recordedLocations(recordedLink("where", ["claude", "kiro"]))).toEqual(["claude", "kiro"]);
+  expect(recordedLocations(entry("where"))).toEqual([]);
 });

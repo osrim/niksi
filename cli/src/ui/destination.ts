@@ -17,7 +17,9 @@ import {
   type DetectedAgent,
 } from "../core/install/agents.ts";
 import { readConfig, remember } from "../core/config.ts";
+import type { InstalledSkill } from "../core/install/destination.ts";
 import { syncExcludes } from "../core/install/exclude.ts";
+import { placementOf } from "../core/install/lockfile.ts";
 import { projectRoot, type Scope } from "../core/paths.ts";
 import { otherScope, resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { usageError } from "../core/usage.ts";
@@ -222,6 +224,26 @@ export const warnScopeCollisions = (names: string[], scope: Scope, agents: Agent
         logWarn(`${skillName(name)} is also at ${tildify(dir)}. ${shadowNote(scope, agent)}`);
       }
     }
+  }
+};
+
+const recordedLinkAgents = (skill: InstalledSkill): AgentId[] | null => {
+  const placement = placementOf(skill);
+  return placement.kind === "link" ? placement.agents : null;
+};
+
+export const needsAgents = (skills: InstalledSkill[]): boolean =>
+  skills.some((skill) => recordedLinkAgents(skill)?.length === 0);
+
+export const warnLinkCollisions = (
+  skills: InstalledSkill[],
+  scope: Scope,
+  chosen: AgentId[],
+): void => {
+  for (const skill of skills) {
+    const recorded = recordedLinkAgents(skill);
+    if (recorded === null) continue;
+    warnScopeCollisions([skill.name], scope, recorded.length > 0 ? recorded : chosen);
   }
 };
 

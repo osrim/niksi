@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { MODE_EXEC, MODE_FILE } from "../skill/files.ts";
-import { CRITICAL_EXIT, runScanners } from "./index.ts";
+import { CRITICAL_EXIT, criticalRules, markAccepted, runScanners, type Finding } from "./index.ts";
 import { zip } from "./test-archive.ts";
 
 test("critical findings exit 3", () => {
@@ -146,4 +146,43 @@ test("a file on disk whose name holds ! is not an archive member", () => {
   }).map(({ severity, rule, file }) => `${severity} ${rule} ${file}`);
 
   expect(findings).toEqual(["critical curl-pipe-shell docs!setup.md"]);
+});
+
+const found = (severity: Finding["severity"], rule: Finding["rule"]): Finding => ({
+  severity,
+  confidence: "high",
+  rule,
+  help: "help",
+  detail: "detail",
+});
+
+test("criticalRules lists each critical rule once, sorted, and ignores warn and info", () => {
+  expect(
+    criticalRules([
+      found("critical", "reverse-shell"),
+      found("critical", "curl-pipe-shell"),
+      found("critical", "reverse-shell"),
+      found("warn", "executable"),
+      found("info", "external-url"),
+    ]),
+  ).toEqual(["curl-pipe-shell", "reverse-shell"]);
+  expect(criticalRules([found("warn", "curl-pipe-shell")])).toEqual([]);
+});
+
+test("markAccepted marks only critical findings whose rule is accepted", () => {
+  const marked = markAccepted(
+    [
+      found("critical", "curl-pipe-shell"),
+      found("critical", "reverse-shell"),
+      found("warn", "curl-pipe-shell"),
+    ],
+    ["curl-pipe-shell"],
+  );
+  expect(marked.map(({ rule, severity, accepted }) => [rule, severity, accepted])).toEqual([
+    ["curl-pipe-shell", "critical", true],
+    ["reverse-shell", "critical", undefined],
+    ["curl-pipe-shell", "warn", undefined],
+  ]);
+  expect("accepted" in marked[1]!).toBe(false);
+  expect(markAccepted([found("critical", "curl-pipe-shell")], [])[0]!.accepted).toBeUndefined();
 });

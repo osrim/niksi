@@ -16,7 +16,7 @@ import {
   type InstalledSkill,
 } from "../core/install/destination.ts";
 import { tildify, type Scope } from "../core/paths.ts";
-import type { Finding } from "../core/scan/index.ts";
+import { criticalRules, type Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import {
@@ -316,7 +316,7 @@ const landUpdates = (
       const applied =
         item.kind === "moved"
           ? await recordMoved(item.verdict, destinationOf)
-          : await applyUpdate(item.updated, destinationOf);
+          : await applyUpdate(item, destinationOf);
       report.updated.push(reportedChange(item, applied.integrity));
       return applied;
     },
@@ -422,7 +422,7 @@ const recordReview = (
 };
 
 const applyUpdate = async (
-  { verdict, files }: UpdatedFiles,
+  { updated: { verdict, files }, findings }: Extract<UpdateAction, { kind: "update" }>,
   destinationOf: DestinationOf,
 ): Promise<Applied & { success: string }> => {
   const { skill } = verdict;
@@ -434,6 +434,7 @@ const applyUpdate = async (
       root: skill.root,
       revision: verdict.upstream,
       files: () => Promise.resolve(files),
+      acceptedRules: criticalRules(findings),
     },
     await destinationOf(skill),
   );

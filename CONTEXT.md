@@ -102,7 +102,8 @@ Use these terms in code, docs, and output.
 | declined | The user answered no at the gate. The skill is skipped. | rejected, refused |
 | blocked | Critical findings with no terminal to approve them and no flag to skip approval. The skill is skipped and the command exits `3`. | refused, rejected |
 | skipped | Skill the command did not write: declined, blocked, modified without consent, or failed. | ignored, omitted |
-| project policy | `policy` in a committed `niksi.json` at the project root: the Git sources that the project's skills may come from. `install` installs nothing while an enabled entry breaks it. Local sources always pass. | allowlist, rules, project config |
+| project configuration | Committed `niksi.json` at the project root: the project's cooldown and project policy. Only project scope reads it. Code abbreviates it to project config. | project settings, workspace config |
+| project policy | `policy` in the project configuration: the Git sources that the project's skills may come from. `install` and `enable` write nothing while an entry they would restore breaks it. Local sources always pass. | allowlist, rules |
 
 ## Agents
 

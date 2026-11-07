@@ -3,8 +3,11 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import {
   cliRunner,
+  commitAll,
+  initRepo,
   makeSkill,
   terminalRunner,
   type RunCli,
@@ -439,4 +442,28 @@ test("a link keeps its agents through disable, and enable records agents for an 
   expect(lock["alpha"]!["agents"]).toEqual(["claude"]);
   expect(lock["beta"]!["agents"]).toEqual(["opencode"]);
   expect(lock["beta"]!["disabled"]).toBeUndefined();
+});
+
+test("enable restores nothing from a source that niksi.json does not allow", async () => {
+  const { project, source } = await setup("policy-enable");
+  await makeSkill(source, "alpha");
+  await initRepo(source);
+  await commitAll(source, "first");
+  const url = pathToFileURL(source).href;
+  await addLink(project, url, "alpha");
+  expect((await runCli(project, "disable", "alpha", "-y")).exitCode).toBe(0);
+  await writeFile(join(project, "niksi.json"), '{"policy":{"sources":{}}}\n');
+
+  const refused = await runCli(project, "enable", "alpha", "-y");
+  expect(refused.exitCode).toBe(1);
+  expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(false);
+  expect((await readLockJson(project))["alpha"]).toMatchObject({ disabled: true });
+
+  await writeFile(
+    join(project, "niksi.json"),
+    JSON.stringify({ policy: { sources: { git: [url] } } }),
+  );
+  const allowed = await runCli(project, "enable", "alpha", "-y");
+  expect(allowed.exitCode).toBe(0);
+  expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(true);
 });

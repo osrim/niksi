@@ -2,6 +2,7 @@ import * as p from "@clack/prompts";
 import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import type { PolicyViolation } from "../core/policy.ts";
+import { PROJECT_CONFIG_NAME } from "../core/project-config.ts";
 import { describeAge, describeWaiting } from "../core/source/release-age.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
@@ -12,6 +13,7 @@ import {
   type UpdatableVerdict,
   type UpdateVerdict,
 } from "../core/source/upstream.ts";
+import { fail } from "./prompt.ts";
 import { logError, logWarn, warn } from "./report.ts";
 import { bold, dim, skillName, tildify } from "./style.ts";
 
@@ -48,8 +50,12 @@ export const reportDisabled = (names: string[], scope: Scope): void => {
   );
 };
 
-export const reportViolations = (violations: PolicyViolation[]): void => {
+export const refuseViolations = (violations: PolicyViolation[], outcome: string): void => {
+  if (violations.length === 0) return;
   for (const { name, reason } of violations) logError(`${skillName(name)}: ${reason}`);
+  fail(
+    `${outcome}\nRemove these skills with \`nik remove\`, or allow their sources in ${PROJECT_CONFIG_NAME}.`,
+  );
 };
 
 export const warnRestored = (name: string): void => {

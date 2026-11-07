@@ -63,7 +63,7 @@ describe("parseProjectConfig", () => {
 
   test("the example in configuration.md parses", async () => {
     const doc = await readDoc("configuration.md");
-    const section = doc.slice(doc.indexOf("## Project settings"));
+    const section = doc.split("## Project configuration\n")[1]!;
     const example = /```json\n([\s\S]*?)```/u.exec(section)![1]!;
 
     expect(parseProjectConfig(example, FILE)).toEqual({

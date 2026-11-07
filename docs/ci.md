@@ -58,7 +58,7 @@ The step fails in these cases:
 - A skill doesn't match its recorded integrity.
 - A local skill's source changed since `niksi-lock.json`. Run `nik update <skill>` and commit the lockfile.
 - A local source no longer has the skill. Run `nik remove <skill>` and commit the lockfile.
-- A skill comes from a source that the policy in `niksi.json` doesn't allow. The step restores nothing. Run `nik remove <skill>`, or allow the source in `niksi.json`. See [Project settings](configuration.md#project-settings).
+- A skill comes from a source that the policy in `niksi.json` doesn't allow. The step restores nothing. Run `nik remove <skill>`, or allow the source in `niksi.json`. See [Project configuration](configuration.md#project-configuration).
 - `niksi.json` isn't valid. The step exits `2`.
 
 ## Get pull requests for skill updates

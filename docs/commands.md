@@ -80,7 +80,7 @@ nik install [-g|-p] [-y] [--agent <id>]
 
 `install` does not scan. `add` or `update` reviewed every entry, and `install` verifies each file against the recorded integrity before writing it. An entry whose content does not match is skipped and the command exits `1`.
 
-In project scope, `install` first checks every enabled entry against the policy in `niksi.json`. When an entry comes from a source that the policy doesn't allow, `install` names each such entry and its source, installs nothing, and exits `1`. See [Project settings](configuration.md#project-settings).
+In project scope, `install` first checks every enabled entry against the policy in `niksi.json`. When an entry comes from a source that the policy doesn't allow, `install` names each such entry and its source, installs nothing, and exits `1`. See [Project configuration](configuration.md#project-configuration).
 
 For a local source, `install` reads the source directory even when the store holds the recorded content. If the source changed since `niksi-lock.json`, `install` skips the entry, names `nik update <skill>`, and exits `1`. If the source no longer has the skill, `install` skips the entry, names `nik remove <skill>`, and exits `1`.
 
@@ -148,7 +148,7 @@ An upstream revision that changes a skill's files waits 3 days before `update` t
 - `--yes` accepts confirmations, not upstream revisions. A waiting skill keeps waiting.
 - A skill whose revision moved without file changes has no cooldown. `--all` and `--source` take it at once, and the picker doesn't mark it as waiting.
 - Pinned skills and local sources have no cooldown.
-- `minimumReleaseAge` in a project's `niksi.json` sets the cooldown for that project. See [Project settings](configuration.md#project-settings).
+- `minimumReleaseAge` in a project's `niksi.json` sets the cooldown for that project. See [Project configuration](configuration.md#project-configuration).
 - `--min-release-age <days>` sets the cooldown for one run, over `niksi.json`. `0` turns it off.
 
 ### Update report
@@ -306,6 +306,7 @@ nik enable [...skills|source] [-g|-p] [-a] [-y] [--agent <id>]
 - Select skills and sources as in `disable`. `--all` selects every disabled skill. A skill that is already enabled prints `name: already enabled`.
 - Link entries restore to their recorded agents. A link entry without recorded agents needs agents: `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt, and records them in the entry. Agent copies and path copies restore to their recorded agents or destination root. A selection with no link entry that lacks recorded agents selects no agents.
 - If the content of an entry does not match its integrity, `enable` reports it as `install` does. The entry stays disabled. The command exits `1`.
+- In project scope, `enable` checks the selected entries against the policy in `niksi.json` first, as `install` does. When an entry comes from a source that the policy doesn't allow, `enable` names each such entry, enables nothing, and exits `1`.
 
 For global scope, `lockfile` reports the effective path: the config path, or the legacy data path while `niksi` still uses one. See [Moving an existing global lockfile](configuration.md#moving-an-existing-global-lockfile).
 
@@ -461,7 +462,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install`, also an entry from a source that the policy in `niksi.json` doesn't allow. Then `install` installs nothing. In `audit`, also a warn finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow. Then the command writes nothing. In `audit`, also a warn finding. |
 | `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
 | `3` | Critical findings blocked at least one skill in `add` or `update` without `--dangerous-skip-critical-approval`. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. |
 | `130` | Cancelled. |

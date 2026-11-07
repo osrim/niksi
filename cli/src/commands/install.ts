@@ -2,8 +2,8 @@ import * as p from "@clack/prompts";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { readLock, splitDisabled } from "../core/install/lockfile.ts";
-import { lockViolations } from "../core/policy.ts";
-import { PROJECT_CONFIG_NAME, readProjectConfig } from "../core/project-config.ts";
+import { policyViolations } from "../core/policy.ts";
+import { readProjectConfig } from "../core/project-config.ts";
 import {
   installedSkills,
   modifiedSkills,
@@ -17,7 +17,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { warn } from "../ui/report.ts";
-import { reportDisabled, reportModified, reportViolations } from "../ui/status.ts";
+import { refuseViolations, reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 
@@ -27,7 +27,6 @@ export const help: CommandHelp = {
 };
 
 const AGENT_IGNORED = "Ignoring --agent. Every lockfile entry records its destination.";
-const POLICY_REMEDY = `Nothing installed.\nRemove these skills with \`nik remove\`, or allow their sources in ${PROJECT_CONFIG_NAME}.`;
 
 interface InstallOptions extends ScopeOptions {
   yes?: boolean;
@@ -40,12 +39,8 @@ export const run = async (options: InstallOptions): Promise<void> => {
   const { policy } = await readProjectConfig(scope);
   await migrateIfLegacy(scope);
   const { enabled, disabled } = splitDisabled(await readLock(scope));
-  const violations = lockViolations(policy, enabled);
-  if (violations.length > 0) {
-    reportViolations(violations);
-    fail(POLICY_REMEDY);
-  }
   const skills = installedSkills(enabled);
+  refuseViolations(policyViolations(policy, skills), "Nothing installed.");
   const disabledNames = Object.keys(disabled.skills).toSorted();
   reportDisabled(disabledNames, scope);
   if (skills.length === 0) {

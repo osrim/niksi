@@ -6,10 +6,12 @@ import { usageError } from "./usage.ts";
 
 export const PROJECT_CONFIG_NAME = "niksi.json";
 
-const GITHUB_ORG = /^[a-z\d](?:[a-z\d-]*[a-z\d])?$/iu;
+const GITHUB_ORG = /^[A-Za-z\d](?:[A-Za-z\d-]*[A-Za-z\d])?$/u;
 
 const GITHUB_ERROR = "must list organization names, such as osrim";
 const GIT_ERROR = "must list repository URLs, such as https://git.example.com/team/skills";
+const DAYS_ERROR = "must be a whole number of days, 0 or more";
+const OBJECT_ERROR = "must be an object";
 
 const SourcesSchema = z.strictObject(
   {
@@ -22,18 +24,18 @@ const SourcesSchema = z.strictObject(
       .array(z.string({ error: GIT_ERROR }).min(1, { error: GIT_ERROR }), { error: GIT_ERROR })
       .optional(),
   },
-  { error: "must be an object" },
+  { error: OBJECT_ERROR },
 );
 
 const ProjectConfigSchema = z.strictObject(
   {
     minimumReleaseAge: z
-      .number({ error: "must be a whole number of days, 0 or more" })
-      .int({ error: "must be a whole number of days, 0 or more" })
-      .nonnegative({ error: "must be a whole number of days, 0 or more" })
+      .number({ error: DAYS_ERROR })
+      .int({ error: DAYS_ERROR })
+      .nonnegative({ error: DAYS_ERROR })
       .optional(),
     policy: z
-      .strictObject({ sources: SourcesSchema.optional() }, { error: "must be an object" })
+      .strictObject({ sources: SourcesSchema.optional() }, { error: OBJECT_ERROR })
       .optional(),
   },
   { error: "must be a JSON object" },
@@ -66,11 +68,9 @@ export const parseProjectConfig = (text: string, file: string): ProjectConfig =>
   return parsed.data;
 };
 
-export const projectConfigPath = (): string => join(projectRoot(), PROJECT_CONFIG_NAME);
-
 export const readProjectConfig = async (scope: Scope): Promise<ProjectConfig> => {
   if (scope === "global") return {};
-  const file = projectConfigPath();
+  const file = join(projectRoot(), PROJECT_CONFIG_NAME);
   let text: string;
   try {
     text = await readFile(file, "utf8");

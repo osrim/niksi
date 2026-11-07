@@ -102,12 +102,26 @@ export const sameContent = (local: SkillFile[], upstream: SkillFile[]): boolean 
   return mine !== undefined && theirs !== undefined && sameGhSkillMd(mine, theirs);
 };
 
+// A followed revision also looks at the branch head, which can hold skills added after the release.
+const discoveryCommits = async (
+  source: Source,
+  rev: Revision,
+): Promise<Array<string | undefined>> => {
+  if (rev.track === "pin" || rev.branch === undefined) return [rev.commit];
+  const head = (await source.resolve(rev.branch)).commit;
+  return head === rev.commit ? [rev.commit] : [rev.commit, head];
+};
+
 const candidatePaths = async (source: Source, rev: Revision, want: Wanted): Promise<string[]> => {
   if (want.path !== undefined) return [want.path];
-  const skills = await source.discover(rev.commit);
-  return skills
-    .filter((skill) => skill.name === want.name || posix.basename(skill.path) === want.name)
-    .map((skill) => skill.path);
+  const paths = new Set<string>();
+  for (const commit of await discoveryCommits(source, rev)) {
+    for (const skill of await source.discover(commit)) {
+      if (skill.name === want.name || posix.basename(skill.path) === want.name)
+        paths.add(skill.path);
+    }
+  }
+  return [...paths];
 };
 
 // The tree that another installer recorded is the likeliest match, so it is read first.

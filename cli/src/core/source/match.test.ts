@@ -92,6 +92,13 @@ test("without a path, the skill is found by name", async () => {
   expect(match?.path).toBe("skills/pdf");
 });
 
+test("without a path, a skill added after the latest release is found at the branch head", async () => {
+  const late: SkillFile[] = [{ path: "SKILL.md", content: Buffer.from(LATE), mode: "100644" }];
+  const match = await matchSkill(source, { name: "late", files: late });
+  expect(match?.path).toBe("skills/late");
+  expect(match?.revision).toEqual({ commit: commits["late"]!, branch: "main", track: "auto" });
+});
+
 test("an edited copy, or an unknown name, matches nothing", async () => {
   const edited = skill(V2.replace("two", "two, with my notes"));
   expect(await matchSkill(source, { name: "pdf", files: edited, path: "skills/pdf" })).toBe(

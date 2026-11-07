@@ -8,7 +8,7 @@ import {
   modifiedSkills,
   removeInstalledSkill,
 } from "../core/install/destination.ts";
-import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import { warnReferrers } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -89,7 +89,7 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
       const entry = loaded.lock.skills[name]!;
       if (await holdsOwnSource({ name, ...entry }, scope)) {
         throw new Error(
-          `its files are its own source, so disabling would delete them.\nRun \`nik remove ${name}\` to delete it, or keep it enabled.`,
+          `its files are its own source, so disabling would delete them.\nRun \`nik remove ${name}${scopeFlag(scope)}\` to delete it, or keep it enabled.`,
         );
       }
       await removeInstalledSkill(name, scope, location);

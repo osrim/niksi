@@ -167,6 +167,8 @@ test("a gh skill copy matches its tree and loses the gh metadata", async () => {
     "",
   ].join("\n");
   await writeSkillMd(join(dir, ".claude", "skills", "pdf"), ghInstalled);
+  await mkdir(join(dir, ".claude", "skills", "pdf", ".git"), { recursive: true });
+  await writeFile(join(dir, ".claude", "skills", "pdf", ".git", "HEAD"), "ref: refs/heads/main\n");
 
   const adopted = await runCli(dir, "adopt", "--all", "-y");
   expect(adopted.exitCode).toBe(0);
@@ -179,6 +181,7 @@ test("a gh skill copy matches its tree and loses the gh metadata", async () => {
     agents: ["claude"],
   });
   expect(await readFile(join(dir, ".claude", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V2);
+  expect(existsSync(join(dir, ".claude", "skills", "pdf", ".git", "HEAD"))).toBe(true);
   expect(await listJson(dir)).toMatchObject([{ name: "pdf", modified: false }]);
 });
 
@@ -208,6 +211,8 @@ test("copies that differ are skipped, and naming one exits 1", async () => {
   const adopted = await runCli(dir, "adopt", "drift", "-y");
   expect(adopted.exitCode).toBe(1);
   expect(existsSync(join(dir, "niksi-lock.json"))).toBe(false);
+  expect(await readFile(join(dir, ".claude", "skills", "drift", "SKILL.md"), "utf8")).toBe(V1);
+  expect(await listJson(dir)).toEqual([]);
 });
 
 test("an unknown name exits 1, and so does a source that cannot be reached", async () => {
@@ -229,6 +234,8 @@ test("a critical finding without a terminal blocks the skill with exit 3", async
   const adopted = await runCli(dir, "adopt", "--all", "-y");
   expect(adopted.exitCode).toBe(3);
   expect(existsSync(join(dir, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(dir, ".claude", "skills", "risky", "SKILL.md"))).toBe(true);
+  expect(await listJson(dir)).toEqual([]);
 });
 
 test("usage errors exit 2", async () => {
@@ -277,4 +284,8 @@ test("in a terminal, the picker selects skills and the write is confirmed", asyn
   );
   expect(adopted.exitCode).toBe(0);
   expect((await readLockJson(dir))["notes"]).toMatchObject({ source: "local:.", copy: true });
+  expect(existsSync(join(dir, ".claude", "skills", "notes", "SKILL.md"))).toBe(true);
+  expect(await listJson(dir)).toMatchObject([
+    { name: "notes", modified: false, agents: ["claude"] },
+  ]);
 });

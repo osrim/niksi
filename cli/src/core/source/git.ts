@@ -149,19 +149,19 @@ export const subtreeOid = async (
   return result.code === 0 ? result.out : null;
 };
 
-export interface PathVersion {
+export interface PathContent {
   commit: string;
   tree: string;
 }
 
 // One commit per distinct content of `path`, newest first. The first start comes first, then
 // the commits reachable from any start that changed the path, up to `limit` of them.
-export const pathVersions = async (
+export const pathHistory = async (
   clone: string,
   starts: string[],
   path: string,
   limit: number,
-): Promise<PathVersion[]> => {
+): Promise<PathContent[]> => {
   const pathspec = path ? ["--", path] : [];
   const listed = await git(
     ["rev-list", `--max-count=${limit}`, "--end-of-options", ...starts, ...pathspec],
@@ -180,14 +180,14 @@ export const pathVersions = async (
   if (checked.code !== 0)
     throw new Error(`cannot read the history of ${path}${gitReason(checked)}`);
   const seen = new Set<string>();
-  const versions: PathVersion[] = [];
+  const history: PathContent[] = [];
   checked.out.split("\n").forEach((line, index) => {
     const [tree, type] = line.split(" ");
     if (type !== "tree" || seen.has(tree!)) return;
     seen.add(tree!);
-    versions.push({ commit: commits[index]!, tree: tree! });
+    history.push({ commit: commits[index]!, tree: tree! });
   });
-  return versions;
+  return history;
 };
 
 export interface TreeEntry {

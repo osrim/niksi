@@ -117,9 +117,10 @@ that ref only.
 - When the files match, the entry records that source and the commit that
   holds those files, with `track: auto`, or `track: pin` for a pinned ref.
   `nik update` then compares it with the source as it does any other entry.
-- A `gh skill` copy matches when its only change is the metadata in the
+- A `gh skill` copy matches when its `SKILL.md` differs from the source only
+  by the keys that `gh skill` writes under `metadata` and by the layout of the
   frontmatter. `adopt` writes the source's `SKILL.md` over the copy, which
-  drops the `gh skill` metadata.
+  drops those keys. It leaves every other file in the directory alone.
 - When no source is known, or the files differ from the source, `adopt` keeps
   your files and records the skill directory itself as a local source. Run
   `nik update` to record later edits. `nik disable` refuses such a skill,

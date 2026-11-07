@@ -79,7 +79,7 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 
 `core/install/destination.ts` gives commands the installed location, filesystem path, state, apply destination, and removal operation. Commands do not read `agents` or `copyPath` to decide placement.
 
-`adopt` does not use `applySkill`. `core/install/unmanaged.ts` finds skill directories in agent skills directories that the lockfile does not record. `core/source/provenance.ts` reads where `gh skill` and `npx skills` say a skill came from, and `core/source/match.ts` compares the files with versions of that source from `Source.versions`. `adoptSkill` in `core/install/adopt.ts` records an agent copy entry for the directories on disk. It writes files only to replace a `gh skill` copy with the matching source files.
+`adopt` does not use `applySkill`. `core/install/unmanaged.ts` finds skill directories in agent skills directories that the lockfile does not record. `core/source/provenance.ts` reads where `gh skill` and `npx skills` say a skill came from, and `core/source/match.ts` compares the files with the past contents of that source from `Source.history`. `adoptSkill` in `core/install/adopt.ts` records an agent copy entry for the directories on disk. It writes a file only to replace the `SKILL.md` of a `gh skill` copy.
 
 `core/install/apply.ts` refuses unmanaged targets and ensures that a store entry exists. It then applies the destination's placement.
 

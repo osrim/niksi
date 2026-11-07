@@ -13,8 +13,13 @@ import { criticalRules } from "../core/scan/index.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { parseSource } from "../core/source/coordinate.ts";
 import { GitSource } from "../core/source/git-source.ts";
-import { localAnchor, sourceForCoordinate, type Source } from "../core/source/index.ts";
-import { matchSkill } from "../core/source/match.ts";
+import {
+  localAnchor,
+  sourceForCoordinate,
+  type Anchored,
+  type Source,
+} from "../core/source/index.ts";
+import { matchSkill, type Match } from "../core/source/match.ts";
 import { ghSkillHint, readSkillsLockHints, type UpstreamHint } from "../core/source/provenance.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
 import { usageError, USAGE_ERROR } from "../core/usage.ts";
@@ -114,14 +119,21 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
   await land({
     items: approved,
     name: (item) => item.skill.name,
-    apply: async (item) => ({
-      ...(await adoptSkill(planOf(item), loaded.lock)),
-      success: `adopted @ ${displayLabel({ ...item.revision, integrity: item.integrity })}`,
-    }),
+    apply: async (item) => {
+      await adoptSkill(planOf(item), loaded.lock);
+      return {
+        success: `adopted @ ${displayLabel({ ...item.revision, integrity: item.integrity })}`,
+      };
+    },
     scope,
     lock: loaded,
     outro: (adopted) => `Adopted ${adopted} skill(s) (${scope}).`,
   });
+};
+
+const upstreamSkillMd = (item: Resolved): { skillMd?: Buffer } => {
+  const skillMd = item.files.find((file) => file.path === "SKILL.md");
+  return item.matched && skillMd ? { skillMd: skillMd.content } : {};
 };
 
 const planOf = (item: Resolved & { acceptedRules: string[] }): AdoptPlan => ({
@@ -133,8 +145,8 @@ const planOf = (item: Resolved & { acceptedRules: string[] }): AdoptPlan => ({
   integrity: item.integrity,
   agents: item.skill.agents,
   dirs: item.skill.dirs,
-  local: item.skill.integrity,
-  ...(item.matched ? { files: item.files } : {}),
+  scannedIntegrity: item.skill.integrity,
+  ...upstreamSkillMd(item),
   acceptedRules: item.acceptedRules,
 });
 
@@ -216,6 +228,28 @@ const asLocal = (skill: UnmanagedSkill, scope: Scope, note: string): Resolved =>
   };
 };
 
+const matchedNote = (hint: UpstreamHint | undefined, rewrite: boolean): string =>
+  [...(hint ? [`from ${hint.via}`] : []), ...(rewrite ? ["drops gh skill metadata"] : [])].join(
+    ", ",
+  );
+
+const asMatched = (
+  skill: UnmanagedSkill,
+  anchored: Anchored,
+  match: Match,
+  hint: UpstreamHint | undefined,
+): Resolved => ({
+  skill,
+  source: anchored.source.id,
+  path: [anchored.root, match.path].filter(Boolean).join("/"),
+  root: anchored.root || undefined,
+  revision: match.revision,
+  files: match.files,
+  integrity: match.integrity,
+  matched: true,
+  note: matchedNote(hint, match.integrity !== skill.integrity),
+});
+
 const resolveOne = async (
   skill: UnmanagedSkill,
   scope: Scope,
@@ -225,27 +259,9 @@ const resolveOne = async (
   const hint = from ? undefined : (ghSkillHint(skill.files) ?? hints.get(skill.name));
   const source = from ?? (hint ? new GitSource(hint.source) : undefined);
   if (!source) return asLocal(skill, scope, "no known source");
-  const match = await matchSkill(source, {
-    name: skill.name,
-    files: skill.files,
-    path: hint?.path,
-    pinned: hint?.pinned,
-    tree: hint?.tree,
-  });
+  const match = await matchSkill(source, { name: skill.name, files: skill.files, ...hint });
   if (!match) return asLocal(skill, scope, `no match in ${friendlySource(source.display)}`);
-  const anchored = source.forScope(scope);
-  const rewrite = match.integrity !== skill.integrity ? ", drops gh skill metadata" : "";
-  return {
-    skill,
-    source: anchored.source.id,
-    path: [anchored.root, match.path].filter(Boolean).join("/"),
-    root: anchored.root || undefined,
-    revision: match.revision,
-    files: match.files,
-    integrity: match.integrity,
-    matched: true,
-    note: `${hint ? `from ${hint.via}` : ""}${rewrite}`.replace(/^, /u, ""),
-  };
+  return asMatched(skill, source.forScope(scope), match, hint);
 };
 
 const resolveAll = async (

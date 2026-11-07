@@ -15,7 +15,7 @@ import {
   type Changes,
   type Upstream,
   type Source,
-  type SourceVersion,
+  type PastContent,
 } from "./index.ts";
 
 const NO_REVISION: Revision = { track: "auto" };
@@ -93,7 +93,7 @@ export class LocalSource implements Source {
     return readDirFiles(await this.requireDir(path));
   }
 
-  versions(_rev: Revision, _path: string): Promise<SourceVersion[]> {
+  history(_rev: Revision, _path: string): Promise<PastContent[]> {
     return Promise.resolve([{}]);
   }
 

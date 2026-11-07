@@ -25,8 +25,8 @@ export interface Changes {
   patch: string;
 }
 
-// A distinct content of one skill path. A local source has one, its current files.
-export interface SourceVersion {
+// One distinct content of a skill path. A local source has one: its current files.
+export interface PastContent {
   commit?: string;
   tree?: string;
 }
@@ -48,7 +48,7 @@ export interface Source {
   discover(rev: string | undefined, root?: string): Promise<DiscoveredSkill[]>;
   splitTree(segments: string[]): Promise<{ ref?: string; dir: string }>;
   fetchFiles(rev: string | undefined, path: string): Promise<SkillFile[]>;
-  versions(rev: Revision, path: string): Promise<SourceVersion[]>;
+  history(rev: Revision, path: string): Promise<PastContent[]>;
   changes(from: InstalledSkill, to: string | undefined, before: string): Promise<Changes>;
 }
 

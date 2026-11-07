@@ -5,6 +5,7 @@ import {
   cp,
   mkdir,
   mkdtemp,
+  readFile,
   readdir,
   rename,
   rm,
@@ -390,6 +391,56 @@ test("an unreachable https clone falls back to the ssh address", async () => {
   );
   const clone = await cloneOrFetch("https://niksi-test.invalid/demo");
   expect(await headCommit(clone, "main")).toBe(firstSha);
+}, 30_000);
+
+// An ssh that records its arguments, then runs the remote command on this machine.
+const fakeSsh = async (): Promise<{ log: string; ssh: string }> => {
+  const log = join(tmp, "ssh.log");
+  const ssh = join(tmp, "bin", "ssh");
+  await mkdir(join(tmp, "bin"));
+  await writeFile(
+    ssh,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nfor last; do :; done\nexec sh -c "$last"\n`,
+  );
+  await chmod(ssh, 0o755);
+  await $`git -C ${remote} config uploadpack.allowFilter true`.quiet();
+  return { log, ssh };
+};
+
+const sshCalls = async (log: string): Promise<string[]> =>
+  (await readFile(log, "utf8").catch(() => "")).split("\n").filter(Boolean);
+
+test("an sshBatch clone runs every ssh call in batch mode and keeps the user's ssh options", async () => {
+  const restore = captureEnv("GIT_SSH_COMMAND");
+  const { log, ssh } = await fakeSsh();
+  process.env.GIT_SSH_COMMAND = `${ssh} -o User=me`;
+  try {
+    const repo = `ssh://niksi-test.invalid${remote}`;
+    const clone = await ensureClone(repo, { sshBatch: true });
+    expect(await cloneOrFetch(repo, { sshBatch: true })).toBe(clone);
+    const entries = await lsTreeEntries(clone, firstSha, "skills/demo");
+    expect(await readBlobs(clone, [entries[0]!.oid])).toEqual([Buffer.from("first\n")]);
+
+    const calls = await sshCalls(log);
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    for (const call of calls) expect(call).toStartWith("-o User=me -o BatchMode=yes ");
+  } finally {
+    restore();
+  }
+}, 30_000);
+
+test("a clone without sshBatch runs ssh as the user set it up", async () => {
+  const restore = captureEnv("GIT_SSH_COMMAND");
+  const { log, ssh } = await fakeSsh();
+  process.env.GIT_SSH_COMMAND = `${ssh} -o User=me`;
+  try {
+    await ensureClone(`ssh://niksi-test.invalid${remote}`);
+    const calls = await sshCalls(log);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) expect(call).not.toContain("BatchMode");
+  } finally {
+    restore();
+  }
 }, 30_000);
 
 test("a failure on both addresses reports the https attempt the user named", async () => {

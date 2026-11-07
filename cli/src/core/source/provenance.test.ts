@@ -49,6 +49,18 @@ test("ghSkillHint ignores a SKILL.md without gh metadata, or with an unusable on
   expect(ghSkillHint(skillMd(escape))).toBeUndefined();
 });
 
+test("ghSkillHint uses only an https repository, as gh skill writes", () => {
+  for (const repo of [
+    "ssh://git@example.com/anthropics/skills",
+    "git@example.com:anthropics/skills",
+    "file:///tmp/skills",
+    "anthropics/skills",
+  ]) {
+    const other = GH_INSTALLED.replace("https://github.com/anthropics/skills", repo);
+    expect(ghSkillHint(skillMd(other))).toBeUndefined();
+  }
+});
+
 // The shape `npx skills` writes, from vercel-labs/skills src/local-lock.ts.
 const PROJECT_LOCK = JSON.stringify({
   version: 1,

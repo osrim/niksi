@@ -54,14 +54,15 @@ const readSkillMd = (files: SkillFile[]): Record<string, unknown> => {
   }
 };
 
-// `gh skill install` writes these keys under `metadata` in SKILL.md.
+// `gh skill install` writes these keys under `metadata` in SKILL.md. It writes only https
+// repositories, so any other address came from someone else and is not cloned.
 export const ghSkillHint = (files: SkillFile[]): UpstreamHint | undefined => {
   const metadata = readSkillMd(files)["metadata"];
   if (typeof metadata !== "object" || metadata === null) return undefined;
   const fields = metadata as Record<string, unknown>;
   const repo = text(fields["github-repo"]);
   const path = text(fields["github-path"]);
-  const source = repo === undefined ? undefined : gitSource(repo);
+  const source = repo?.startsWith("https://") ? gitSource(repo) : undefined;
   const dir = path === undefined ? undefined : skillDir(path);
   if (source === undefined || dir === undefined) return undefined;
   return {

@@ -1,4 +1,5 @@
 import {
+  type CloneOptions,
   commitTime,
   defaultBranch,
   diffSubtree,
@@ -39,12 +40,15 @@ const requireCommit = (rev: string | undefined): string => {
 export class GitSource implements Source {
   readonly kind = "git" as const;
   readonly display: string;
-  constructor(readonly id: string) {
+  constructor(
+    readonly id: string,
+    private readonly options: CloneOptions = {},
+  ) {
     this.display = id;
   }
 
   private clone(): Promise<string> {
-    return ensureClone(this.id);
+    return ensureClone(this.id, this.options);
   }
 
   forScope(_scope: Scope): Anchored {

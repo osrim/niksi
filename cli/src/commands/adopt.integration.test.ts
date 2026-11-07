@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { $ } from "bun";
@@ -145,8 +154,56 @@ test("an npx skills copy and its symlink match the commit in skills-lock.json, t
   expect(await readFile(join(dir, ".agents", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V2);
 });
 
+test("an ssh entry in skills-lock.json is cloned with ssh set to fail instead of asking", async () => {
+  const dir = await project("npx-ssh");
+  const log = join(tmp, "ssh.log");
+  const ssh = join(tmp, "bin", "ssh");
+  await mkdir(join(tmp, "bin"), { recursive: true });
+  // Records its arguments, then runs the remote command on this machine.
+  await writeFile(
+    ssh,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nfor last; do :; done\nexec sh -c "$last"\n`,
+  );
+  await chmod(ssh, 0o755);
+  const sshUrl = `ssh://niksi-test.invalid${repo}`;
+  await writeSkillMd(join(dir, ".agents", "skills", "pdf"), V2);
+  await writeFile(
+    join(dir, "skills-lock.json"),
+    JSON.stringify({
+      version: 1,
+      skills: { pdf: { source: sshUrl, sourceType: "git", skillPath: "skills/pdf/SKILL.md" } },
+    }),
+  );
+
+  const restore = captureEnv("GIT_SSH_COMMAND");
+  process.env.GIT_SSH_COMMAND = `${ssh} -o User=me`;
+  try {
+    expect((await runCli(dir, "adopt", "pdf", "-y")).exitCode).toBe(0);
+  } finally {
+    restore();
+  }
+  expect((await readLockJson(dir))["pdf"]).toMatchObject({ source: sshUrl, commit: commits[1] });
+  const calls = (await readFile(log, "utf8")).split("\n").filter(Boolean);
+  expect(calls.length).toBeGreaterThan(0);
+  for (const call of calls) expect(call).toStartWith("-o User=me -o BatchMode=yes ");
+});
+
+// gh skill records only https repositories, so the test points one at the local repository.
+const withForge = async <T>(forge: string, body: () => Promise<T>): Promise<T> => {
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${repoUrl}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    return await body();
+  } finally {
+    restore();
+  }
+};
+
 test("a gh skill copy matches its tree and loses the gh metadata", async () => {
   const dir = await project("gh");
+  const forge = "https://niksi-test.invalid/skills";
   const tree = (await $`git -C ${repo} rev-parse HEAD:skills/pdf`.text()).trim();
   const ghInstalled = [
     "---",
@@ -154,7 +211,7 @@ test("a gh skill copy matches its tree and loses the gh metadata", async () => {
     "metadata:",
     "    github-path: skills/pdf",
     "    github-ref: main",
-    `    github-repo: ${repoUrl}`,
+    `    github-repo: ${forge}`,
     `    github-tree-sha: ${tree}`,
     "name: pdf",
     "---",
@@ -167,10 +224,10 @@ test("a gh skill copy matches its tree and loses the gh metadata", async () => {
   await mkdir(join(dir, ".claude", "skills", "pdf", ".git"), { recursive: true });
   await writeFile(join(dir, ".claude", "skills", "pdf", ".git", "HEAD"), "ref: refs/heads/main\n");
 
-  const adopted = await runCli(dir, "adopt", "--all", "-y");
+  const adopted = await withForge(forge, () => runCli(dir, "adopt", "--all", "-y"));
   expect(adopted.exitCode).toBe(0);
   expect((await readLockJson(dir))["pdf"]).toMatchObject({
-    source: repoUrl,
+    source: forge,
     path: "skills/pdf",
     commit: commits[1],
     copy: true,

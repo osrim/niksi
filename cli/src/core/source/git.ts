@@ -10,6 +10,14 @@ interface GitResult {
   err: string;
 }
 
+// ssh fails instead of asking for a passphrase or a host key. The user's ssh options still apply.
+const sshBatchEnv = (): Record<string, string> => ({
+  GIT_SSH_COMMAND: `${process.env.GIT_SSH_COMMAND ?? "ssh"} -o BatchMode=yes`,
+});
+
+// Clones made with `sshBatch`. Every git call in them, fetches included, runs ssh in batch mode.
+const batchClones = new Set<string>();
+
 export const git = async (
   args: string[],
   cwd?: string,
@@ -17,11 +25,12 @@ export const git = async (
   input?: string,
 ): Promise<GitResult> => {
   const full = cwd ? ["git", "-C", cwd, ...args] : ["git", ...args];
+  const batch = cwd !== undefined && batchClones.has(cwd) ? sshBatchEnv() : {};
   // Bun.spawn, not Bun.$: the shell's captured promise can stay pending after the child exits
   // (oven-sh/bun#26580).
   const child = Bun.spawn(full, {
     // Prevent Git from waiting for credentials during non-interactive runs.
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...batch, ...env },
     stdin: input === undefined ? "inherit" : new Blob([input]),
     stdout: "pipe",
     stderr: "pipe",
@@ -56,10 +65,15 @@ export const gitReason = (result: Pick<GitResult, "err">): string => {
   return ` (${line})`;
 };
 
-export const ensureClone = (repo: string): Promise<string> => {
+export interface CloneOptions {
+  // For a source that came from a file on disk rather than from the user.
+  sshBatch?: boolean;
+}
+
+export const ensureClone = (repo: string, options: CloneOptions = {}): Promise<string> => {
   let clone = clones.get(repo);
   if (!clone) {
-    clone = cloneOrFetch(repo);
+    clone = cloneOrFetch(repo, options);
     clones.set(repo, clone);
     clone.catch(() => clones.delete(repo));
   }
@@ -79,27 +93,31 @@ export const sshAlternate = (repo: string): string | null => {
   return path ? `git@${url.hostname}:${path}` : null;
 };
 
-const cloneTo = async (repo: string, dest: string): Promise<GitResult> => {
+const cloneTo = async (repo: string, dest: string, sshBatch: boolean): Promise<GitResult> => {
   const args = ["clone", "--quiet", "--filter=blob:none", "--no-checkout"];
-  const httpsAttempt = await git([...args, "--", repo, dest]);
+  const httpsAttempt = await git(
+    [...args, "--", repo, dest],
+    undefined,
+    sshBatch ? sshBatchEnv() : {},
+  );
   const sshRepo = httpsAttempt.code === 0 ? null : sshAlternate(repo);
   if (!sshRepo) return httpsAttempt;
   await rm(dest, { recursive: true, force: true });
   // The automatic SSH retry must not request credentials or host-key approval.
-  const sshAttempt = await git([...args, "--", sshRepo, dest], undefined, {
-    GIT_SSH_COMMAND: `${process.env.GIT_SSH_COMMAND ?? "ssh"} -o BatchMode=yes`,
-  });
+  const sshAttempt = await git([...args, "--", sshRepo, dest], undefined, sshBatchEnv());
   return sshAttempt.code === 0 ? sshAttempt : httpsAttempt;
 };
 
-export const cloneOrFetch = async (repo: string): Promise<string> => {
+export const cloneOrFetch = async (repo: string, options: CloneOptions = {}): Promise<string> => {
   const dir = join(cacheDir(), "repos", repo.replace(/[^a-zA-Z0-9]/gu, "_"));
+  const sshBatch = options.sshBatch === true;
+  if (sshBatch) batchClones.add(dir);
   if (existsSync(dir)) {
     const fetched = await git(["fetch", "--quiet", "--prune", "--tags", "--force", "origin"], dir);
     if (fetched.code === 0) return dir;
     const fresh = `${dir}.new`;
     await rm(fresh, { recursive: true, force: true });
-    const cloned = await cloneTo(repo, fresh);
+    const cloned = await cloneTo(repo, fresh, sshBatch);
     if (cloned.code !== 0) {
       await rm(fresh, { recursive: true, force: true });
       throw new Error(`cannot reach ${repo}${gitReason(cloned)}`);
@@ -109,7 +127,7 @@ export const cloneOrFetch = async (repo: string): Promise<string> => {
     return dir;
   }
   await mkdir(join(cacheDir(), "repos"), { recursive: true });
-  const cloned = await cloneTo(repo, dir);
+  const cloned = await cloneTo(repo, dir, sshBatch);
   if (cloned.code !== 0) {
     await rm(dir, { recursive: true, force: true });
     throw new Error(`cannot reach ${repo}${gitReason(cloned)}`);

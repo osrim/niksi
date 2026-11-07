@@ -104,10 +104,17 @@ not offered.
    URL path, or `@ref`, or when you pass it twice.
 2. The `metadata` keys that `gh skill install` writes in `SKILL.md`:
    `github-repo`, `github-path`, `github-tree-sha`, and `github-pinned`.
+   `adopt` uses `github-repo` only when it's an `https://` URL, as `gh skill`
+   writes it.
 3. The entry with the skill's name in the lockfile of `npx skills`:
    `skills-lock.json` at the project root in project scope, or
    `~/.agents/.skill-lock.json` in global scope. Entries from a Git
    repository count. Local and npm entries don't.
+
+A source from `SKILL.md` or from the `npx skills` lockfile can't ask you for
+anything: SSH fails instead of asking for a passphrase or for approval of an
+unknown host key. An SSH source works when your key and the host's key are
+already set up.
 
 `adopt` compares the files with the source. A Git source is checked at the
 latest release, the head of the default branch, and the last 100 commits that

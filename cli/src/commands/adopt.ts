@@ -257,7 +257,8 @@ const resolveOne = async (
   hints: Map<string, UpstreamHint>,
 ): Promise<Resolved> => {
   const hint = from ? undefined : (ghSkillHint(skill.files) ?? hints.get(skill.name));
-  const source = from ?? (hint ? new GitSource(hint.source) : undefined);
+  // A hint comes from a file on disk, so its ssh clone must not stop at a prompt.
+  const source = from ?? (hint ? new GitSource(hint.source, { sshBatch: true }) : undefined);
   if (!source) return asLocal(skill, scope, "no known source");
   const match = await matchSkill(source, { name: skill.name, files: skill.files, ...hint });
   if (!match) return asLocal(skill, scope, `no match in ${friendlySource(source.display)}`);

@@ -63,6 +63,8 @@ The step fails in these cases:
 
 Update mode runs `nik update --project --yes --report <file>` in the checkout and adds the report to the job summary. The report lists each skill with its old and new revision, a diff stat, and its findings. Without `source`, the action passes `--all`, which selects every skill that isn't pinned.
 
+A release younger than 3 days waits for a later run, so a release pushed from a hijacked account doesn't reach your pull request the same day. The report lists a waiting skill under **Not updated** with its age. See [the cooldown](commands.md#cooldown).
+
 When `pull-request` is `true`, the default, the action then manages one pull request:
 
 1. It commits every change in the checkout to `branch` and force-pushes it. That includes files that earlier steps of the job wrote, so run update mode before steps that change files.

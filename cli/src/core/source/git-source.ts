@@ -1,4 +1,5 @@
 import {
+  commitTime,
   defaultBranch,
   diffSubtree,
   ensureClone,
@@ -82,7 +83,12 @@ export class GitSource implements Source {
       moved,
       gone,
       ahead,
+      committedAt: await commitTime(clone, upstream.commit),
     };
+  }
+
+  async committedAt(rev: Revision): Promise<number | undefined> {
+    return rev.commit ? commitTime(await this.clone(), rev.commit) : undefined;
   }
 
   async discover(rev: string | undefined, root = ""): Promise<DiscoveredSkill[]> {

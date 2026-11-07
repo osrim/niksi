@@ -1,12 +1,14 @@
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Revision } from "./revision.ts";
 import { sourceFor, type Source } from "./index.ts";
+import { waitsForCooldown, type Cooldown } from "./release-age.ts";
 
 interface Verdict {
   skill: InstalledSkill;
   source: Source;
   upstream: Revision;
   ahead: number;
+  age?: number;
 }
 
 export interface UnreachableVerdict extends Verdict {
@@ -31,10 +33,12 @@ export interface PinnedVerdict extends Verdict {
 
 export interface MovedVerdict extends Verdict {
   kind: "moved";
+  waiting?: boolean;
 }
 
 export interface OutdatedVerdict extends Verdict {
   kind: "outdated";
+  waiting?: boolean;
 }
 
 export type UpdatableVerdict = MovedVerdict | OutdatedVerdict;
@@ -54,25 +58,39 @@ export type UpdateVerdict =
 
 export const computeVerdicts = (
   skills: InstalledSkill[],
-  named: string[] = [],
+  named: string[],
+  cooldown: Cooldown,
 ): Promise<UpdateVerdict[]> => {
   const names = new Set(named);
-  return Promise.all(skills.map((skill) => verdictOf(skill, names)));
+  return Promise.all(skills.map((skill) => verdictOf(skill, names, cooldown)));
 };
 
-const verdictOf = async (skill: InstalledSkill, names: Set<string>): Promise<UpdateVerdict> => {
+const verdictOf = async (
+  skill: InstalledSkill,
+  names: Set<string>,
+  cooldown: Cooldown,
+): Promise<UpdateVerdict> => {
   const source = sourceFor(skill.source);
   try {
-    const { revision: upstream, ...flags } = await source.upstream(skill);
-    const verdict = { skill, source, upstream, ahead: flags.ahead };
+    const { revision: upstream, committedAt, ...flags } = await source.upstream(skill);
+    const age = committedAt === undefined ? undefined : cooldown.now - committedAt;
+    const verdict = {
+      skill,
+      source,
+      upstream,
+      ahead: flags.ahead,
+      ...(age === undefined ? {} : { age }),
+    };
     const rewritten = await rewrittenRef(skill, source);
     if (rewritten) return { kind: "rewritten", ...verdict, ...rewritten };
     if (flags.gone) return { kind: "gone", ...verdict };
-    if (skill.track === "pin" && !names.has(skill.name) && (flags.outdated || flags.moved)) {
+    const named = names.has(skill.name);
+    if (skill.track === "pin" && !named && (flags.outdated || flags.moved)) {
       return { kind: "pinned", ...verdict };
     }
-    if (flags.moved) return { kind: "moved", ...verdict };
-    if (flags.outdated) return { kind: "outdated", ...verdict };
+    const waiting = !named && age !== undefined && waitsForCooldown(age, cooldown.days);
+    if (flags.moved) return { kind: "moved", ...verdict, waiting };
+    if (flags.outdated) return { kind: "outdated", ...verdict, waiting };
     return { kind: "up-to-date", ...verdict };
   } catch (e) {
     return {
@@ -134,7 +152,9 @@ export const selectUpdates = (
     all,
   );
   if (!requested) return { selected: [], skipped: [], needsPrompt: true };
-  const selected = candidates.filter((verdict) => requested.includes(verdict.skill.name));
+  const selected = candidates.filter(
+    (verdict) => requested.includes(verdict.skill.name) && (names.length > 0 || !verdict.waiting),
+  );
   const skipped = requested.filter(
     (name) => !selected.some((verdict) => verdict.skill.name === name),
   );

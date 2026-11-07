@@ -22,6 +22,7 @@ import {
   findRef,
   git,
   gitReason,
+  commitTime,
   headCommit,
   isBranch,
   listTags,
@@ -284,6 +285,17 @@ test("lsTreeEntries rejects a path that is not valid UTF-8", async () => {
   );
 });
 
+test("commitTime reads the committer date, and rejects a commit the clone lacks", async () => {
+  const clone = await ensureClone(remote);
+  const dated = (
+    await $`git -C ${clone} -c user.email=test@example.com -c user.name=Test commit-tree ${firstSha}^{tree} -m dated`
+      .env({ ...process.env, GIT_COMMITTER_DATE: "@1700000000 +0000" })
+      .text()
+  ).trim();
+  expect(await commitTime(clone, dated)).toBe(1_700_000_000);
+  expect(commitTime(clone, "f".repeat(40))).rejects.toThrow(`cannot read the date of ffffffff`);
+});
+
 // Git's --output writes a file, so any probe file shows that a value was read as an option.
 const optionProbe = (): string => `--output=${join(tmp, "probe")}`;
 const probeFiles = async (): Promise<string[]> =>
@@ -293,6 +305,12 @@ test("subtreeOid reads a dash-prefixed revision as a revision", async () => {
   const clone = await ensureClone(remote);
   expect(await subtreeOid(clone, optionProbe(), "skills/demo")).toBeNull();
   expect(await subtreeOid(clone, optionProbe(), "")).toBeNull();
+  expect(await probeFiles()).toEqual([]);
+});
+
+test("commitTime reads a dash-prefixed revision as a revision", async () => {
+  const clone = await ensureClone(remote);
+  expect(commitTime(clone, optionProbe())).rejects.toThrow("cannot read the date");
   expect(await probeFiles()).toEqual([]);
 });
 

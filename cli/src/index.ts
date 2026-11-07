@@ -49,6 +49,10 @@ const buildCli = (): CAC => {
       "--path <directory>",
       "With --copy, write below a project destination root. Do not combine --path with -g or --agent",
     )
+    .option(
+      "--min-release-age <days>",
+      "Warn when the release is younger than this many days. Default 3. 0 turns it off",
+    )
     .action(async (coordinate, skills, options) =>
       (await LOADERS.add()).run(coordinate, skills, options),
     );
@@ -76,6 +80,10 @@ const buildCli = (): CAC => {
     .option("-y, --yes", "Skip ordinary confirmations")
     .option("--dangerous-skip-critical-approval", "Skip approval for critical findings. Dangerous.")
     .option("--report <file>", "Write a Markdown review report of the run")
+    .option(
+      "--min-release-age <days>",
+      "Skip releases younger than this many days unless named. Default 3. 0 turns it off",
+    )
     .action(async (skills, options) => (await LOADERS.update()).run(skills, options));
   cli
     .command("remove [...skills]", "Remove installed skills")

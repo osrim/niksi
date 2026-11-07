@@ -46,6 +46,7 @@ grilling: installed @ v1.2.0
 grilling: restored @ v1.2.0
 grilling: removed from custom-directory/grilling
 grilling: source no longer has skills/grilling
+grilling: v2.0.0 available, 1 day old, waits for cooldown
 ```
 
 A failed skill does not stop the batch. The command continues, writes state that matches disk, and exits `1`.

@@ -8,6 +8,7 @@ import {
   friendlySource,
   groupLabel,
   reportVerdicts,
+  reportWaiting,
   revisionRange,
 } from "./status.ts";
 
@@ -41,6 +42,19 @@ describe("describeUpdate", () => {
     expect(describeUpdate(verdict("outdated"))).toBe("2 new commit(s) (aaaaaaaa → bbbbbbbb)");
   });
 
+  test("a candidate with a known age names it", () => {
+    expect(describeUpdate({ ...verdict("outdated"), age: 5 * 86_400 })).toBe(
+      "2 new commit(s) (aaaaaaaa → bbbbbbbb), 5 days old",
+    );
+    expect(describeUpdate({ ...verdict("moved"), age: 7200 })).toBe("no file changes, 2 hours old");
+  });
+
+  test("a waiting candidate says it waits for the cooldown", () => {
+    expect(describeUpdate({ ...verdict("outdated"), age: 86_400, waiting: true })).toBe(
+      "2 new commit(s) (aaaaaaaa → bbbbbbbb), 1 day old, waits for cooldown",
+    );
+  });
+
   test("an outdated skill without new commits says its content changed", () => {
     expect(describeUpdate({ ...verdict("outdated"), ahead: 0 })).toBe(
       "content changed (aaaaaaaa → bbbbbbbb)",
@@ -67,6 +81,31 @@ describe("revisionRange", () => {
         ahead: 0,
       }),
     ).toBe("");
+  });
+});
+
+describe("reportWaiting", () => {
+  let output: CapturedOutput;
+
+  beforeEach(() => {
+    output = captureOutput();
+  });
+
+  afterEach(() => {
+    output.restore();
+  });
+
+  test("names the upstream revision, its age, and how to update now", () => {
+    const waiting: UpdatableVerdict = {
+      kind: "outdated",
+      ...base("tdd", { tag: "v1.0.0" }, { tag: "v2.0.0" }),
+      age: 86_400,
+      waiting: true,
+    };
+    reportWaiting(waiting, "global");
+    expect(output.text()).toContain(
+      "tdd: v2.0.0 available, 1 day old, waits for cooldown\n│  Run nik update tdd -g to update it now.",
+    );
   });
 });
 

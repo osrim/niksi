@@ -133,9 +133,18 @@ export const initRepo = async (repo: string): Promise<void> => {
   await $`git -C ${repo} init -q -b main --template=`.quiet();
 };
 
-export const commitAll = async (repo: string, message: string): Promise<string> => {
+// Fixture commits are older than any release cooldown unless a test dates them.
+export const FIXTURE_COMMIT_TIME = 1_700_000_000;
+
+export const commitAll = async (
+  repo: string,
+  message: string,
+  committedAt = FIXTURE_COMMIT_TIME,
+): Promise<string> => {
   await $`git -C ${repo} add -A`.quiet();
-  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=test@example.com -c user.name=test commit -q -m ${message}`.quiet();
+  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=test@example.com -c user.name=test commit -q -m ${message}`
+    .env({ ...process.env, GIT_COMMITTER_DATE: `@${committedAt} +0000` })
+    .quiet();
   return (await $`git -C ${repo} rev-parse HEAD`.text()).trim();
 };
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -17,6 +17,9 @@ import { skillPath } from "../install/link.ts";
 import { applySkill } from "../install/apply.ts";
 import { emptyLock } from "../install/lockfile.ts";
 import { sourceFor } from "./index.ts";
+import type { Cooldown } from "./release-age.ts";
+
+const NO_COOLDOWN: Cooldown = { days: 0, now: 0 };
 
 let tmp: string;
 let upstream: string;
@@ -71,14 +74,14 @@ afterAll(async () => {
 });
 
 test("computeVerdicts detects upstream changes", async () => {
-  const [verdict] = await computeVerdicts([skill]);
+  const [verdict] = await computeVerdicts([skill], [], NO_COOLDOWN);
   expect(verdict!.kind).toBe("outdated");
   expect(verdict!.upstream.commit).toBe(v2);
   expect(verdict!.ahead).toBe(1);
 });
 
 test("the diff describes the update", async () => {
-  const [verdict] = await computeVerdicts([skill]);
+  const [verdict] = await computeVerdicts([skill], [], NO_COOLDOWN);
   const changes = await verdict!.source.changes(
     skill,
     v2,
@@ -89,7 +92,7 @@ test("the diff describes the update", async () => {
 });
 
 test("update through the pipeline = new store entry + new canonical copy; the old entry survives", async () => {
-  const [verdict] = await computeVerdicts([skill]);
+  const [verdict] = await computeVerdicts([skill], [], NO_COOLDOWN);
   const source = verdict!.source;
   const lock = emptyLock();
 
@@ -131,18 +134,18 @@ test("update through the pipeline = new store entry + new canonical copy; the ol
 });
 
 test("verdict is clean once the commit matches head", async () => {
-  const [verdict] = await computeVerdicts([{ ...skill, commit: v2 }]);
+  const [verdict] = await computeVerdicts([{ ...skill, commit: v2 }], [], NO_COOLDOWN);
   expect(verdict!.kind).toBe("up-to-date");
 });
 
 test("gone: upstream removed the skill's path", async () => {
-  const [verdict] = await computeVerdicts([{ ...skill, path: "skills/removed" }]);
+  const [verdict] = await computeVerdicts([{ ...skill, path: "skills/removed" }], [], NO_COOLDOWN);
   expect(verdict!.kind).toBe("gone");
 });
 
 test("an unreachable upstream does not take down the batch", async () => {
   const dead: InstalledSkill = { ...skill, name: "dead", source: join(tmp, "gone") };
-  const [good, bad] = await computeVerdicts([{ ...skill, commit: v2 }, dead]);
+  const [good, bad] = await computeVerdicts([{ ...skill, commit: v2 }, dead], [], NO_COOLDOWN);
   expect(good!.kind).toBe("up-to-date");
   expect(bad).toMatchObject({
     kind: "unreachable",
@@ -153,7 +156,7 @@ test("an unreachable upstream does not take down the batch", async () => {
 test("a git entry missing its commit or branch is an error, not a crash", async () => {
   const { commit: _c, ...noCommit } = skill;
   const { branch: _b, ...noBranch } = skill;
-  const [a, b] = await computeVerdicts([noCommit, noBranch]);
+  const [a, b] = await computeVerdicts([noCommit, noBranch], [], NO_COOLDOWN);
   expect(a).toMatchObject({ kind: "unreachable", error: expect.stringContaining("no commit") });
   expect(b).toMatchObject({ kind: "unreachable", error: expect.stringContaining("no branch") });
 });
@@ -161,14 +164,14 @@ test("a git entry missing its commit or branch is an error, not a crash", async 
 test("track auto tracks the latest semver tag, not branch HEAD", async () => {
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.1.0 ${v1}`.quiet();
   await cloneOrFetch(upstream);
-  let [verdict] = await computeVerdicts([skill]);
+  let [verdict] = await computeVerdicts([skill], [], NO_COOLDOWN);
   expect(verdict!.upstream.commit).toBe(v1);
   expect(verdict!.upstream.tag).toBe("v0.1.0");
   expect(verdict!.kind).toBe("up-to-date");
 
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.2.0 ${v2}`.quiet();
   await cloneOrFetch(upstream);
-  [verdict] = await computeVerdicts([skill]);
+  [verdict] = await computeVerdicts([skill], [], NO_COOLDOWN);
   expect(verdict!.upstream.commit).toBe(v2);
   expect(verdict!.upstream.tag).toBe("v0.2.0");
   expect(verdict!.kind).toBe("outdated");
@@ -176,8 +179,8 @@ test("track auto tracks the latest semver tag, not branch HEAD", async () => {
 
 test("a pinned skill needs a name", async () => {
   const pinned = { ...skill, track: "pin" as const, pinnedAs: "pinned-tag" };
-  const [held] = await computeVerdicts([pinned]);
-  const [named] = await computeVerdicts([pinned], [skill.name]);
+  const [held] = await computeVerdicts([pinned], [], NO_COOLDOWN);
+  const [named] = await computeVerdicts([pinned], [skill.name], NO_COOLDOWN);
   expect(held!.kind).toBe("pinned");
   expect(named!.kind).toBe("outdated");
 });
@@ -186,7 +189,7 @@ test("a rewritten pinned tag never auto-updates", async () => {
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag -f pinned-tag ${v2}`.quiet();
   await cloneOrFetch(upstream);
   const pinned = { ...skill, track: "pin" as const, pinnedAs: "pinned-tag" };
-  const [verdict] = await computeVerdicts([pinned], [skill.name]);
+  const [verdict] = await computeVerdicts([pinned], [skill.name], NO_COOLDOWN);
   expect(verdict).toMatchObject({
     kind: "rewritten",
     pinnedAs: "pinned-tag",
@@ -200,7 +203,7 @@ test("moved without outdated is a bump", async () => {
   const v3 = await commitAll("release-only");
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag v0.3.0 ${v3}`.quiet();
   await cloneOrFetch(upstream);
-  const [verdict] = await computeVerdicts([{ ...skill, commit: v2 }]);
+  const [verdict] = await computeVerdicts([{ ...skill, commit: v2 }], [], NO_COOLDOWN);
   expect(verdict!.kind).toBe("moved");
 });
 
@@ -211,7 +214,7 @@ test("a rewritten pinned ref wins over a removed skill", async () => {
   await $`git -C ${upstream} -c tag.gpgSign=false -c tag.forceSignAnnotated=false tag -f pinned-tag ${v4}`.quiet();
   await cloneOrFetch(upstream);
   const pinned = { ...skill, track: "pin" as const, pinnedAs: "pinned-tag" };
-  const [verdict] = await computeVerdicts([pinned]);
+  const [verdict] = await computeVerdicts([pinned], [], NO_COOLDOWN);
   expect(verdict).toMatchObject({ kind: "rewritten", expected: v1, actual: v4 });
 });
 
@@ -269,4 +272,92 @@ test("requestedNames: names win, --all takes every unpinned skill, neither asks"
   expect(requestedNames(skills, ["pinned"], true)).toEqual(["pinned"]);
   expect(requestedNames(skills, [], true)).toEqual(["alpha"]);
   expect(requestedNames(skills, [], false)).toBeUndefined();
+});
+
+const commitAt = async (repo: string, message: string, at: number): Promise<string> => {
+  await $`git -C ${repo} add -A`.quiet();
+  await $`git -C ${repo} -c commit.gpgsign=false -c user.email=test@test -c user.name=test commit -q -m ${message}`
+    .env({ ...process.env, GIT_COMMITTER_DATE: `@${at} +0000` })
+    .quiet();
+  return (await $`git -C ${repo} rev-parse HEAD`.text()).trim();
+};
+
+describe("cooldown", () => {
+  const DAY = 86_400;
+  const TAGGED = 1_700_000_000;
+  let dated: InstalledSkill;
+
+  beforeAll(async () => {
+    const repo = join(tmp, "dated");
+    await mkdir(join(repo, "skills", "demo"), { recursive: true });
+    await $`git -C ${repo} init -q -b main --template=`.quiet();
+    await writeFile(join(repo, "skills", "demo", "SKILL.md"), "v1\n");
+    const first = await commitAt(repo, "v1", TAGGED - 30 * DAY);
+    const files = await sourceFor(repo).fetchFiles(first, "skills/demo");
+    await writeFile(join(repo, "skills", "demo", "SKILL.md"), "v2\n");
+    await commitAt(repo, "v2", TAGGED);
+    await $`git -C ${repo} -c tag.gpgSign=false tag v2.0.0`.quiet();
+    await writeFile(join(repo, "skills", "demo", "SKILL.md"), "v3\n");
+    await commitAt(repo, "unreleased", TAGGED + 10 * DAY);
+    await cloneOrFetch(repo);
+    dated = {
+      name: "demo",
+      source: repo,
+      branch: "main",
+      path: "skills/demo",
+      commit: first,
+      integrity: integrityOf(files),
+      track: "auto",
+    };
+  });
+
+  test("an upstream tag younger than the cooldown waits, aged by its own commit", async () => {
+    const [verdict] = await computeVerdicts([dated], [], { days: 3, now: TAGGED + DAY });
+    expect(verdict).toMatchObject({ kind: "outdated", age: DAY, waiting: true });
+    expect(verdict!.upstream.tag).toBe("v2.0.0");
+  });
+
+  test("an upstream tag as old as the cooldown does not wait", async () => {
+    const [verdict] = await computeVerdicts([dated], [], { days: 3, now: TAGGED + 3 * DAY });
+    expect(verdict).toMatchObject({ kind: "outdated", age: 3 * DAY, waiting: false });
+  });
+
+  test("a named skill does not wait", async () => {
+    const [verdict] = await computeVerdicts([dated], ["demo"], { days: 3, now: TAGGED + DAY });
+    expect(verdict).toMatchObject({ kind: "outdated", waiting: false });
+  });
+
+  test("0 days turns the cooldown off", async () => {
+    const [verdict] = await computeVerdicts([dated], [], { days: 0, now: TAGGED + DAY });
+    expect(verdict).toMatchObject({ kind: "outdated", waiting: false });
+  });
+
+  test("a pinned skill reports pinned, not waiting", async () => {
+    const pinned = { ...dated, track: "pin" as const, pinnedAs: "v1" };
+    const [verdict] = await computeVerdicts([pinned], [], { days: 3, now: TAGGED + DAY });
+    expect(verdict!.kind).toBe("pinned");
+  });
+
+  test("a local source has no age and never waits", async () => {
+    const dir = join(tmp, "local-cooldown");
+    await mkdir(join(dir, "demo"), { recursive: true });
+    await writeFile(join(dir, "demo", "SKILL.md"), "local v2\n");
+    const local: InstalledSkill = {
+      name: "demo",
+      source: `local:${dir}`,
+      path: "demo",
+      integrity: dated.integrity,
+      track: "auto",
+    };
+    const [verdict] = await computeVerdicts([local], [], { days: 3, now: TAGGED });
+    expect(verdict).toMatchObject({ kind: "outdated", waiting: false });
+    expect(verdict!.age).toBeUndefined();
+  });
+});
+
+test("selectUpdates: --all leaves out a waiting candidate, a name takes it", () => {
+  const waiting = { ...outdatedStatus("beta"), waiting: true };
+  const set = [outdatedStatus("alpha"), waiting];
+  expect(selectUpdates(set, [], true).selected.map((x) => x.skill.name)).toEqual(["alpha"]);
+  expect(selectUpdates(set, ["beta"], false).selected.map((x) => x.skill.name)).toEqual(["beta"]);
 });

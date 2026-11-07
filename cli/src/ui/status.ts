@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
+import { describeAge } from "../core/source/release-age.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
 import {
@@ -107,10 +108,24 @@ export const reportVerdicts = (
 const describeAhead = (verdict: OutdatedVerdict): string =>
   verdict.ahead > 0 ? `${verdict.ahead} new commit(s)` : "content changed";
 
-export const describeUpdate = (verdict: UpdatableVerdict): string => {
+const describeChange = (verdict: UpdatableVerdict): string => {
   if (verdict.kind === "moved") return "no file changes";
   const range = revisionRange(verdict);
   return range ? `${describeAhead(verdict)} (${range})` : describeAhead(verdict);
+};
+
+export const describeUpdate = (verdict: UpdatableVerdict): string =>
+  [
+    describeChange(verdict),
+    ...(verdict.age === undefined ? [] : [describeAge(verdict.age)]),
+    ...(verdict.waiting ? ["waits for cooldown"] : []),
+  ].join(", ");
+
+export const reportWaiting = (verdict: UpdatableVerdict, scope: Scope): void => {
+  const { skill, upstream, age = 0 } = verdict;
+  p.log.info(
+    `${skillName(skill.name)}: ${displayLabel(upstream)} available, ${describeAge(age)}, waits for cooldown\nRun ${dim(`nik update ${skill.name}${scopeFlag(scope)}`)} to update it now.`,
+  );
 };
 
 export const revisionRange = (verdict: UpdatableVerdict): string => {

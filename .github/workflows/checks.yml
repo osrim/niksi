@@ -66,10 +66,12 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          re='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: [^A-Z].*$'
+          types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+          re="^($types)(\([a-z0-9-]+\))?!?: [^A-Z].*$"
           [[ $TITLE =~ $re ]] && exit 0
+          # Workflow command data must encode %, CR, and LF.
           escaped=${TITLE//%/%25}
           escaped=${escaped//$'\r'/%0D}
           escaped=${escaped//$'\n'/%0A}
-          echo "::error::PR title \"$escaped\" must be \"type: subject\" or \"type(scope): subject\", where type is feat, fix, docs, style, refactor, perf, test, build, ci, chore, or revert, and the subject does not start with an uppercase letter."
+          echo "::error::PR title \"$escaped\" must be \"type: subject\" or \"type(scope): subject\", where type is one of ${types//|/, }, and the subject does not start with an uppercase letter."
           exit 1

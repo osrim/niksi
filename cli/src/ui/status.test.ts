@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { sourceFor } from "../core/source/index.ts";
 import type { Revision } from "../core/source/revision.ts";
 import type { UpdatableVerdict, UpdateVerdict } from "../core/source/upstream.ts";
@@ -8,6 +8,7 @@ import {
   friendlySource,
   groupLabel,
   reportVerdicts,
+  refuseViolations,
   reportWaiting,
   revisionRange,
 } from "./status.ts";
@@ -221,4 +222,58 @@ describe("reportVerdicts", () => {
       expect(process.exitCode).toBe(named);
     },
   );
+});
+
+describe("refuseViolations", () => {
+  let output: CapturedOutput;
+
+  beforeEach(() => {
+    output = captureOutput();
+  });
+
+  afterEach(() => {
+    output.restore();
+  });
+
+  test("names each entry and its refused source, then exits 1", () => {
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit");
+    }) as typeof process.exit);
+    try {
+      expect(() =>
+        refuseViolations(
+          [
+            {
+              name: "grilling",
+              reason: "source https://github.com/evil/skills is not allowed by niksi.json",
+            },
+            {
+              name: "tdd",
+              reason: "source git@gitlab.com:acme/skills.git is not allowed by niksi.json",
+            },
+          ],
+          "Nothing installed.",
+        ),
+      ).toThrow("exit");
+      expect(exit).toHaveBeenCalledWith(1);
+    } finally {
+      exit.mockRestore();
+    }
+
+    const text = output.text();
+    expect(text).toContain(
+      "grilling: source https://github.com/evil/skills is not allowed by niksi.json",
+    );
+    expect(text).toContain(
+      "tdd: source git@gitlab.com:acme/skills.git is not allowed by niksi.json",
+    );
+    expect(text).toContain(
+      "Nothing installed.\n│  Remove these skills with `nik remove`, or allow their sources in niksi.json.",
+    );
+  });
+
+  test("no violations print nothing and continue", () => {
+    refuseViolations([], "Nothing installed.");
+    expect(output.text()).toBe("");
+  });
 });

@@ -2,6 +2,8 @@ import * as p from "@clack/prompts";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { readLock, splitDisabled } from "../core/install/lockfile.ts";
+import { policyViolations } from "../core/policy.ts";
+import { readProjectConfig } from "../core/project-config.ts";
 import {
   installedSkills,
   modifiedSkills,
@@ -15,7 +17,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { warn } from "../ui/report.ts";
-import { reportDisabled, reportModified } from "../ui/status.ts";
+import { refuseViolations, reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 
@@ -34,9 +36,11 @@ interface InstallOptions extends ScopeOptions {
 export const run = async (options: InstallOptions): Promise<void> => {
   p.intro("nik install");
   const scope = resolveScope(options, p.log.warn) ?? "project";
+  const { policy } = await readProjectConfig(scope);
   await migrateIfLegacy(scope);
   const { enabled, disabled } = splitDisabled(await readLock(scope));
   const skills = installedSkills(enabled);
+  refuseViolations(policyViolations(policy, skills), "Nothing installed.");
   const disabledNames = Object.keys(disabled.skills).toSorted();
   reportDisabled(disabledNames, scope);
   if (skills.length === 0) {

@@ -31,6 +31,8 @@ cli/src/
     completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
+    policy.ts        lockfile entries and sources checked against the project policy
+    project-config.ts niksi.json: project cooldown and project policy, read in project scope only
     suggest.ts       command typo suggestions
     update-check.ts  latest release version check
     update-report.ts Markdown report of an update run

@@ -13,13 +13,17 @@ export interface Cooldown {
 }
 
 // cac reads "" and " " as 0, so a blank value would turn the cooldown off before a command sees it.
+// `add` reads the flag only after it asks for the scope, so a repeated flag fails here first.
 export const checkReleaseAgeArgs = (argv: string[]): void => {
   const end = argv.indexOf("--");
   const args = end === -1 ? argv : argv.slice(0, end);
+  let seen = false;
   for (const [index, arg] of args.entries()) {
     const value = arg.startsWith(`${FLAG}=`) ? arg.slice(FLAG.length + 1) : undefined;
     const given = arg === FLAG ? args[index + 1] : value;
-    if (given !== undefined && !/^\d+$/u.test(given)) throw usageError(USAGE);
+    if (given === undefined) continue;
+    if (seen || !/^\d+$/u.test(given)) throw usageError(USAGE);
+    seen = true;
   }
 };
 

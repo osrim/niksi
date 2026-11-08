@@ -7,6 +7,7 @@ import type { DiscoveredSkill } from "../core/source/discover.ts";
 import { loadLock, type Lockfile } from "../core/install/lockfile.ts";
 import type { AgentId } from "../core/install/agents.ts";
 import type { Scope } from "../core/paths.ts";
+import { readProjectConfig } from "../core/project-config.ts";
 import {
   COMMIT_HASH,
   displayLabel,
@@ -105,7 +106,6 @@ export const run = async (
 ): Promise<void> => {
   const copy = options.copy ?? false;
   const mode = MODES[copy ? "copy" : "link"];
-  const days = minReleaseAge(options.minReleaseAge);
   p.intro(mode.intro);
 
   const parsed = parseCoordinateOrFail(coordinate);
@@ -115,13 +115,14 @@ export const run = async (
   const fetched = await resolveSource(source, parsed);
   if (!fetched) return;
   const { rev } = fetched;
-  await warnInsideCooldown(source, rev, days);
 
   await migrateIfLegacy(options.global ? "global" : "project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
     where: mode.where,
     mode: mode.verb,
   });
+  const { minimumReleaseAge } = await readProjectConfig(scope);
+  await warnInsideCooldown(source, rev, minReleaseAge(options.minReleaseAge, minimumReleaseAge));
   if (!(await confirmOutsideProject(parsed, coordinate, scope, options))) {
     p.outro("Nothing added.");
     return;

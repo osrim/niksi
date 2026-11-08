@@ -2,6 +2,8 @@ import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { loadLock, recordLinkAgents, splitDisabled } from "../core/install/lockfile.ts";
 import { installedSkills, locationsOf } from "../core/install/destination.ts";
 import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { policyViolations } from "../core/policy.ts";
+import { readProjectConfig } from "../core/project-config.ts";
 import { displayLabel } from "../core/source/revision.ts";
 import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
@@ -9,7 +11,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { selectRecorded } from "../ui/pick.ts";
 import { fail, intro, outro, promptWarn } from "../ui/prompt.ts";
-import { emptyScopeMessage } from "../ui/status.ts";
+import { emptyScopeMessage, refuseViolations } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
@@ -32,6 +34,7 @@ interface EnableOptions extends ScopeOptions {
 export const run = async (args: string[], options: EnableOptions): Promise<void> => {
   intro("nik enable");
   const scope = resolveScope(options, promptWarn) ?? "project";
+  const { policy } = await readProjectConfig(scope);
   await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
@@ -53,6 +56,7 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
   }
 
   const selected = skills.filter((skill) => names.includes(skill.name));
+  refuseViolations(policyViolations(policy, selected), "Nothing enabled.");
   const agents = needsAgents(selected) ? await chooseAgents(options, scope) : [];
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));

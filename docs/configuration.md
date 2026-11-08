@@ -1,6 +1,6 @@
 # Configuration
 
-Where `niksi` writes files, which environment variables it reads, and what the lockfile contains. Commands and flags are in [commands.md](commands.md).
+Where `niksi` writes files, which environment variables it reads, what the lockfile contains, and what a project's `niksi.json` sets. Commands and flags are in [commands.md](commands.md).
 
 ## Scope
 
@@ -84,6 +84,42 @@ When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `
   "scope": "project",
   "agents": ["claude", "universal"]
 }
+```
+
+## Project configuration
+
+Commit a `niksi.json` at the project root, next to `niksi-lock.json`, to set the cooldown for the project and the sources its skills may come from. `niksi` reads it in project scope only. `add`, `update`, and `install` read it. Global scope ignores it.
+
+```json
+{
+  "minimumReleaseAge": 7,
+  "policy": {
+    "sources": {
+      "github": ["osrim", "anthropics"],
+      "git": ["https://git.example.com/team/skills"]
+    }
+  }
+}
+```
+
+Every key is optional.
+
+| key | type | meaning |
+| --- | --- | --- |
+| `minimumReleaseAge` | whole number, `0` or more | The [cooldown](commands.md#cooldown) in days for `add` and `update` in this project. Without it, the cooldown is 3 days. `--min-release-age` overrides it for one run. `0` turns it off. |
+| `policy` | object | The project policy. `install` and `enable` check it before they write anything. |
+| `policy.sources` | object | The Git sources that skills may come from. Leave it out to allow every source. An empty object allows local sources only. |
+| `policy.sources.github` | array of strings | GitHub organizations or users. A skill from a repository on `github.com` that one of them owns is allowed, over HTTPS or SSH. Names match in any case. |
+| `policy.sources.git` | array of strings | Whole repository URLs. A skill whose `source` in `niksi-lock.json` is exactly one of them is allowed. |
+
+Local sources are always allowed. A `github` entry matches only a plain repository path: each path segment holds letters, digits, `.`, `_`, or `-`, and none is `.` or `..`. Any other form of a GitHub URL is refused, so list it under `git` if you need it. A `file://` URL is a Git source, so list it under `git`. `git` doesn't normalize URLs: `https://git.example.com/team/skills.git` doesn't match `https://git.example.com/team/skills`. Copy the `source` from `niksi-lock.json`.
+
+When the source of an enabled skill isn't allowed, `nik install` names each such skill, installs nothing, and exits `1`. `nik enable` checks the skills you select the same way, enables nothing, and exits `1`. `install` doesn't check disabled skills, since it doesn't restore them.
+
+A `niksi.json` that isn't a JSON object, has a value of the wrong type, or has a key that this table doesn't list stops the command with exit `2`. The error names the file and the key:
+
+```text
+/work/repo/niksi.json: unknown key policy.source
 ```
 
 ## Paths

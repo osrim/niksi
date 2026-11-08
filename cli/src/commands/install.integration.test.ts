@@ -240,3 +240,95 @@ test("install says it ignores --agent when every link entry records its agents",
   expect(plain.exitCode).toBe(0);
   expect(plain.stdout).not.toContain("--agent");
 });
+
+const policyCheckout = async (
+  name: string,
+  policy: string,
+): Promise<{ root: string; run: RunCli }> => {
+  const origin = await project(`${name}-origin`, "local");
+  const repo = join(tmp, `${name}-source`);
+  await makeSkill(repo, "remote");
+  await makeSkill(repo, "other");
+  await initRepo(repo);
+  await commitAll(repo, "first");
+  await addLink(origin, "./skills/local");
+  await addLink(origin, pathToFileURL(repo).href, "remote", "other");
+  const { root, run } = await checkout(origin, `${name}-checkout`);
+  await writeFile(join(root, "niksi.json"), policy.replaceAll("<repo>", pathToFileURL(repo).href));
+  return { root, run };
+};
+
+const nothingInstalled = async (root: string): Promise<void> => {
+  for (const name of ["local", "remote", "other"]) {
+    expect(await isLink(join(root, ".claude", "skills", name))).toBe(false);
+  }
+  expect(await lstat(join(root, ".niksi", "skills")).catch(() => null)).toBeNull();
+};
+
+test("install exits 1 and writes nothing when an entry's source breaks niksi.json", async () => {
+  const { root, run } = await policyCheckout(
+    "policy-denied",
+    '{"policy":{"sources":{"github":["osrim"]}}}',
+  );
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+
+  const result = await run(root, "install", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(1);
+  await nothingInstalled(root);
+  expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+});
+
+test("install restores every entry whose source niksi.json allows", async () => {
+  const { root, run } = await policyCheckout(
+    "policy-allowed",
+    '{"minimumReleaseAge":7,"policy":{"sources":{"git":["<repo>"]}}}',
+  );
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+
+  const result = await run(root, "install", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+  const listed = await run(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  const rows: { name: string }[] = JSON.parse(listed.stdout).skills;
+  const skills = JSON.parse(lock).skills;
+  expect(rows.map((row) => row.name).toSorted()).toEqual(["local", "other", "remote"]);
+  for (const row of rows) {
+    const link = join(root, ".claude", "skills", row.name);
+    expect(await isLink(link)).toBe(true);
+    expect(await readFile(join(link, "SKILL.md"), "utf8")).toContain(`name: ${row.name}`);
+    expect(row).toMatchObject({ ...skills[row.name], modified: false, links: [link] });
+  }
+});
+
+test("a disabled entry from a source that niksi.json does not allow doesn't stop install", async () => {
+  const { root, run } = await policyCheckout("policy-disabled", '{"policy":{"sources":{}}}');
+  const lockfile = join(root, "niksi-lock.json");
+  const written = JSON.parse(await readFile(lockfile, "utf8"));
+  written.skills.remote.disabled = true;
+  written.skills.other.disabled = true;
+  await writeFile(lockfile, JSON.stringify(written));
+
+  const result = await run(root, "install", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect(await isLink(join(root, ".claude", "skills", "local"))).toBe(true);
+  expect(await isLink(join(root, ".claude", "skills", "remote"))).toBe(false);
+});
+
+test.each([
+  ["a key niksi doesn't know", '{"policy":{"denyWarn":true}}', "unknown key policy.denyWarn"],
+  ["JSON that doesn't parse", "{", "niksi.json: "],
+  ["a negative cooldown", '{"minimumReleaseAge":-1}', "minimumReleaseAge"],
+])("install exits 2 and writes nothing for a niksi.json with %s", async (_, policy, message) => {
+  const { root, run } = await policyCheckout(`policy-invalid-${policy.length}`, policy);
+
+  const result = await run(root, "install", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(2);
+  expect(result.stderr).toContain(join(root, "niksi.json"));
+  expect(result.stderr).toContain(message);
+  await nothingInstalled(root);
+});

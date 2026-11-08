@@ -436,6 +436,60 @@ test("add installs a release inside the cooldown and warns with its age", async 
   await expectInstalledRelease(root, commit);
 });
 
+test("add warns with the cooldown from niksi.json, and --min-release-age overrides it", async () => {
+  const { repo, commit } = await freshSource("project-cooldown-source");
+  const add = async (name: string, ...flags: string[]) => {
+    const root = await project(name);
+    await writeFile(join(root, "niksi.json"), '{"minimumReleaseAge":5}\n');
+    const result = await runCli(
+      root,
+      "add",
+      pathToFileURL(repo).href,
+      "-p",
+      "--agent",
+      "claude",
+      "--yes",
+      ...flags,
+    );
+    return { root, result };
+  };
+  const expectInstalled = async (root: string): Promise<void> => {
+    const link = join(root, ".claude", "skills", "demo");
+    expect(await isLink(link)).toBe(true);
+    expect(await readFile(join(link, "SKILL.md"), "utf8")).toContain("version one");
+    const { demo } = await readSkills(root);
+    expect(demo).toMatchObject({ commit, track: "auto", tag: "v2.0.0", agents: ["claude"] });
+    expect(await listedRow(root)).toMatchObject({ ...demo, name: "demo", links: [link] });
+  };
+
+  const longer = await add("project-cooldown");
+  const off = await add("project-cooldown-off", "--min-release-age", "0");
+
+  expect(longer.result.exitCode).toBe(0);
+  expect(longer.result.stdout).toContain("v2.0.0 is 1 day old, inside the 5-day cooldown.");
+  await expectInstalled(longer.root);
+  expect(off.result.exitCode).toBe(0);
+  expect(off.result.stdout).not.toContain("day cooldown");
+  await expectInstalled(off.root);
+});
+
+test("an invalid niksi.json stops add in project scope, and global scope ignores it", async () => {
+  const { repo } = await freshSource("invalid-project-config-source");
+  const root = await project("invalid-project-config");
+  await writeFile(join(root, "niksi.json"), '{"policy":{"source":{}}}\n');
+  const add = (scope: string) =>
+    runCli(root, "add", pathToFileURL(repo).href, scope, "--agent", "claude", "--yes");
+
+  const projectRun = await add("-p");
+  expect(projectRun.exitCode).toBe(2);
+  expect(projectRun.stderr).toContain(`${join(root, "niksi.json")}: unknown key policy.source`);
+  expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
+
+  const globalRun = await add("-g");
+  expect(globalRun.exitCode).toBe(0);
+  expect(globalRun.stdout).toContain("v2.0.0 is 1 day old, inside the 3-day cooldown.");
+});
+
 test("add does not warn with --min-release-age 0 or an explicit ref", async () => {
   const { repo, commit } = await freshSource("quiet-release-source");
   const offRoot = await project("cooldown-off");

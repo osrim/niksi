@@ -51,7 +51,7 @@ grilling: v2.0.0 available, 1 day old, waits for cooldown
 
 A failed skill does not stop the batch. The command continues, writes state that matches disk, and exits `1`.
 
-No-op messages are `Nothing selected.`, `Nothing to add|copy|install|update.`, or `Nothing added.` after a declined warning.
+No-op messages are `Nothing selected.`, `Nothing to add|copy|install|update.`, or `Nothing added.` after a declined warning. When the project policy refuses an entry, `install` and `enable` end with `Nothing installed.` or `Nothing enabled.` and a remedy line.
 
 ## Color
 

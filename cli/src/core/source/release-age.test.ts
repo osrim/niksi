@@ -51,6 +51,7 @@ describe("checkReleaseAgeArgs", () => {
     [["update", "--min-release-age="]],
     [["update", "--min-release-age", "0x10"]],
     [["update", "--min-release-age", "1e1"]],
+    [["add", "o/r", "--min-release-age", "1", "--min-release-age=2"]],
   ])("%p is a usage error", (argv) => {
     expect(() => checkReleaseAgeArgs(argv)).toThrow(
       expect.objectContaining({ name: USAGE_ERROR }) as unknown as Error,

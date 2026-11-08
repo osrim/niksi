@@ -124,7 +124,11 @@ export const headCommit = async (clone: string, branch: string): Promise<string>
 };
 
 export const commitTime = async (clone: string, commit: string): Promise<number> => {
-  const result = await git(["log", "-1", "--format=%ct", "--end-of-options", commit, "--"], clone);
+  // log.showSignature in the user's config prints the signature check before the date.
+  const result = await git(
+    ["log", "-1", "--no-show-signature", "--format=%ct", "--end-of-options", commit, "--"],
+    clone,
+  );
   const seconds = Number.parseInt(result.out, 10);
   if (result.code !== 0 || Number.isNaN(seconds)) {
     throw new Error(`cannot read the date of ${commit.slice(0, 8)}`);

@@ -296,6 +296,24 @@ test("commitTime reads the committer date, and rejects a commit the clone lacks"
   expect(commitTime(clone, "f".repeat(40))).rejects.toThrow(`cannot read the date of ffffffff`);
 });
 
+test("commitTime reads a signed commit's date when log.showSignature is on", async () => {
+  const clone = await ensureClone(remote);
+  const key = join(tmp, "signing-key");
+  const signers = join(tmp, "allowed-signers");
+  await $`ssh-keygen -q -t ed25519 -N ${""} -C test -f ${key}`.quiet();
+  await writeFile(signers, `test@example.com ${await Bun.file(`${key}.pub`).text()}`);
+  await writeFile(
+    process.env.GIT_CONFIG_GLOBAL!,
+    `[log]\n\tshowSignature = true\n[gpg]\n\tformat = ssh\n[gpg "ssh"]\n\tallowedSignersFile = ${signers}\n`,
+  );
+  const signed = (
+    await $`git -C ${clone} -c user.email=test@example.com -c user.name=Test -c user.signingkey=${key}.pub commit-tree -S ${firstSha}^{tree} -m signed`
+      .env({ ...process.env, GIT_COMMITTER_DATE: "@1700000000 +0000" })
+      .text()
+  ).trim();
+  expect(await commitTime(clone, signed)).toBe(1_700_000_000);
+});
+
 // Git's --output writes a file, so any probe file shows that a value was read as an option.
 const optionProbe = (): string => `--output=${join(tmp, "probe")}`;
 const probeFiles = async (): Promise<string[]> =>

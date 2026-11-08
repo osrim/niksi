@@ -1,6 +1,7 @@
 import * as p from "@clack/prompts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { asText, parseFrontmatter } from "../core/skill/frontmatter.ts";
+import { PROJECT_CONFIG_NAME } from "../core/project-config.ts";
 import { CRITICAL_EXIT, runScanners, type Finding, type Severity } from "../core/scan/index.ts";
 import { ask, clackDecisions, type Decisions } from "./decisions.ts";
 import { escapeControl, type PagedSkill } from "./pager.ts";
@@ -13,6 +14,7 @@ type GateOutcome = "pass" | "declined" | "blocked";
 export interface ReviewOptions {
   yes?: boolean;
   dangerousSkipCriticalApproval?: boolean;
+  denyWarn?: boolean | undefined;
 }
 
 interface Reviewable extends PagedSkill {
@@ -72,15 +74,22 @@ export const reviewSkills = async <T extends Reviewable>(
   return result;
 };
 
-export const stopsOn = (
-  findings: Finding[],
-  { yes, dangerousSkipCriticalApproval }: ReviewOptions,
-): Exclude<Severity, "info"> | null => {
-  if (!dangerousSkipCriticalApproval && findings.some((finding) => finding.severity === "critical"))
-    return "critical";
-  if (!yes && findings.some((finding) => finding.severity === "warn")) return "warn";
+type Stop = Exclude<Severity, "info">;
+
+const gatesAs = (finding: Finding, denyWarn: boolean | undefined): Severity =>
+  denyWarn && finding.severity === "warn" ? "critical" : finding.severity;
+
+export const stopsOn = (findings: Finding[], options: ReviewOptions): Stop | null => {
+  const gated = findings.map((finding) => gatesAs(finding, options.denyWarn));
+  if (!options.dangerousSkipCriticalApproval && gated.includes("critical")) return "critical";
+  if (!options.yes && gated.includes("warn")) return "warn";
   return null;
 };
+
+const blockedMessage = (name: string, stopping: Finding[]): string =>
+  stopping.some((finding) => finding.severity === "critical")
+    ? `${skillName(name)}: review critical findings in a terminal.`
+    : `${skillName(name)}: review warn findings in a terminal. ${PROJECT_CONFIG_NAME} sets policy.denyWarn.`;
 
 const reviewSkill = async (
   entry: PagedSkill,
@@ -91,14 +100,14 @@ const reviewSkill = async (
   logFindings(entry.name, findings);
   const stop = stopsOn(findings, options);
   if (!stop) return "pass";
+  const stopping = findings.filter((finding) => gatesAs(finding, options.denyWarn) === stop);
   if (!isInteractive()) {
     if (stop === "warn") return "pass";
-    logError(`${skillName(entry.name)}: review critical findings in a terminal.`);
+    logError(blockedMessage(entry.name, stopping));
     process.exitCode = CRITICAL_EXIT;
     return "blocked";
   }
-  const count = findings.filter((finding) => finding.severity === stop).length;
-  return (await decisions.approve(entry, stop, count)) ? "pass" : "declined";
+  return (await decisions.approve(entry, stop, stopping)) ? "pass" : "declined";
 };
 
 export const confirmWrite = (

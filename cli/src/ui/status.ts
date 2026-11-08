@@ -58,6 +58,12 @@ export const refuseViolations = (violations: PolicyViolation[], outcome: string)
   );
 };
 
+export const logSourceBlocked = ({ name, reason }: PolicyViolation): void => {
+  logError(
+    `${skillName(name)}: ${reason}\nRemove it with \`nik remove ${name}\`, or allow its source in ${PROJECT_CONFIG_NAME}.`,
+  );
+};
+
 export const warnRestored = (name: string): void => {
   warn(`${skillName(name)}: restored local edits from the source`);
 };
@@ -83,7 +89,7 @@ export const reportVerdicts = (
     const { skill } = verdict;
     const failed = (message: string): void => {
       logError(message);
-      if (requested.includes(skill.name)) process.exitCode = 1;
+      if (requested.includes(skill.name)) process.exitCode = process.exitCode === 3 ? 3 : 1;
     };
     switch (verdict.kind) {
       case "unreachable":

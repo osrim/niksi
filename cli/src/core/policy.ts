@@ -35,7 +35,7 @@ export const sourceViolation = (
 ): string | undefined =>
   allowsSource(policy, source)
     ? undefined
-    : `source ${source} is not allowed by ${PROJECT_CONFIG_NAME}`;
+    : `source ${source} is not allowed by policy.sources in ${PROJECT_CONFIG_NAME}`;
 
 export const policyViolations = (
   policy: ProjectPolicy | undefined,

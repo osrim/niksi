@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import type { Finding } from "../core/scan/index.ts";
 import { pageSkills, type PagedSkill } from "./pager.ts";
 import { unwrap } from "./prompt.ts";
 import { skillName } from "./style.ts";
@@ -9,7 +10,7 @@ export interface DependencyOffer {
 }
 
 export interface Decisions {
-  approve: (skill: PagedSkill, stop: "critical" | "warn", count: number) => Promise<boolean>;
+  approve: (skill: PagedSkill, stop: "critical" | "warn", findings: Finding[]) => Promise<boolean>;
   pickDependencies: (offers: DependencyOffer[]) => Promise<string[]>;
 }
 
@@ -38,11 +39,19 @@ export const ask = async (
   }
 };
 
+const counted = (findings: Finding[]): string => {
+  const counts = (["critical", "warn"] as const).flatMap((severity) => {
+    const count = findings.filter((finding) => finding.severity === severity).length;
+    return count === 0 ? [] : [`${count} ${severity}`];
+  });
+  return `${counts.join(" and ")} finding(s)`;
+};
+
 export const clackDecisions: Decisions = {
-  approve: (skill, stop, count) =>
+  approve: (skill, stop, findings) =>
     stop === "critical"
-      ? ask(`Approve ${skillName(skill.name)} with ${count} critical finding(s)?`, false, [skill])
-      : ask(`Continue with ${skillName(skill.name)} and ${count} warn finding(s)?`, true, [skill]),
+      ? ask(`Approve ${skillName(skill.name)} with ${counted(findings)}?`, false, [skill])
+      : ask(`Continue with ${skillName(skill.name)} and ${counted(findings)}?`, true, [skill]),
   pickDependencies: async (offers) =>
     unwrap(
       await p.multiselect<string>({

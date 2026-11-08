@@ -41,7 +41,9 @@ describe("sourceViolation", () => {
     "git@github.com:osrim/../../evil/skills",
     "git@github.com:/osrim/skills",
   ])("%p breaks the policy", (source) => {
-    expect(sourceViolation(POLICY, source)).toBe(`source ${source} is not allowed by niksi.json`);
+    expect(sourceViolation(POLICY, source)).toBe(
+      `source ${source} is not allowed by policy.sources in niksi.json`,
+    );
   });
 
   test("without sources, every source is allowed", () => {
@@ -52,7 +54,7 @@ describe("sourceViolation", () => {
   test("empty sources allow only local sources", () => {
     expect(sourceViolation({ sources: {} }, "local:.")).toBeUndefined();
     expect(sourceViolation({ sources: {} }, "https://github.com/osrim/skills")).toBe(
-      "source https://github.com/osrim/skills is not allowed by niksi.json",
+      "source https://github.com/osrim/skills is not allowed by policy.sources in niksi.json",
     );
   });
 });
@@ -68,9 +70,14 @@ describe("policyViolations", () => {
     expect(policyViolations(POLICY, skills)).toEqual([
       {
         name: "grilling",
-        reason: "source https://github.com/evil/skills is not allowed by niksi.json",
+        reason:
+          "source https://github.com/evil/skills is not allowed by policy.sources in niksi.json",
       },
-      { name: "tdd", reason: "source https://github.com/evil/skills is not allowed by niksi.json" },
+      {
+        name: "tdd",
+        reason:
+          "source https://github.com/evil/skills is not allowed by policy.sources in niksi.json",
+      },
     ]);
   });
 

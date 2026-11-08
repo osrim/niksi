@@ -115,9 +115,11 @@ GitHub starts no workflows for a pull request that `GITHUB_TOKEN` opens, so chec
 
 `nik update` reads skill files and never runs them, so the job runs no upstream skill code while it holds the token.
 
-### Critical findings
+### Critical findings and the project policy
 
 A critical finding needs a person's approval, and update mode never skips it. The blocked skill stays at its recorded revision. The report lists it under **Needs a person**, with the `nik update` command to run in a terminal. The action still opens the pull request with the other updates, then fails the step with exit `3`.
+
+The policy in `niksi.json` blocks a skill the same way. When `policy.denyWarn` is `true`, a warn finding needs approval like a critical one. When `policy.sources` doesn't allow a skill's source, the skill stays at its recorded revision, and the report lists it under **Needs a person** with its source. Remove the skill with `nik remove`, or allow its source in `niksi.json`. See [Project configuration](configuration.md#project-configuration).
 
 When `nik update` exits `1` or `2`, the action opens no pull request and fails the step.
 
@@ -252,6 +254,6 @@ The step exits with the code of `nik`, as listed in [commands.md](commands.md#ex
 | `0` | Every enabled skill is on disk with its recorded integrity. | Every selected skill is up to date or updated. The pull request is open, updated, or closed. | No critical finding. Warn findings pass. |
 | `1` | A skill failed to restore, or a skill comes from a source that `niksi.json` doesn't allow. | A skill failed. No pull request. | `path` isn't a directory, `nik add` failed, or a skill couldn't be read. |
 | `2` | Invalid input, or an invalid `niksi.json`. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or when `branch` is the branch it runs on. | Invalid input. |
-| `3` | | Critical findings blocked a skill. The pull request still carries the other updates. | A skill has a critical finding. |
+| `3` | | Findings that need approval, or the policy in `niksi.json`, blocked a skill. The pull request still carries the other updates, even when another skill failed. The job summary lists that skill under **Not updated**. | A skill has a critical finding. |
 
 An unknown `mode` exits `2`. An invalid `version`, a failed download or checksum, or an unsupported runner exits `1`.

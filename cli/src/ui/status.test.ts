@@ -7,6 +7,7 @@ import {
   describeUpdate,
   friendlySource,
   groupLabel,
+  logSourceBlocked,
   reportVerdicts,
   refuseViolations,
   reportWaiting,
@@ -245,11 +246,13 @@ describe("refuseViolations", () => {
           [
             {
               name: "grilling",
-              reason: "source https://github.com/evil/skills is not allowed by niksi.json",
+              reason:
+                "source https://github.com/evil/skills is not allowed by policy.sources in niksi.json",
             },
             {
               name: "tdd",
-              reason: "source git@gitlab.com:acme/skills.git is not allowed by niksi.json",
+              reason:
+                "source git@gitlab.com:acme/skills.git is not allowed by policy.sources in niksi.json",
             },
           ],
           "Nothing installed.",
@@ -262,10 +265,10 @@ describe("refuseViolations", () => {
 
     const text = output.text();
     expect(text).toContain(
-      "grilling: source https://github.com/evil/skills is not allowed by niksi.json",
+      "grilling: source https://github.com/evil/skills is not allowed by policy.sources in niksi.json",
     );
     expect(text).toContain(
-      "tdd: source git@gitlab.com:acme/skills.git is not allowed by niksi.json",
+      "tdd: source git@gitlab.com:acme/skills.git is not allowed by policy.sources in niksi.json",
     );
     expect(text).toContain(
       "Nothing installed.\n│  Remove these skills with `nik remove`, or allow their sources in niksi.json.",
@@ -275,5 +278,24 @@ describe("refuseViolations", () => {
   test("no violations print nothing and continue", () => {
     refuseViolations([], "Nothing installed.");
     expect(output.text()).toBe("");
+  });
+});
+
+describe("logSourceBlocked", () => {
+  test("names the skill, the rule, and the remedy, and keeps the batch going", () => {
+    const output = captureOutput();
+    try {
+      logSourceBlocked({
+        name: "evil",
+        reason:
+          "source https://github.com/evil/skills is not allowed by policy.sources in niksi.json",
+      });
+    } finally {
+      output.restore();
+    }
+
+    expect(output.text()).toContain(
+      "evil: source https://github.com/evil/skills is not allowed by policy.sources in niksi.json\n│  Remove it with `nik remove evil`, or allow its source in niksi.json.",
+    );
   });
 });

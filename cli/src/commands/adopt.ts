@@ -9,6 +9,12 @@ import {
   type UnmanagedSkill,
 } from "../core/install/unmanaged.ts";
 import { tildify, type Scope } from "../core/paths.ts";
+import { sourceViolation } from "../core/policy.ts";
+import {
+  PROJECT_CONFIG_NAME,
+  readProjectConfig,
+  type ProjectPolicy,
+} from "../core/project-config.ts";
 import { criticalRules } from "../core/scan/index.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { parseSource } from "../core/source/coordinate.ts";
@@ -28,7 +34,7 @@ import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "../ui/prompt.ts";
-import { logSkillError, warn } from "../ui/report.ts";
+import { logError, logSkillError, warn } from "../ui/report.ts";
 import { friendlySource } from "../ui/status.ts";
 import { bold, dim, pad, skillName } from "../ui/style.ts";
 
@@ -61,6 +67,8 @@ interface Resolved {
 
 const SOURCE_REMEDY = "Pass the source alone: owner/repo, a Git URL, or a local path.";
 
+const POLICY_REMEDY = `Allow the source in ${PROJECT_CONFIG_NAME} to adopt skills from it.`;
+
 const sourceOption = (raw: string | string[] | undefined): Source | undefined => {
   if (raw === undefined) return undefined;
   if (Array.isArray(raw)) throw usageError("Pass --source once.");
@@ -76,6 +84,8 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
   p.intro("nik adopt");
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const from = sourceOption(options.source);
+  const { policy } = await readProjectConfig(scope);
+  refuseSource(from, policy);
   await migrateIfLegacy(scope);
   const loaded = await loadLock(scope);
   const { skills, skipped } = await findUnmanaged(scope, loaded.lock);
@@ -90,7 +100,7 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
     return;
   }
 
-  const resolved = await resolveAll(selected, scope, from);
+  const resolved = await resolveAll(selected, { scope, from, policy });
   if (resolved.length === 0) {
     p.outro("Nothing adopted.");
     return;
@@ -98,7 +108,7 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
   preview(resolved, loaded.file);
   const review = await reviewSkills(
     resolved.map((item) => ({ name: item.skill.name, files: item.files, item })),
-    options,
+    { ...options, denyWarn: policy?.denyWarn },
   );
   if (review.approved.length === 0) {
     p.outro("Nothing selected.");
@@ -129,6 +139,13 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
     lock: loaded,
     outro: (adopted) => `Adopted ${adopted} skill(s) (${scope}).`,
   });
+};
+
+const refuseSource = (from: Source | undefined, policy: ProjectPolicy | undefined): void => {
+  const reason = from && sourceViolation(policy, from.id);
+  if (reason === undefined) return;
+  logError(reason);
+  fail(`Nothing adopted.\n${POLICY_REMEDY}`);
 };
 
 const upstreamSkillMd = (item: Resolved): { skillMd?: Buffer } => {
@@ -250,26 +267,30 @@ const asMatched = (
   note: matchedNote(hint, match.integrity !== skill.integrity),
 });
 
+interface Resolving {
+  scope: Scope;
+  from: Source | undefined;
+  policy: ProjectPolicy | undefined;
+}
+
 const resolveOne = async (
   skill: UnmanagedSkill,
-  scope: Scope,
-  from: Source | undefined,
+  { scope, from, policy }: Resolving,
   hints: Map<string, UpstreamHint>,
 ): Promise<Resolved> => {
   const hint = from ? undefined : (ghSkillHint(skill.files) ?? hints.get(skill.name));
   // A hint comes from a file on disk, so its ssh clone must not stop at a prompt.
   const source = from ?? (hint ? new GitSource(hint.source, { sshBatch: true }) : undefined);
   if (!source) return asLocal(skill, scope, "no known source");
+  const refused = sourceViolation(policy, source.id);
+  if (refused !== undefined) throw new Error(`${refused}\n${POLICY_REMEDY}`);
   const match = await matchSkill(source, { name: skill.name, files: skill.files, ...hint });
   if (!match) return asLocal(skill, scope, `no match in ${friendlySource(source.display)}`);
   return asMatched(skill, source.forScope(scope), match, hint);
 };
 
-const resolveAll = async (
-  skills: UnmanagedSkill[],
-  scope: Scope,
-  from: Source | undefined,
-): Promise<Resolved[]> => {
+const resolveAll = async (skills: UnmanagedSkill[], resolving: Resolving): Promise<Resolved[]> => {
+  const { scope, from } = resolving;
   const hints = from ? new Map<string, UpstreamHint>() : await readSkillsLockHints(scope);
   const failed: Array<[string, unknown]> = [];
   const resolved = await withSpinner(
@@ -278,7 +299,7 @@ const resolveAll = async (
       const found: Resolved[] = [];
       for (const skill of skills) {
         try {
-          found.push(await resolveOne(skill, scope, from, hints));
+          found.push(await resolveOne(skill, resolving, hints));
         } catch (e) {
           failed.push([skill.name, e]);
         }

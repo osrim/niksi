@@ -290,6 +290,51 @@ test("a critical finding without a terminal blocks the skill with exit 3", async
   expect(await listJson(dir)).toEqual([]);
 });
 
+test("a source that the project policy refuses is not adopted, and the run exits 1", async () => {
+  const dir = await project("policy-source");
+  await writeFile(join(dir, "niksi.json"), '{"policy":{"sources":{"github":["osrim"]}}}\n');
+  await writeSkillMd(join(dir, ".claude", "skills", "pdf"), V2);
+
+  const named = await runCli(dir, "adopt", "pdf", "--source", repoUrl, "-y");
+  expect(named.exitCode).toBe(1);
+  expect(existsSync(join(dir, "niksi-lock.json"))).toBe(false);
+
+  await writeSkillMd(join(dir, ".agents", "skills", "notes"), V1.replace("pdf", "notes"));
+  await writeFile(
+    join(dir, "skills-lock.json"),
+    JSON.stringify({
+      version: 1,
+      skills: { pdf: { source: repoUrl, sourceType: "git", skillPath: "skills/pdf/SKILL.md" } },
+    }),
+  );
+  const hinted = await runCli(dir, "adopt", "--all", "-y");
+  expect(hinted.exitCode).toBe(1);
+  const lock = await readLockJson(dir);
+  expect(lock["pdf"]).toBeUndefined();
+  expect(lock["notes"]).toMatchObject({ source: "local:.", path: ".agents/skills/notes" });
+  expect(await readFile(join(dir, ".claude", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V2);
+});
+
+const adoptScripted = async (name: string, config: string) => {
+  const dir = await project(name);
+  await writeFile(join(dir, "niksi.json"), config);
+  await writeSkillMd(join(dir, ".claude", "skills", "scripted"), V1.replace("pdf", "scripted"));
+  await writeFile(join(dir, ".claude", "skills", "scripted", "run.sh"), "echo hi\n", {
+    mode: 0o755,
+  });
+  return { dir, result: await runCli(dir, "adopt", "--all", "-y") };
+};
+
+test("with denyWarn, adopt --yes refuses a skill with a warn finding and exits 3", async () => {
+  const denied = await adoptScripted("deny-warn", '{"policy":{"denyWarn":true}}');
+  const allowed = await adoptScripted("deny-warn-off", '{"policy":{"denyWarn":false}}');
+
+  expect(denied.result.exitCode).toBe(3);
+  expect(existsSync(join(denied.dir, "niksi-lock.json"))).toBe(false);
+  expect(allowed.result.exitCode).toBe(0);
+  expect(Object.keys(await readLockJson(allowed.dir))).toEqual(["scripted"]);
+});
+
 test("usage errors exit 2", async () => {
   const dir = await project("usage");
   await writeSkillMd(join(dir, ".claude", "skills", "pdf"), V2);

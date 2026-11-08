@@ -133,11 +133,20 @@ that ref only.
   `nik update` to record later edits. `nik disable` refuses such a skill,
   because removing its files would delete its source.
 - When a source can't be reached, `adopt` skips the skill and exits `1`.
+- In project scope, `adopt` checks each source against the policy in
+  `niksi.json` before it fetches anything. When the policy doesn't allow a
+  source from `SKILL.md` or the `npx skills` lockfile, `adopt` names the skill
+  and its source, skips it, adopts the other skills, and exits `1`. When it
+  doesn't allow the source you pass with `--source`, `adopt` adopts nothing and
+  exits `1`. Local sources always pass. See
+  [Project configuration](configuration.md#project-configuration).
 
 Every entry is an agent copy for the skills directories that hold the skill.
 Before it writes, `adopt` shows each skill with its source and revision, lists
 and scans its files as `add` does, and asks once to confirm. `--yes` accepts
-warn findings and the confirmation. A critical finding needs a terminal, or
+warn findings and the confirmation, unless `niksi.json` sets
+`policy.denyWarn`: then a warn finding needs approval like a critical one. A
+critical finding needs a terminal, or
 `--dangerous-skip-critical-approval`, and otherwise exits `3`.
 
 `adopt` writes no files except the `SKILL.md` of a `gh skill` copy. If a

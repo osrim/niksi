@@ -108,11 +108,11 @@ Every key is optional.
 | key | type | meaning |
 | --- | --- | --- |
 | `minimumReleaseAge` | whole number, `0` or more | The [cooldown](commands.md#cooldown) in days for `add` and `update` in this project. Without it, the cooldown is 3 days. `--min-release-age` overrides it for one run. `0` turns it off. |
-| `policy` | object | The project policy. `add`, `update`, `install`, and `enable` check it before they write anything. |
+| `policy` | object | The project policy. `add`, `adopt`, `update`, `install`, and `enable` check it before they write anything. |
 | `policy.sources` | object | The Git sources that skills may come from. Leave it out to allow every source. An empty object allows local sources only. |
 | `policy.sources.github` | array of strings | GitHub organizations or users. A skill from a repository on `github.com` that one of them owns is allowed, over HTTPS or SSH. Names match in any case. |
 | `policy.sources.git` | array of strings | Whole repository URLs. A skill whose `source` in `niksi-lock.json` is exactly one of them is allowed. |
-| `policy.denyWarn` | boolean | `true` makes `add` and `update` treat a warn finding like a critical one: it needs approval in a terminal, and `--yes` doesn't accept it. Default `false`. See [security-scan.md](security-scan.md#severities). |
+| `policy.denyWarn` | boolean | `true` makes `add`, `adopt`, and `update` treat a warn finding like a critical one: it needs approval in a terminal, and `--yes` doesn't accept it. Default `false`. See [security-scan.md](security-scan.md#severities). |
 
 Local sources are always allowed. A `github` entry matches only a plain repository path: each path segment holds letters, digits, `.`, `_`, or `-`, and none is `.` or `..`. Any other form of a GitHub URL is refused, so list it under `git` if you need it. A `file://` URL is a Git source, so list it under `git`. `git` doesn't normalize URLs: `https://git.example.com/team/skills.git` doesn't match `https://git.example.com/team/skills`. Copy the `source` from `niksi-lock.json`.
 

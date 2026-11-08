@@ -632,3 +632,146 @@ test("update keeps accepted rules while the content holds and records them for n
   expect(await reviewOf("risky")).toBeUndefined();
   expect(await reviewOf("plain")).toEqual(accepted);
 });
+
+const DAY = 86_400;
+
+const setupCooldown = async (name: string, skills: string[]): Promise<UpdateFixture> => {
+  const fixture = await setupUpdate(name, skills, []);
+  for (const skill of skills) await makeSkill(fixture.repo, skill, "version three\n");
+  const released = Math.floor(Date.now() / 1000) - DAY;
+  const upstreamCommit = await commitAll(fixture.repo, "version three", released);
+  await tagHead(fixture.repo, "v2.0.0");
+  return { ...fixture, upstreamCommit };
+};
+
+const expectInstalled = async (
+  fixture: UpdateFixture,
+  name: string,
+  body: string,
+): Promise<void> => {
+  expect(await publishedSkill(fixture.project, name)).toContain(body);
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
+};
+
+test("--all --yes keeps a skill whose new release is inside the cooldown, and the report lists it", async () => {
+  const fixture = await setupCooldown("cooldown-all", ["fresh"]);
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", "update.md");
+
+  expect(result.exitCode).toBe(0);
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+  await expectInstalled(fixture, "fresh", "version one");
+  expect(result.stdout).toContain("fresh: v2.0.0 available, 1 day old, waits for cooldown");
+  expect(result.stdout).toContain("Run nik update fresh to update it now.");
+  const report = await readFile(join(fixture.project, "update.md"), "utf8");
+  expect(report).toContain("- `fresh`: `v2.0.0` (");
+  expect(report).toContain(") available, 1 day old, waits for cooldown");
+});
+
+test("--all --yes takes a moved skill inside the cooldown and keeps the outdated one waiting", async () => {
+  const fixture = await setupUpdate("cooldown-moved", ["moved", "fresh"], []);
+  await makeSkill(fixture.repo, "fresh", "version three\n");
+  const upstreamCommit = await commitAll(
+    fixture.repo,
+    "version three",
+    Math.floor(Date.now() / 1000) - DAY,
+  );
+  await tagHead(fixture.repo, "v2.0.0");
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  const after = await readSkills(fixture.lockPath);
+  expect(after.moved?.commit).toBe(upstreamCommit);
+  expect(after.fresh).toEqual(fixture.before.fresh);
+  await expectInstalled(fixture, "fresh", "version one");
+  expect(await publishedSkill(fixture.project, "moved")).toContain("version one");
+  expect(result.stdout).toContain("fresh: v2.0.0 available, 1 day old, waits for cooldown");
+  expect(result.stdout).not.toContain("moved: v2.0.0 available");
+  expect(result.stdout).toContain("Updated 1 skill(s).");
+});
+
+test("naming a skill inside the cooldown updates it", async () => {
+  const fixture = await setupCooldown("cooldown-named", ["fresh"]);
+
+  const result = await runCli(fixture.project, "update", "fresh", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
+  await expectInstalled(fixture, "fresh", "version three");
+});
+
+test("--min-release-age sets the cooldown in days", async () => {
+  const fixture = await setupCooldown("cooldown-flag", ["fresh"]);
+
+  const longer = await runCli(
+    fixture.project,
+    "update",
+    "--all",
+    "--yes",
+    "--min-release-age",
+    "2",
+  );
+  expect(longer.exitCode).toBe(0);
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+  await expectInstalled(fixture, "fresh", "version one");
+
+  const shorter = await runCli(
+    fixture.project,
+    "update",
+    "--all",
+    "--yes",
+    "--min-release-age",
+    "1",
+  );
+  expect(shorter.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
+  await expectInstalled(fixture, "fresh", "version three");
+});
+
+test("--min-release-age 0 updates a release from today", async () => {
+  const fixture = await setupCooldown("cooldown-off", ["fresh"]);
+
+  const result = await runCli(
+    fixture.project,
+    "update",
+    "--all",
+    "--yes",
+    "--min-release-age",
+    "0",
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
+  await expectInstalled(fixture, "fresh", "version three");
+});
+
+test("--min-release-age without a whole number of days exits 2", async () => {
+  const fixture = await setupCooldown("cooldown-usage", ["fresh"]);
+
+  for (const value of ["soon", "1.5", ""]) {
+    const result = await runCli(fixture.project, "update", "--all", "--min-release-age", value);
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toContain("--min-release-age");
+  }
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+  await expectInstalled(fixture, "fresh", "version one");
+});
+
+test("the picker shows each candidate's age and the cooldown, and an unpicked skill waits", async () => {
+  const fixture = await setupCooldown("cooldown-picker", ["fresh"]);
+
+  const result = await runTerminal(
+    fixture.project,
+    [{ on: "Select skills to update", send: "\r" }],
+    "update",
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain(
+    "fresh: 1 new commit(s) (v1.0.0 → v2.0.0), 1 day old, waits for cooldown",
+  );
+  expect(result.stdout).toContain("fresh: v2.0.0 available, 1 day old, waits for cooldown");
+  expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+  await expectInstalled(fixture, "fresh", "version one");
+});

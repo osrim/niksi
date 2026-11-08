@@ -391,3 +391,79 @@ test("add of owner/repo/<path> that discovery skips installs that skill rooted a
     restore();
   }
 });
+
+const freshSource = async (name: string): Promise<{ repo: string; commit: string }> => {
+  const repo = join(tmp, name);
+  await makeSkill(repo, "demo", "version one\n");
+  await initRepo(repo);
+  const commit = await commitAll(repo, "version one", Math.floor(Date.now() / 1000) - 86_400);
+  await tagHead(repo, "v2.0.0");
+  return { repo, commit };
+};
+
+const expectInstalledRelease = async (root: string, commit: string): Promise<void> => {
+  expect(await readFile(join(root, ".niksi", "skills", "demo", "SKILL.md"), "utf8")).toContain(
+    "version one",
+  );
+  expect(await readlink(join(root, ".claude", "skills", "demo"))).toBe("../../.niksi/skills/demo");
+  const { demo } = await readSkills(root);
+  expect(demo).toMatchObject({ commit });
+  expect(await listedRow(root)).toMatchObject({
+    ...demo,
+    name: "demo",
+    modified: false,
+    agents: ["claude"],
+  });
+};
+
+test("add installs a release inside the cooldown and warns with its age", async () => {
+  const root = await project("cooldown-add");
+  const { repo, commit } = await freshSource("cooldown-add-source");
+
+  const result = await runCli(
+    root,
+    "add",
+    pathToFileURL(repo).href,
+    "-p",
+    "--agent",
+    "claude",
+    "--yes",
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("v2.0.0 is 1 day old, inside the 3-day cooldown.");
+  expect((await readSkills(root)).demo).toMatchObject({ commit, track: "auto", tag: "v2.0.0" });
+  await expectInstalledRelease(root, commit);
+});
+
+test("add does not warn with --min-release-age 0 or an explicit ref", async () => {
+  const { repo, commit } = await freshSource("quiet-release-source");
+  const offRoot = await project("cooldown-off");
+  const pinnedRoot = await project("cooldown-ref");
+  const off = await runCli(
+    offRoot,
+    "add",
+    pathToFileURL(repo).href,
+    "-p",
+    "--agent",
+    "claude",
+    "--yes",
+    "--min-release-age",
+    "0",
+  );
+  const pinned = await runCli(
+    pinnedRoot,
+    "add",
+    `${pathToFileURL(repo).href}@v2.0.0`,
+    "-p",
+    "--agent",
+    "claude",
+    "--yes",
+  );
+
+  for (const result of [off, pinned]) {
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("day cooldown");
+  }
+  for (const root of [offRoot, pinnedRoot]) await expectInstalledRelease(root, commit);
+});

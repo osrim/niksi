@@ -1,6 +1,7 @@
 import { scopeFlag } from "./install/scope.ts";
 import type { Scope } from "./paths.ts";
 import type { Finding, Severity } from "./scan/index.ts";
+import { describeWaiting } from "./source/release-age.ts";
 import { shortId, type Labelled } from "./source/revision.ts";
 import type { UpdateVerdict } from "./source/upstream.ts";
 
@@ -16,6 +17,7 @@ export type ReportedSkip =
   | { kind: "declined" | "not-confirmed" | "not-selected" | "gone" | "disabled"; name: string }
   | { kind: "failed" | "unreachable"; name: string; error: string }
   | { kind: "pinned"; name: string; from: Labelled; to: Labelled }
+  | { kind: "waiting"; name: string; to: Labelled; age: number }
   | { kind: "rewritten"; name: string; pinnedAs: string; expected: Labelled; actual: Labelled };
 
 export interface UpdateReport {
@@ -109,6 +111,8 @@ const reason = (skip: ReportedSkip): string => {
       return `write failed: ${code(skip.error)}`;
     case "unreachable":
       return `no upstream: ${code(skip.error)}`;
+    case "waiting":
+      return describeWaiting(revision(skip.to), skip.age);
     case "pinned":
       return `pinned at ${revision(skip.from)}, latest ${revision(skip.to)}`;
     case "rewritten":

@@ -52,6 +52,10 @@ export class LocalSource implements Source {
     return NO_REVISION;
   }
 
+  committedAt(): Promise<undefined> {
+    return Promise.resolve(undefined);
+  }
+
   async upstream(skill: InstalledSkill): Promise<Upstream> {
     const dir = this.subtree(skill.path);
     const info = await stat(dir).catch(() => null);

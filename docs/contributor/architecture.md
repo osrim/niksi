@@ -35,7 +35,7 @@ cli/src/
     update-check.ts  latest release version check
     update-report.ts Markdown report of an update run
     usage.ts         usage error type
-    source/          coordinates, Git and local sources, revisions, upstream
+    source/          coordinates, Git and local sources, revisions, upstream, release age
     skill/           files, frontmatter, integrity, dependency mentions, Markdown map
     scan/            scan rules, findings, and per-rule fixtures
     install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, ski layout migration

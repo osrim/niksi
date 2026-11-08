@@ -2,6 +2,7 @@
 
 import { cac, type CAC } from "cac";
 import { completeSkills, SKILLS_HELPER } from "./core/completion/skills.ts";
+import { checkReleaseAgeArgs } from "./core/source/release-age.ts";
 import { USAGE_ERROR } from "./core/usage.ts";
 import { nearest } from "./core/suggest.ts";
 import { startUpdateCheck } from "./core/update-check.ts";
@@ -49,6 +50,10 @@ const buildCli = (): CAC => {
       "--path <directory>",
       "With --copy, write below a project destination root. Do not combine --path with -g or --agent",
     )
+    .option(
+      "--min-release-age <days>",
+      "Warn when the release is younger than this many days. Default 3. 0 turns it off",
+    )
     .action(async (coordinate, skills, options) =>
       (await LOADERS.add()).run(coordinate, skills, options),
     );
@@ -76,6 +81,10 @@ const buildCli = (): CAC => {
     .option("-y, --yes", "Skip ordinary confirmations")
     .option("--dangerous-skip-critical-approval", "Skip approval for critical findings. Dangerous.")
     .option("--report <file>", "Write a Markdown review report of the run")
+    .option(
+      "--min-release-age <days>",
+      "Skip releases younger than this many days unless named. Default 3. 0 turns it off",
+    )
     .action(async (skills, options) => (await LOADERS.update()).run(skills, options));
   cli
     .command("remove [...skills]", "Remove installed skills")
@@ -152,6 +161,7 @@ try {
     for (const name of await completeSkills(command, words)) console.log(name);
     process.exit(0);
   }
+  checkReleaseAgeArgs(argv);
   const cli = buildCli();
   cli.parse(argv, { run: false });
   const notice = startUpdateCheck(

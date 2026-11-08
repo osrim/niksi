@@ -464,3 +464,5 @@ Every finding masks secret values. URL passwords, query values for keys such as 
 ## Limits
 
 The scan matches known patterns. It does not run the skill, follow URLs, or understand intent. The `prompt-injection`, `credential-disclosure`, and `money-movement` rules match wording, not intent: a paraphrase passes, and a safe sentence with the same words can match. A skill can be harmful and pass with no findings, and a safe skill can trigger a `warn`. Choose `Read files…` and read the files before you approve them.
+
+The [cooldown](commands.md#cooldown) is not part of the scan. It reads an upstream revision's age from the Git committer date, which whoever pushes the commit sets. A commit dated in the past passes the cooldown at once. `niksi` does not ask the Git host when a tag was published, because that would need API calls and a token.

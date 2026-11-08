@@ -114,6 +114,7 @@ test("blocked skills ask for a person, and skipped skills give their reason", ()
         { kind: "declined", name: "declined" },
         { kind: "not-confirmed", name: "unconfirmed" },
         { kind: "not-selected", name: "later" },
+        { kind: "waiting", name: "fresh-tag", to: { tag: "v2.0.0", commit: NEW }, age: 86_400 },
         { kind: "failed", name: "broken", error: "disk full" },
         {
           kind: "pinned",
@@ -161,6 +162,7 @@ test("blocked skills ask for a person, and skipped skills give their reason", ()
       "- `declined`: declined at review",
       "- `unconfirmed`: write not confirmed",
       "- `later`: update available, not selected",
+      "- `fresh-tag`: `v2.0.0` (`bbbbbbbb`) available, 1 day old, waits for cooldown",
       "- `broken`: write failed: `disk full`",
       "- `pinned`: pinned at `v1.0.0` (`aaaaaaaa`), latest `bbbbbbbb`",
       "- `moved-tag`: pinned ref `v2` was rewritten from `aaaaaaaa` to `bbbbbbbb`",

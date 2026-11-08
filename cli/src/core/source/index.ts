@@ -17,6 +17,7 @@ export interface Upstream {
   moved: boolean;
   gone: boolean;
   ahead: number;
+  committedAt?: number;
 }
 
 export interface Changes {
@@ -37,6 +38,7 @@ export interface Source {
   forScope(scope: Scope): Anchored;
   resolve(userRef?: string): Promise<Revision>;
   upstream(skill: InstalledSkill): Promise<Upstream>;
+  committedAt(rev: Revision): Promise<number | undefined>;
   discover(rev: string | undefined, root?: string): Promise<DiscoveredSkill[]>;
   splitTree(segments: string[]): Promise<{ ref?: string; dir: string }>;
   fetchFiles(rev: string | undefined, path: string): Promise<SkillFile[]>;

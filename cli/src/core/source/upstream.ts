@@ -1,12 +1,14 @@
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Revision } from "./revision.ts";
 import { sourceFor, type Source } from "./index.ts";
+import { waitsForCooldown, type Cooldown } from "./release-age.ts";
 
 interface Verdict {
   skill: InstalledSkill;
   source: Source;
   upstream: Revision;
   ahead: number;
+  age?: number;
 }
 
 export interface UnreachableVerdict extends Verdict {
@@ -35,6 +37,7 @@ export interface MovedVerdict extends Verdict {
 
 export interface OutdatedVerdict extends Verdict {
   kind: "outdated";
+  waiting?: boolean;
 }
 
 export type UpdatableVerdict = MovedVerdict | OutdatedVerdict;
@@ -54,26 +57,21 @@ export type UpdateVerdict =
 
 export const computeVerdicts = (
   skills: InstalledSkill[],
-  named: string[] = [],
+  named: string[],
+  cooldown: Cooldown,
 ): Promise<UpdateVerdict[]> => {
   const names = new Set(named);
-  return Promise.all(skills.map((skill) => verdictOf(skill, names)));
+  return Promise.all(skills.map((skill) => verdictOf(skill, names, cooldown)));
 };
 
-const verdictOf = async (skill: InstalledSkill, names: Set<string>): Promise<UpdateVerdict> => {
+const verdictOf = async (
+  skill: InstalledSkill,
+  names: Set<string>,
+  cooldown: Cooldown,
+): Promise<UpdateVerdict> => {
   const source = sourceFor(skill.source);
   try {
-    const { revision: upstream, ...flags } = await source.upstream(skill);
-    const verdict = { skill, source, upstream, ahead: flags.ahead };
-    const rewritten = await rewrittenRef(skill, source);
-    if (rewritten) return { kind: "rewritten", ...verdict, ...rewritten };
-    if (flags.gone) return { kind: "gone", ...verdict };
-    if (skill.track === "pin" && !names.has(skill.name) && (flags.outdated || flags.moved)) {
-      return { kind: "pinned", ...verdict };
-    }
-    if (flags.moved) return { kind: "moved", ...verdict };
-    if (flags.outdated) return { kind: "outdated", ...verdict };
-    return { kind: "up-to-date", ...verdict };
+    return await classify(skill, source, names.has(skill.name), cooldown);
   } catch (e) {
     return {
       kind: "unreachable",
@@ -85,6 +83,38 @@ const verdictOf = async (skill: InstalledSkill, names: Set<string>): Promise<Upd
     };
   }
 };
+
+const ageSince = (committedAt: number | undefined, now: number): { age?: number } =>
+  committedAt === undefined ? {} : { age: now - committedAt };
+
+const waits = ({ age }: { age?: number }, named: boolean, days: number): boolean =>
+  !named && age !== undefined && waitsForCooldown(age, days);
+
+const classify = async (
+  skill: InstalledSkill,
+  source: Source,
+  named: boolean,
+  cooldown: Cooldown,
+): Promise<UpdateVerdict> => {
+  const { revision: upstream, committedAt, ...flags } = await source.upstream(skill);
+  const verdict = {
+    skill,
+    source,
+    upstream,
+    ahead: flags.ahead,
+    ...ageSince(committedAt, cooldown.now),
+  };
+  const rewritten = await rewrittenRef(skill, source);
+  if (rewritten) return { kind: "rewritten", ...verdict, ...rewritten };
+  if (flags.gone) return { kind: "gone", ...verdict };
+  if (!flags.outdated && !flags.moved) return { kind: "up-to-date", ...verdict };
+  if (skill.track === "pin" && !named) return { kind: "pinned", ...verdict };
+  if (flags.moved) return { kind: "moved", ...verdict };
+  return { kind: "outdated", ...verdict, waiting: waits(verdict, named, cooldown.days) };
+};
+
+export const holdsBack = (verdict: UpdatableVerdict, names: string[]): boolean =>
+  names.length === 0 && verdict.kind === "outdated" && verdict.waiting === true;
 
 interface RewrittenRef {
   pinnedAs: string;
@@ -134,7 +164,9 @@ export const selectUpdates = (
     all,
   );
   if (!requested) return { selected: [], skipped: [], needsPrompt: true };
-  const selected = candidates.filter((verdict) => requested.includes(verdict.skill.name));
+  const selected = candidates.filter(
+    (verdict) => requested.includes(verdict.skill.name) && !holdsBack(verdict, names),
+  );
   const skipped = requested.filter(
     (name) => !selected.some((verdict) => verdict.skill.name === name),
   );

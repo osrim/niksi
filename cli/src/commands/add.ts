@@ -15,6 +15,12 @@ import {
 } from "../core/source/revision.ts";
 import type { ScopeOptions } from "../core/install/scope.ts";
 import {
+  describeAge,
+  minReleaseAge,
+  unixNow,
+  waitsForCooldown,
+} from "../core/source/release-age.ts";
+import {
   insideProject,
   resolveCoordinate,
   scopeCoordinate,
@@ -31,7 +37,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { createSpinner, fail } from "../ui/prompt.ts";
-import { logWarn } from "../ui/report.ts";
+import { logWarn, warn } from "../ui/report.ts";
 import { reviewNewSkills, type ReviewedSkill } from "../ui/review.ts";
 import { skillName, tildify } from "../ui/style.ts";
 import {
@@ -68,6 +74,7 @@ interface AddOptions extends ScopeOptions, ReviewOptions {
   agent?: string | string[];
   copy?: boolean;
   path?: string;
+  minReleaseAge?: unknown;
 }
 
 const MODES = {
@@ -98,6 +105,7 @@ export const run = async (
 ): Promise<void> => {
   const copy = options.copy ?? false;
   const mode = MODES[copy ? "copy" : "link"];
+  const days = minReleaseAge(options.minReleaseAge);
   p.intro(mode.intro);
 
   const parsed = parseCoordinateOrFail(coordinate);
@@ -107,6 +115,7 @@ export const run = async (
   const fetched = await resolveSource(source, parsed);
   if (!fetched) return;
   const { rev } = fetched;
+  await warnInsideCooldown(source, rev, days);
 
   await migrateIfLegacy(options.global ? "global" : "project");
   const { scope, agents, copyPath } = await chooseDestination(options, {
@@ -256,6 +265,15 @@ const confirmOutsideProject = (
 
 const shownLabel = (userRef: string | undefined, entry: Labelled): string =>
   userRef && !COMMIT_HASH.test(userRef) ? userRef : displayLabel(entry);
+
+const warnInsideCooldown = async (source: Source, rev: Revision, days: number): Promise<void> => {
+  if (rev.track !== "auto") return;
+  const committedAt = await source.committedAt(rev);
+  if (committedAt === undefined) return;
+  const age = unixNow() - committedAt;
+  if (!waitsForCooldown(age, days)) return;
+  warn(`${displayLabel(rev)} is ${describeAge(age)}, inside the ${days}-day cooldown.`);
+};
 
 interface Fetched {
   rev: Revision;

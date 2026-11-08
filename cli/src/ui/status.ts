@@ -89,7 +89,7 @@ export const reportVerdicts = (
     const { skill } = verdict;
     const failed = (message: string): void => {
       logError(message);
-      if (requested.includes(skill.name)) process.exitCode = 1;
+      if (requested.includes(skill.name)) process.exitCode = process.exitCode === 3 ? 3 : 1;
     };
     switch (verdict.kind) {
       case "unreachable":

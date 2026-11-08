@@ -254,6 +254,6 @@ The step exits with the code of `nik`, as listed in [commands.md](commands.md#ex
 | `0` | Every enabled skill is on disk with its recorded integrity. | Every selected skill is up to date or updated. The pull request is open, updated, or closed. | No critical finding. Warn findings pass. |
 | `1` | A skill failed to restore, or a skill comes from a source that `niksi.json` doesn't allow. | A skill failed. No pull request. | `path` isn't a directory, `nik add` failed, or a skill couldn't be read. |
 | `2` | Invalid input, or an invalid `niksi.json`. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or when `branch` is the branch it runs on. | Invalid input. |
-| `3` | | Findings that need approval, or the policy in `niksi.json`, blocked a skill. The pull request still carries the other updates. | A skill has a critical finding. |
+| `3` | | Findings that need approval, or the policy in `niksi.json`, blocked a skill. The pull request still carries the other updates, even when another skill failed. The job summary lists that skill under **Not updated**. | A skill has a critical finding. |
 
 An unknown `mode` exits `2`. An invalid `version`, a failed download or checksum, or an unsupported runner exits `1`.

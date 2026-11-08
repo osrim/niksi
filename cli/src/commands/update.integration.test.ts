@@ -819,8 +819,11 @@ test("the picker shows each candidate's age and the cooldown, and an unpicked sk
   await expectInstalled(fixture, "fresh", "version one");
 });
 
-test("update skips a skill whose source niksi.json does not allow, updates the rest, and exits 3", async () => {
-  const fixture = await setupUpdate("policy-source", ["allowed"], ["allowed"]);
+test("update skips a skill whose source niksi.json does not allow, updates the rest, and exits 3 when another skill fails", async () => {
+  const fixture = await setupUpdate("policy-source", ["allowed", "dropped"], ["allowed"]);
+  await rm(join(fixture.repo, "dropped"), { recursive: true });
+  const upstreamCommit = await commitAll(fixture.repo, "drop a skill");
+  await tagHead(fixture.repo, "v1.2.0");
   const denied = join(tmp, "policy-source-denied");
   await makeSkill(denied, "denied", "version one\n");
   await initRepo(denied);
@@ -840,7 +843,8 @@ test("update skips a skill whose source niksi.json does not allow, updates the r
 
   expect(result.exitCode).toBe(3);
   const after = await readSkills(fixture.lockPath);
-  expect(after.allowed?.commit).toBe(fixture.upstreamCommit);
+  expect(after.allowed?.commit).toBe(upstreamCommit);
+  expect(after.dropped).toEqual(before.dropped);
   expect(after.denied).toEqual(before.denied);
   expect(await publishedSkill(fixture.project, "allowed")).toContain("version two");
   expect(await publishedSkill(fixture.project, "denied")).toContain("version one");
@@ -849,6 +853,7 @@ test("update skips a skill whose source niksi.json does not allow, updates the r
   expect(report).toContain(
     `- \`denied\`: source \`${deniedSource}\` is not allowed by \`policy.sources\` in \`niksi.json\``,
   );
+  expect(report).toContain("- `dropped`: no longer in the source");
   expect(report).not.toContain("no upstream");
 });
 

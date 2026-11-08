@@ -61,7 +61,9 @@ An entry holds one skill. Absent optional fields are left out of the object, nev
 
 In a `host:path` address, the user and the host must not start with `-`, and the path must not start with `:` or `//`. Git would read such an argument as an option or as a remote helper.
 
-A local path that is not absolute resolves from the project root. In project scope, `niksi` records a local directory inside the project root as `local:.`, the project root. It records a local directory outside it, a symlink to one, or any local directory in global scope as `local:/`, the filesystem root. The rest of the location goes in `path` and `root`, so `nik add ./skills/demo` and `nik add ./skills demo` both record `path` as `skills/demo`. Other machines cannot resolve a `local:/` entry, so in project scope `add` asks first. Entries that record another local path, such as `local:./skills/demo`, still load.
+A local path that is not absolute resolves from the project root. In project scope, `niksi` records a local directory inside the project root as `local:.`, the project root. It records a local directory outside it, a symlink to one, or any local directory in global scope as `local:/`, the filesystem root. The rest of the location goes in `path` and `root`, so `nik add ./skills/demo` and `nik add ./skills demo` both record `path` as `skills/demo`. Other machines cannot resolve a `local:/` entry, so in project scope `add` asks first.
+
+`nik adopt` records a skill with no known source as an agent copy whose source is its own directory. In project scope, a copy in `.claude/skills/notes` records `source` `local:.` and `path` and `root` `.claude/skills/notes`. Entries that record another local path, such as `local:./skills/demo`, still load.
 
 ### Revisions
 
@@ -71,6 +73,7 @@ A local path that is not absolute resolves from the project root. In project sco
 | Git, pinned to a branch | `pin` | `commit` and `branch`, the pinned branch. |
 | Git, pinned to a full 40-character commit | `pin` | `commit` and `branch`, the default branch. |
 | Git, pinned to a tag or any other ref | `pin` | `commit`, `branch`, the default branch, and `pinnedAs`, the ref you typed. |
+| Git, after `nik adopt` | `auto`, or `pin` for a pinned ref | `commit` and `branch` as above, with `tag` and `pinnedAs` as above when `commit` is the commit `nik add` would record. Otherwise `commit` is an older commit, or a newer commit on `branch` than the latest release tag, whose skill files match the adopted copy, and there is no `tag`. |
 | Git, pinned, after `nik update` names it | `pin` | `branch`, unchanged. When the source has a stable release tag, `commit` is the commit of the latest one, and `tag` and `pinnedAs` both name it. Otherwise `commit` is the head of `branch`, with no `tag` or `pinnedAs`. |
 | local | `auto` | none |
 

@@ -93,6 +93,7 @@ nik install
 | command                         | what it does                                                           |
 | ------------------------------- | ---------------------------------------------------------------------- |
 | `nik add <coordinate> [skills]` | Fetch a source, pick skills, review and scan them, write the lockfile. |
+| `nik adopt [skills]`            | Record skills that `gh skill`, `npx skills`, or you put on disk.       |
 | `nik install`                   | Restore every enabled skill in `niksi-lock.json`.                      |
 | `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
 | `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |

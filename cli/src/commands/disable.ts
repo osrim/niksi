@@ -1,13 +1,14 @@
 import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { loadLock, recordLinkAgents, splitDisabled } from "../core/install/lockfile.ts";
 import {
+  holdsOwnSource,
   installedSkills,
   locationAgents,
   locationsOf,
   modifiedSkills,
   removeInstalledSkill,
 } from "../core/install/destination.ts";
-import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
+import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import { warnReferrers } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
@@ -85,8 +86,13 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
     name: (name) => name,
     apply: async (name) => {
       const location = locations.get(name)!;
-      await removeInstalledSkill(name, scope, location);
       const entry = loaded.lock.skills[name]!;
+      if (await holdsOwnSource({ name, ...entry }, scope)) {
+        throw new Error(
+          `its files are its own source, so disabling would delete them.\nRun \`nik remove ${name}${scopeFlag(scope)}\` to delete it, or keep it enabled.`,
+        );
+      }
+      await removeInstalledSkill(name, scope, location);
       recordLinkAgents(entry, locationAgents(location));
       entry.disabled = true;
       return { success: "disabled" };

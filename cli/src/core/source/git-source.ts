@@ -1,4 +1,5 @@
 import {
+  type CloneOptions,
   commitTime,
   defaultBranch,
   diffSubtree,
@@ -6,6 +7,7 @@ import {
   findRef,
   git,
   lsTreeEntries,
+  pathHistory,
   readBlobs,
   splitDiff,
   subtreeOid,
@@ -16,7 +18,10 @@ import { repoName } from "./coordinate.ts";
 import { resolveRevision, resolveUpstream, type Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Scope } from "../paths.ts";
-import type { Anchored, Changes, Upstream, Source } from "./index.ts";
+import type { Anchored, Changes, PastContent, Upstream, Source } from "./index.ts";
+
+// How many commits that changed a skill path `history` reads back from the newest.
+const HISTORY_LIMIT = 100;
 
 const commitOf = (skill: InstalledSkill): string => {
   if (!skill.commit) throw new Error(`${skill.name}: lockfile entry has no commit`);
@@ -35,12 +40,15 @@ const requireCommit = (rev: string | undefined): string => {
 export class GitSource implements Source {
   readonly kind = "git" as const;
   readonly display: string;
-  constructor(readonly id: string) {
+  constructor(
+    readonly id: string,
+    private readonly options: CloneOptions = {},
+  ) {
     this.display = id;
   }
 
   private clone(): Promise<string> {
-    return ensureClone(this.id);
+    return ensureClone(this.id, this.options);
   }
 
   forScope(_scope: Scope): Anchored {
@@ -125,6 +133,14 @@ export class GitSource implements Source {
       content: contents[index]!,
       mode: entry.mode,
     }));
+  }
+
+  // A pinned revision has one content. A followed one also has the branch head and older content.
+  async history(rev: Revision, path: string): Promise<PastContent[]> {
+    const commit = requireCommit(rev.commit);
+    if (rev.track === "pin") return pathHistory(await this.clone(), [commit], path, 0);
+    const head = rev.branch ? [`origin/${rev.branch}`] : [];
+    return pathHistory(await this.clone(), [commit, ...head], path, HISTORY_LIMIT);
   }
 
   async changes(from: InstalledSkill, to: string | undefined, _before: string): Promise<Changes> {

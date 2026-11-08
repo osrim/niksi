@@ -265,6 +265,8 @@ const EntrySchema = z
 // source/discover.ts, which only warns: fallback names such as `My_Skill` still install.
 const SKILL_NAME = /^(?!\.\.?$)[^/\\]+$/u;
 
+export const isLockfileName = (name: string): boolean => SKILL_NAME.test(name);
+
 const VersionSchema = z.object({
   lockfileVersion: z.literal([1, 2], {
     error: (issue) => `unsupported lockfile version ${String(JSON.stringify(issue.input))}`,

@@ -10,6 +10,7 @@ import { canonicalPath, copySkill, linkSkill, skillPath, writeCanonical } from "
 import { emptyLock, type LockEntry } from "./lockfile.ts";
 import {
   addDestination,
+  holdsOwnSource,
   installDestination,
   installedPath,
   installedPaths,
@@ -18,6 +19,7 @@ import {
   locationOf,
   recordedLocations,
   updateDestination,
+  type InstalledSkill,
 } from "./destination.ts";
 import { captureEnv } from "../../test-env.ts";
 
@@ -235,4 +237,17 @@ test("updateDestination relinks the recorded agents and the agents linked on dis
 test("recordedLocations names a link entry's recorded agents", () => {
   expect(recordedLocations(recordedLink("where", ["claude", "kiro"]))).toEqual(["claude", "kiro"]);
   expect(recordedLocations(entry("where"))).toEqual([]);
+});
+
+test("holdsOwnSource is true only for a local entry whose source is one of its own copies", async () => {
+  await copySkill("own", files, "global", "claude", false);
+  const own = skillPath("own", "global", "claude");
+  const local = (path: string): InstalledSkill => ({
+    ...entry("own", ["claude"]),
+    source: "local:/",
+    path: path.slice(1),
+  });
+  expect(await holdsOwnSource(local(own), "global")).toBe(true);
+  expect(await holdsOwnSource(local(join(tmp, "elsewhere", "own")), "global")).toBe(false);
+  expect(await holdsOwnSource(entry("own", ["claude"]), "global")).toBe(false);
 });

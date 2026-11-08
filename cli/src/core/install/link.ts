@@ -45,7 +45,7 @@ export const skillPath = (name: string, scope: Scope, agent: AgentId): string =>
 export const canonicalPath = (name: string, scope: Scope): string =>
   childPath(canonicalDir(scope), name);
 
-const isManagedLink = async (path: string, scope: Scope): Promise<boolean> => {
+export const isManagedLink = async (path: string, scope: Scope): Promise<boolean> => {
   if (!(await isSymlinkPath(path))) return false;
   try {
     const resolved = resolve(await realpathOrNearest(dirname(path)), await readlink(path));

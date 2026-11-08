@@ -25,7 +25,7 @@ cli/src/
   test-cli.ts        CLI runners and fixtures, tests only
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
-  commands/          add, install, update, remove, list, audit, disable, enable, prune, completion
+  commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
     completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
@@ -37,10 +37,10 @@ cli/src/
     update-check.ts  latest release version check
     update-report.ts Markdown report of an update run
     usage.ts         usage error type
-    source/          coordinates, Git and local sources, revisions, upstream, release age
+    source/          coordinates, Git and local sources, revisions, upstream, release age, provenance hints, content match
     skill/           files, frontmatter, integrity, dependency mentions, Markdown map
     scan/            scan rules, findings, and per-rule fixtures
-    install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, ski layout migration
+    install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, unmanaged skills, adoption, ski layout migration
 ```
 
 `core/source/` and `core/install/` are siblings. Runtime imports point from `install/` to `source/` only. Source adapters may type-import installed skill data. Commands and UI combine the two.
@@ -61,6 +61,7 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 | command | uses |
 | --- | --- |
 | `add` | `fetchSkillFiles` through `ui/review.ts`, `confirm`, `land` |
+| `adopt` | `land` |
 | `update` | `land` |
 | `remove` | `confirm`, `land` |
 | `install` | `restoreSkill`, `land` |
@@ -77,6 +78,8 @@ Every command that writes goes through `ui/flow.ts`, which exports `fetchSkillFi
 `core/install/lockfile.ts` reads lockfile versions 1 and 2, each with its own entry rules, and always writes version 2.
 
 `core/install/destination.ts` gives commands the installed location, filesystem path, state, apply destination, and removal operation. Commands do not read `agents` or `copyPath` to decide placement.
+
+`adopt` does not use `applySkill`. `core/install/unmanaged.ts` finds skill directories in agent skills directories that the lockfile does not record. `core/source/provenance.ts` reads where `gh skill` and `npx skills` say a skill came from, and `core/source/match.ts` compares the files with the past contents of that source from `Source.history`. `adoptSkill` in `core/install/adopt.ts` records an agent copy entry for the directories on disk. It writes a file only to replace the `SKILL.md` of a `gh skill` copy.
 
 `core/install/apply.ts` refuses unmanaged targets and ensures that a store entry exists. It then applies the destination's placement.
 
@@ -116,7 +119,7 @@ reported with the `nik add` command that adds them.
 
 Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 
-New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes`, `dangerousSkipCriticalApproval`, and `denyWarn`. `add` and `update` set `denyWarn` from the project policy, and the gate then treats a warn finding as critical. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. `reviewSkills` also returns the findings of each skill, which `update` passes to its report. In the gate, only `blocked`, a finding that needs approval without a terminal or the dangerous flag, sets exit code `3`. `update` also sets it when it leaves out a skill whose source the project policy doesn't allow.
+New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions` object with `yes`, `dangerousSkipCriticalApproval`, and `denyWarn`. `add`, `adopt`, and `update` set `denyWarn` from the project policy, and the gate then treats a warn finding as critical. It lists files, runs the scan, shows findings, and returns `pass`, `declined`, or `blocked`. `reviewSkills` also returns the findings of each skill, which `update` passes to its report. In the gate, only `blocked`, a finding that needs approval without a terminal or the dangerous flag, sets exit code `3`. `update` also sets it when it leaves out a skill whose source the project policy doesn't allow.
 
 `add` and `update` ask their write confirmation through `confirmWrite` in `ui/gate.ts`, not `confirm`. The gate questions and `confirmWrite` offer `Read files…`, which passes the reviewed skills to `ui/pager.ts`. The pager module builds the session text from pure helpers and pipes it to the pager.
 
@@ -125,6 +128,7 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 `add` and `update` pass `criticalRules` of each approved skill's findings to `applySkill` as `acceptedRules`, whether a person approved them or the dangerous flag skipped approval. `applySkill` records them in the entry's `review` and keeps `review.external` when the integrity is unchanged. A write without `acceptedRules`, such as an extension to another agent or a moved revision, keeps the recorded `review` only when the integrity is unchanged.
 
 - `add` checks the source against the project policy before it fetches, then reaches the gate for every new skill and for dependencies it offers to install.
+- `adopt` refuses a `--source` that the project policy doesn't allow before it fetches, and leaves out a skill whose source found on disk the policy doesn't allow. It then reaches the gate for every skill it records, with the files the entry records.
 - `update` leaves out a skill whose source the project policy doesn't allow before it checks upstream. It reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.

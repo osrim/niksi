@@ -15,6 +15,7 @@ import {
   type Changes,
   type Upstream,
   type Source,
+  type PastContent,
 } from "./index.ts";
 
 const NO_REVISION: Revision = { track: "auto" };
@@ -90,6 +91,10 @@ export class LocalSource implements Source {
 
   async fetchFiles(_rev: string | undefined, path: string): Promise<SkillFile[]> {
     return readDirFiles(await this.requireDir(path));
+  }
+
+  history(_rev: Revision, _path: string): Promise<PastContent[]> {
+    return Promise.resolve([{}]);
   }
 
   async changes(from: InstalledSkill, _to: string | undefined, before: string): Promise<Changes> {

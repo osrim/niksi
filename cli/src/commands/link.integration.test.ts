@@ -437,11 +437,11 @@ test("add installs a release inside the cooldown and warns with its age", async 
 });
 
 test("add warns with the cooldown from niksi.json, and --min-release-age overrides it", async () => {
-  const { repo } = await freshSource("project-cooldown-source");
+  const { repo, commit } = await freshSource("project-cooldown-source");
   const add = async (name: string, ...flags: string[]) => {
     const root = await project(name);
     await writeFile(join(root, "niksi.json"), '{"minimumReleaseAge":5}\n');
-    return runCli(
+    const result = await runCli(
       root,
       "add",
       pathToFileURL(repo).href,
@@ -451,15 +451,26 @@ test("add warns with the cooldown from niksi.json, and --min-release-age overrid
       "--yes",
       ...flags,
     );
+    return { root, result };
+  };
+  const expectInstalled = async (root: string): Promise<void> => {
+    const link = join(root, ".claude", "skills", "demo");
+    expect(await isLink(link)).toBe(true);
+    expect(await readFile(join(link, "SKILL.md"), "utf8")).toContain("version one");
+    const { demo } = await readSkills(root);
+    expect(demo).toMatchObject({ commit, track: "auto", tag: "v2.0.0", agents: ["claude"] });
+    expect(await listedRow(root)).toMatchObject({ ...demo, name: "demo", links: [link] });
   };
 
   const longer = await add("project-cooldown");
   const off = await add("project-cooldown-off", "--min-release-age", "0");
 
-  expect(longer.exitCode).toBe(0);
-  expect(longer.stdout).toContain("v2.0.0 is 1 day old, inside the 5-day cooldown.");
-  expect(off.exitCode).toBe(0);
-  expect(off.stdout).not.toContain("day cooldown");
+  expect(longer.result.exitCode).toBe(0);
+  expect(longer.result.stdout).toContain("v2.0.0 is 1 day old, inside the 5-day cooldown.");
+  await expectInstalled(longer.root);
+  expect(off.result.exitCode).toBe(0);
+  expect(off.result.stdout).not.toContain("day cooldown");
+  await expectInstalled(off.root);
 });
 
 test("an invalid niksi.json stops add in project scope, and global scope ignores it", async () => {

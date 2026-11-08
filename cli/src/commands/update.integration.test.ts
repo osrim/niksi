@@ -760,10 +760,14 @@ test("minimumReleaseAge in niksi.json sets the cooldown, and --min-release-age o
   );
   expect(flagged.exitCode).toBe(0);
   expect(await readSkills(fixture.lockPath)).toEqual(fixture.before);
+  expect(await publishedSkill(fixture.project, "fresh")).toContain("version one");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 
   const unflagged = await runCli(fixture.project, "update", "--all", "--yes");
   expect(unflagged.exitCode).toBe(0);
   expect((await readSkills(fixture.lockPath)).fresh?.commit).toBe(fixture.upstreamCommit);
+  expect(await publishedSkill(fixture.project, "fresh")).toContain("version three");
+  await expectListMatchesLock(fixture.project, fixture.lockPath);
 });
 
 test("an invalid niksi.json exits 2 before update checks upstream", async () => {

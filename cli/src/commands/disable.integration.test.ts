@@ -454,10 +454,18 @@ test("enable restores nothing from a source that niksi.json does not allow", asy
   expect((await runCli(project, "disable", "alpha", "-y")).exitCode).toBe(0);
   await writeFile(join(project, "niksi.json"), '{"policy":{"sources":{}}}\n');
 
+  const listedAlpha = async (): Promise<Record<string, unknown>> => {
+    const listed = await runCli(project, "list", "--json");
+    expect(listed.exitCode).toBe(0);
+    return JSON.parse(listed.stdout).skills.find((row: { name: string }) => row.name === "alpha");
+  };
+
   const refused = await runCli(project, "enable", "alpha", "-y");
   expect(refused.exitCode).toBe(1);
   expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(false);
+  expect(existsSync(join(project, ".niksi", "skills", "alpha"))).toBe(false);
   expect((await readLockJson(project))["alpha"]).toMatchObject({ disabled: true });
+  expect(await listedAlpha()).toMatchObject({ disabled: true, links: [] });
 
   await writeFile(
     join(project, "niksi.json"),
@@ -465,5 +473,17 @@ test("enable restores nothing from a source that niksi.json does not allow", asy
   );
   const allowed = await runCli(project, "enable", "alpha", "-y");
   expect(allowed.exitCode).toBe(0);
-  expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(true);
+  expect((await lstat(join(project, ".claude", "skills", "alpha"))).isSymbolicLink()).toBe(true);
+  expect(await readFile(join(project, ".niksi", "skills", "alpha", "SKILL.md"), "utf8")).toContain(
+    "name: alpha",
+  );
+  const lock = (await readLockJson(project))["alpha"]!;
+  expect(lock["disabled"]).toBeUndefined();
+  expect(lock["agents"]).toEqual(["claude"]);
+  const row = await listedAlpha();
+  expect(row["disabled"]).toBeUndefined();
+  expect(row).toMatchObject({
+    agents: ["claude"],
+    links: [join(project, ".claude", "skills", "alpha")],
+  });
 });

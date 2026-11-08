@@ -284,12 +284,22 @@ test("install restores every entry whose source niksi.json allows", async () => 
     "policy-allowed",
     '{"minimumReleaseAge":7,"policy":{"sources":{"git":["<repo>"]}}}',
   );
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
 
   const result = await run(root, "install", "--agent", "claude", "--yes");
 
   expect(result.exitCode).toBe(0);
-  for (const name of ["local", "remote", "other"]) {
-    expect(await isLink(join(root, ".claude", "skills", name))).toBe(true);
+  expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+  const listed = await run(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  const rows: { name: string }[] = JSON.parse(listed.stdout).skills;
+  const skills = JSON.parse(lock).skills;
+  expect(rows.map((row) => row.name).toSorted()).toEqual(["local", "other", "remote"]);
+  for (const row of rows) {
+    const link = join(root, ".claude", "skills", row.name);
+    expect(await isLink(link)).toBe(true);
+    expect(await readFile(join(link, "SKILL.md"), "utf8")).toContain(`name: ${row.name}`);
+    expect(row).toMatchObject({ ...skills[row.name], modified: false, links: [link] });
   }
 });
 

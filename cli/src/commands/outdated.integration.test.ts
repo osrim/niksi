@@ -1,9 +1,17 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { cliRunner, commitAll, initRepo, makeSkill, tagHead, type RunCli } from "../test-cli.ts";
+import {
+  cliRunner,
+  commitAll,
+  initRepo,
+  makeSkill,
+  recordedLock,
+  tagHead,
+  type RunCli,
+} from "../test-cli.ts";
 import { captureEnv } from "../test-env.ts";
 
 let tmp: string;
@@ -14,7 +22,7 @@ let source: string;
 let lockPath: string;
 let firstCommit: string;
 let secondCommit: string;
-const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "GIT_SSH_COMMAND");
 
 const LINK = ["-p", "--agent", "claude", "--yes"];
 
@@ -30,7 +38,7 @@ beforeAll(async () => {
   runCli = cliRunner(tmp);
 
   repo = join(tmp, "source");
-  for (const name of ["changed", "moved", "held"]) await makeSkill(repo, name, "version one\n");
+  for (const name of ["changed", "moved", "pinned"]) await makeSkill(repo, name, "version one\n");
   await initRepo(repo);
   firstCommit = await commitAll(repo, "version one");
   await tagHead(repo, "v1.0.0");
@@ -40,11 +48,11 @@ beforeAll(async () => {
   await mkdir(join(project, ".git"), { recursive: true });
   await makeSkill(join(project, "skills"), "mine");
   await add(project, source, "changed", "moved");
-  await add(project, `${source}@v1.0.0`, "held");
+  await add(project, `${source}@v1.0.0`, "pinned");
   await add(project, "./skills/mine");
   lockPath = join(project, "niksi-lock.json");
 
-  for (const name of ["changed", "held"]) await makeSkill(repo, name, "version two\n");
+  for (const name of ["changed", "pinned"]) await makeSkill(repo, name, "version two\n");
   secondCommit = await commitAll(repo, "version two");
   await tagHead(repo, "v1.1.0");
 });
@@ -74,15 +82,6 @@ test("outdated --json reports each skill's recorded and upstream revision withou
         upstream: { commit: secondCommit, tag: "v1.1.0" },
       },
       {
-        name: "held",
-        source,
-        path: "held",
-        track: "pin",
-        verdict: "pinned",
-        recorded: { commit: firstCommit, pinnedAs: "v1.0.0" },
-        upstream: { commit: secondCommit, tag: "v1.1.0", pinnedAs: "v1.1.0" },
-      },
-      {
         name: "mine",
         source: "local:.",
         path: "skills/mine",
@@ -99,6 +98,15 @@ test("outdated --json reports each skill's recorded and upstream revision withou
         verdict: "moved",
         recorded: { commit: firstCommit, tag: "v1.0.0" },
         upstream: { commit: secondCommit, tag: "v1.1.0" },
+      },
+      {
+        name: "pinned",
+        source,
+        path: "pinned",
+        track: "pin",
+        verdict: "pinned",
+        recorded: { commit: firstCommit, pinnedAs: "v1.0.0" },
+        upstream: { commit: secondCommit, tag: "v1.1.0", pinnedAs: "v1.1.0" },
       },
     ],
     disabled: [],
@@ -167,8 +175,10 @@ test("outdated without --json lists the skills with updates and exits 1", async 
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toContain("changed: 1 new commit(s) (v1.0.0 → v1.1.0)");
   expect(result.stdout).toContain("moved: no file changes");
-  expect(result.stdout).toContain("held: pinned at v1.0.0. Latest: v1.1.0.");
-  expect(result.stdout).toContain("4 skill(s) checked (project): 3 with updates.");
+  expect(result.stdout).toContain("pinned: pinned at v1.0.0. Latest: v1.1.0.");
+  expect(result.stdout).toContain(
+    "4 skill(s) checked (project): 1 outdated, 1 up to date, 1 moved, 1 pinned.",
+  );
 });
 
 test("outdated takes no skill names and exits 2", async () => {
@@ -176,4 +186,24 @@ test("outdated takes no skill names and exits 2", async () => {
 
   expect(result.exitCode).toBe(2);
   expect(result.stderr).toContain("nik outdated takes no arguments.");
+});
+
+test("outdated runs ssh in batch mode, so ssh fails instead of asking for a host key or passphrase", async () => {
+  const sshProject = join(tmp, "ssh-project");
+  await mkdir(join(sshProject, ".git"), { recursive: true });
+  await writeFile(
+    join(sshProject, "niksi-lock.json"),
+    JSON.stringify(recordedLock("ssh://git@example.invalid/o/r.git", "remote")),
+  );
+  const log = join(tmp, "ssh-args.log");
+  const fakeSsh = join(tmp, "fake-ssh");
+  await writeFile(fakeSsh, `#!/bin/sh\necho "$@" >> ${log}\nexit 255\n`);
+  await chmod(fakeSsh, 0o755);
+  process.env.GIT_SSH_COMMAND = fakeSsh;
+
+  const result = await runCli(sshProject, "outdated", "--json");
+
+  expect(result.exitCode).toBe(1);
+  expect(JSON.parse(result.stdout).skills[0].verdict).toBe("unreachable");
+  expect(await readFile(log, "utf8")).toContain("BatchMode=yes");
 });

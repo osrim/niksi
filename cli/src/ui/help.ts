@@ -31,7 +31,7 @@ const EXIT_CODES = [
   "0    success",
   "1    error, warn findings in audit, or updates found by outdated",
   "2    usage error",
-  "3    critical findings need review, or found by audit",
+  "3    critical findings need review or found by audit, or niksi.json blocks a source",
   "130  cancelled",
 ].join("\n");
 

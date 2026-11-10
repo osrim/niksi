@@ -66,7 +66,7 @@ export const gitReason = (result: Pick<GitResult, "err">): string => {
 };
 
 export interface CloneOptions {
-  // For a source that came from a file on disk rather than from the user.
+  // ssh fails instead of asking. For a source read from a file on disk, or a run that never asks.
   sshBatch?: boolean;
 }
 

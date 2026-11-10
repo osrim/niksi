@@ -7,7 +7,11 @@ import type { Scope } from "../core/paths.ts";
 import { policyViolations, type PolicyViolation } from "../core/policy.ts";
 import { readProjectConfig } from "../core/project-config.ts";
 import { unixNow } from "../core/source/release-age.ts";
-import { computeVerdicts, type UpdateVerdict } from "../core/source/upstream.ts";
+import {
+  computeVerdicts,
+  type UpdatableVerdict,
+  type UpdateVerdict,
+} from "../core/source/upstream.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { withSpinner } from "../ui/prompt.ts";
@@ -23,7 +27,7 @@ import { dim, skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Check upstream and show which skills have updates. Writes nothing and never asks. Exits 1 when a skill is not up to date.",
+    "Check upstream and show which skills have updates, without installing or recording anything. Never asks. Exits 1 when a skill is not up to date.",
   examples: ["$ nik outdated", "$ nik outdated -g", "$ nik outdated --json"],
 };
 
@@ -31,7 +35,7 @@ interface OutdatedOptions extends ScopeOptions {
   json?: boolean;
 }
 
-interface Checked {
+interface Prepared {
   loaded: LoadedLockfile;
   skills: InstalledSkill[];
   disabled: string[];
@@ -53,7 +57,7 @@ const allowedSkills = (skills: InstalledSkill[], blocked: PolicyViolation[]): In
   return skills.filter(({ name }) => !names.has(name)).toSorted(byName);
 };
 
-const prepare = async (scope: Scope): Promise<Checked> => {
+const prepare = async (scope: Scope): Promise<Prepared> => {
   const { policy } = await readProjectConfig(scope);
   const loaded = await loadLock(scope);
   const { enabled, disabled } = splitDisabled(loaded.lock);
@@ -67,21 +71,22 @@ const prepare = async (scope: Scope): Promise<Checked> => {
   };
 };
 
+// ssh fails instead of asking for a host key or a passphrase, so outdated never waits on a prompt.
 const verdictsOf = (skills: InstalledSkill[]): Promise<UpdateVerdict[]> =>
-  computeVerdicts(skills, [], { days: 0, now: unixNow() });
+  computeVerdicts(skills, [], { days: 0, now: unixNow() }, { sshBatch: true });
 
 export const run = async (options: OutdatedOptions): Promise<void> => {
   if (options.json) return runJson(options);
 
   p.intro("nik outdated");
   const scope = await openScope(options);
-  const { skills, ...check } = await prepare(scope);
-  if (Object.keys(check.loaded.lock.skills).length === 0) {
+  const { skills, ...prepared } = await prepare(scope);
+  if (Object.keys(prepared.loaded.lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
     return;
   }
-  reportDisabled(check.disabled, scope);
-  for (const violation of check.blocked) logSourceBlocked(violation);
+  reportDisabled(prepared.disabled, scope);
+  for (const violation of prepared.blocked) logSourceBlocked(violation);
   const verdicts =
     skills.length === 0
       ? []
@@ -90,13 +95,16 @@ export const run = async (options: OutdatedOptions): Promise<void> => {
           () => verdictsOf(skills),
           () => "Checked upstream sources",
         );
-  process.exitCode = outdatedExitCode(verdicts, check.blocked.length);
+  process.exitCode = outdatedExitCode(verdicts, prepared.blocked.length);
   p.outro(reportCheck(verdicts, scope));
 };
 
 const reportCheck = (verdicts: UpdateVerdict[], scope: Scope): string => {
-  const { moved, outdated } = reportVerdicts(verdicts, [], scope);
-  const updatable = [...moved, ...outdated].toSorted((a, b) => byName(a.skill, b.skill));
+  reportVerdicts(verdicts, [], scope);
+  const updatable = verdicts.filter(
+    (verdict): verdict is UpdatableVerdict =>
+      verdict.kind === "moved" || verdict.kind === "outdated",
+  );
   for (const verdict of updatable) {
     p.log.info(`${skillName(verdict.skill.name)}: ${describeUpdate(verdict)}`);
   }
@@ -106,33 +114,27 @@ const reportCheck = (verdicts: UpdateVerdict[], scope: Scope): string => {
   return summaryLine(verdicts, scope);
 };
 
-const FAILED = new Set<UpdateVerdict["kind"]>(["unreachable", "gone", "rewritten"]);
-
 const summaryLine = (verdicts: UpdateVerdict[], scope: Scope): string => {
-  const failed = verdicts.filter(({ kind }) => FAILED.has(kind)).length;
-  const updates = verdicts.filter(({ kind }) => kind !== "up-to-date" && !FAILED.has(kind)).length;
-  const notes = [
-    ...(updates > 0 ? [`${updates} with updates`] : []),
-    ...(failed > 0 ? [`${failed} failed`] : []),
-  ];
-  const result = notes.length > 0 ? notes.join(", ") : "all up to date";
-  return `${verdicts.length} skill(s) checked (${scope}): ${result}.`;
+  const counts = Map.groupBy(verdicts, ({ kind }) => kind.replaceAll("-", " "));
+  const notes = [...counts].map(([verdict, group]) => `${group.length} ${verdict}`);
+  const checked = `${verdicts.length} skill(s) checked (${scope})`;
+  return notes.length > 0 ? `${checked}: ${notes.join(", ")}.` : `${checked}.`;
 };
 
 const runJson = async (options: OutdatedOptions): Promise<void> => {
   const scope = await openScope(options);
-  const { skills, ...check } = await prepare(scope);
-  for (const violation of check.blocked) logSourceBlocked(violation);
+  const { skills, ...prepared } = await prepare(scope);
+  for (const violation of prepared.blocked) logSourceBlocked(violation);
   const verdicts = await verdictsOf(skills);
-  process.exitCode = outdatedExitCode(verdicts, check.blocked.length);
+  process.exitCode = outdatedExitCode(verdicts, prepared.blocked.length);
   console.log(
     JSON.stringify(
       {
         scope,
-        lockfile: check.loaded.file,
+        lockfile: prepared.loaded.file,
         skills: verdicts.map(outdatedSkill),
-        disabled: check.disabled,
-        blocked: check.blocked.map(({ name }) => name),
+        disabled: prepared.disabled,
+        blocked: prepared.blocked.map(({ name }) => name),
       },
       null,
       2,

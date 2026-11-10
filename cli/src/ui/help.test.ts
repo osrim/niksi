@@ -59,7 +59,9 @@ test("root help closes with aliases and exit codes", () => {
   expect(sections[3]!.body).toContain(
     "  1    error, warn findings in audit, or updates found by outdated",
   );
-  expect(sections[3]!.body).toContain("  3    critical findings need review, or found by audit");
+  expect(sections[3]!.body).toContain(
+    "  3    critical findings need review or found by audit, or niksi.json blocks a source",
+  );
   expect(sections[3]!.body).toContain("  130  cancelled");
 });
 

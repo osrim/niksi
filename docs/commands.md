@@ -264,7 +264,7 @@ The report is Markdown only, for people who review the change. For machine check
 nik outdated [-g|-p] [--json]
 ```
 
-`outdated` checks every enabled skill against its source and shows which skills have an update. It writes nothing and never asks, so it runs the same with or without a terminal. Run `nik update` to review and apply the updates.
+`outdated` checks every enabled skill against its source and shows which skills have an update. It doesn't install, update, or record anything. It never asks: ssh fails instead of asking for a host key or a passphrase. It runs the same with or without a terminal. Run `nik update` to review and apply the updates.
 
 - It checks the same upstream revision as `update`: the latest stable tag, or the head of the branch when the source has no tag. A pinned skill shows the revision that `nik update <skill>` would move it to.
 - It ignores the [cooldown](#cooldown). A skill with a young upstream revision still counts as outdated.
@@ -300,7 +300,7 @@ nik outdated [-g|-p] [--json]
 }
 ```
 
-`recorded` is the revision in `niksi-lock.json`. `upstream` is the revision that the skill would move to. Each one carries `commit`, `tag`, and `pinnedAs` when it has them, with the meaning they have in the lockfile (see [lockfile.md](lockfile.md#entry-fields)). A local source has no commit or tag, so both objects are empty. `track` is `auto` or `pin`.
+`recorded` is the revision in `niksi-lock.json`. `upstream` is the revision that the skill would move to. Each one carries `commit`, `tag`, and `pinnedAs` when it has them, with the meaning they have in the lockfile (see [lockfile.md](lockfile.md#entry-fields)). A local source has no commit or tag, so both objects are empty. `upstream` is empty for an `unreachable` skill. For a `gone` skill, it is the revision that no longer has the skill. For a `rewritten` skill, it is the latest upstream revision, and `update` doesn't move the skill there. `track` is `auto` or `pin`.
 
 `verdict` is one of these values:
 
@@ -317,7 +317,7 @@ nik outdated [-g|-p] [--json]
 `outdated` exits with these codes, with or without `--json`:
 
 - `0`: every checked skill is `up-to-date`.
-- `1`: at least one skill has another verdict. Read `verdict` to tell an update from a failure.
+- `1`: at least one skill has another verdict. Read `verdict` to see which. `1` also means an error stopped `outdated` before it checked any skill, such as an unreadable `niksi-lock.json`. Then stdout is empty.
 - `2`: invalid usage, or an invalid `niksi.json`.
 - `3`: the project policy left out at least one skill. It takes precedence over `1`.
 
@@ -327,6 +327,7 @@ To check for updates in a script:
 status=0
 nik outdated --json > outdated.json || status=$?
 [ "$status" -le 1 ] || exit "$status"
+jq -e .skills outdated.json > /dev/null || exit 1
 jq -r '.skills[] | select(.verdict != "up-to-date") | "\(.name): \(.verdict)"' outdated.json
 ```
 

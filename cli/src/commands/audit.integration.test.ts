@@ -457,5 +457,5 @@ test("audit exits 2 for an invalid niksi.json in project scope", async () => {
     expect(result.exitCode).toBe(2);
     expect(result.stderr).toContain("niksi.json: policy.denyWarn must be true or false");
   }
-  expect((await runCli(project, "audit", "-g")).exitCode).not.toBe(2);
+  expect(JSON.parse((await runCli(project, "audit", "-g", "--json")).stdout).scope).toBe("global");
 });

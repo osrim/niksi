@@ -331,7 +331,7 @@ nik audit [-g|-p] [--json]
 - In project scope, when `niksi.json` sets `policy.denyWarn`, a warn finding fails the audit like a critical one, and `audit` says that the policy is why. Global scope ignores `niksi.json`. See [Project configuration](configuration.md#project-configuration).
 - It takes no positional arguments; passing one exits `2`.
 - A skill that cannot be read is reported on stderr and left out of the scan. The batch continues.
-- It exits `3` when a skill has a critical finding that is not accepted, or a warn finding under `policy.denyWarn`, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code.
+- It exits `3` when a skill has a critical finding that is not accepted, or a warn finding under `policy.denyWarn`, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code. In project scope, an invalid `niksi.json` exits `2`.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each scanned skill. `missing` and `disabled` hold the names of the skills `audit` did not scan.
 

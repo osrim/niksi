@@ -2,7 +2,13 @@ import * as p from "@clack/prompts";
 import type { SkillFile } from "../core/skill/files.ts";
 import { asText, parseFrontmatter } from "../core/skill/frontmatter.ts";
 import { PROJECT_CONFIG_NAME } from "../core/project-config.ts";
-import { CRITICAL_EXIT, runScanners, type Finding, type Severity } from "../core/scan/index.ts";
+import {
+  CRITICAL_EXIT,
+  deniedWarn,
+  runScanners,
+  type Finding,
+  type Severity,
+} from "../core/scan/index.ts";
 import { ask, clackDecisions, type Decisions } from "./decisions.ts";
 import { escapeControl, type PagedSkill } from "./pager.ts";
 import { isInteractive, requireTTY } from "./prompt.ts";
@@ -77,7 +83,7 @@ export const reviewSkills = async <T extends Reviewable>(
 type Stop = Exclude<Severity, "info">;
 
 const gatesAs = (finding: Finding, denyWarn: boolean | undefined): Severity =>
-  denyWarn && finding.severity === "warn" ? "critical" : finding.severity;
+  deniedWarn(finding, denyWarn) ? "critical" : finding.severity;
 
 export const stopsOn = (findings: Finding[], options: ReviewOptions): Stop | null => {
   const gated = findings.map((finding) => gatesAs(finding, options.denyWarn));

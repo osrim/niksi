@@ -36,7 +36,7 @@ A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes`
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review. `nik audit` reports a critical finding that an approval accepted, and the finding does not change its exit code.
 
-Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings that the lockfile does not accept. See [commands.md](commands.md#audit).
+Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings that the lockfile does not accept, or on warn findings under `policy.denyWarn`. See [commands.md](commands.md#audit).
 
 ## Accepted findings
 

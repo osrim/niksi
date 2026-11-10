@@ -44,12 +44,13 @@ export const markAccepted = (findings: Finding[], acceptedRules: readonly string
       : found,
   );
 
+export const deniedWarn = (found: Finding, denyWarn: boolean | undefined): boolean =>
+  denyWarn === true && found.severity === "warn";
+
 export const markDenyWarn = (findings: Finding[], denyWarn: boolean | undefined): Finding[] =>
-  denyWarn
-    ? findings.map((found) =>
-        found.severity === "warn" ? { ...found, deniedBy: "policy.denyWarn" } : found,
-      )
-    : findings;
+  findings.map((found) =>
+    deniedWarn(found, denyWarn) ? { ...found, deniedBy: "policy.denyWarn" } : found,
+  );
 
 export const runScanners = (skill: ScannedSkill): Finding[] => {
   const { members, unread } = readArchives(skill.files);

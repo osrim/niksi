@@ -338,7 +338,7 @@ test.each([
   await nothingInstalled(root);
 });
 
-test("install --frozen-lockfile exits 1 without a lockfile, and install without it exits 0", async () => {
+test("install --frozen-lockfile exits 1 without a lockfile in either scope, and install without it exits 0", async () => {
   const root = await project("frozen-absent");
 
   const frozen = await runCli(root, "install", "--frozen-lockfile");
@@ -347,6 +347,7 @@ test("install --frozen-lockfile exits 1 without a lockfile, and install without 
   expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
   expect(existsSync(join(root, ".niksi"))).toBe(false);
   expect((await runCli(root, "install")).exitCode).toBe(0);
+  expect((await runCli(root, "install", "-g", "--frozen-lockfile")).exitCode).toBe(1);
 });
 
 test("install --frozen-lockfile restores from a lockfile, and accepts one with no skills", async () => {

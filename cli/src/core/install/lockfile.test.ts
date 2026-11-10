@@ -67,7 +67,7 @@ const inDir = async <T>(dir: string, fn: () => T | Promise<T>): Promise<T> => {
 };
 
 const writeGlobal = (lock: Lockfile): Promise<void> =>
-  writeLock({ scope: "global", file: lockPath("global"), lock });
+  writeLock({ file: lockPath("global"), lock });
 
 interface XdgLockPaths {
   config: string;
@@ -122,6 +122,18 @@ test("a new global lockfile is created at the config path", async () => {
 
     expect(existsSync(config)).toBe(true);
     expect(existsSync(legacy)).toBe(false);
+  });
+});
+
+test("loadLock says whether the lockfile exists, and an empty file exists", async () => {
+  await withXdgRoots("exists", async ({ config }) => {
+    expect((await loadLock("global")).exists).toBe(false);
+    await mkdir(dirname(config), { recursive: true });
+    await writeFile(config, "");
+
+    const loaded = await loadLock("global");
+    expect(loaded.exists).toBe(true);
+    expect(loaded.lock).toEqual(emptyLock());
   });
 });
 

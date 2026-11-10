@@ -280,10 +280,11 @@ test("remove does not delete a link that niksi did not create", async () => {
 });
 
 test("list --json reports link and agent-copy entries, installed, modified, and missing", async () => {
-  const root = await project("list", "linked", "copied", "kept", "unlinked");
+  const root = await project("list", "linked", "copied", "kept", "unlinked", "dangling");
   await addLink(root, "linked");
   await addLink(root, "kept");
   await addLink(root, "unlinked");
+  await addLink(root, "dangling");
   const copied = await runCli(
     root,
     "add",
@@ -299,16 +300,18 @@ test("list --json reports link and agent-copy entries, installed, modified, and 
   await rm(join(root, ".claude", "skills", "copied"), { recursive: true });
   await writeFile(join(root, ".niksi", "skills", "unlinked", "SKILL.md"), "edited\n");
   await rm(join(root, ".claude", "skills", "unlinked"));
+  await rm(join(root, ".niksi", "skills", "dangling"), { recursive: true });
 
   const human = await runCli(root, "list");
   expect(human.exitCode).toBe(0);
+  expect(human.stdout).toContain("3 missing: copied, dangling, unlinked");
   const json = await runCli(root, "list", "--json");
 
   expect(json.exitCode).toBe(0);
   expect(json.stderr).toBe("");
   const listed = JSON.parse(json.stdout);
   expect(listed).toMatchObject({ scope: "project", lockfile: join(root, "niksi-lock.json") });
-  const [copiedRow, keptRow, linkedRow, unlinkedRow] = listed.skills;
+  const [copiedRow, danglingRow, keptRow, linkedRow, unlinkedRow] = listed.skills;
   expect(linkedRow).toEqual({
     name: "linked",
     source: "local:.",
@@ -336,6 +339,7 @@ test("list --json reports link and agent-copy entries, installed, modified, and 
   });
   expect(keptRow).toMatchObject({ name: "kept", state: "installed", modified: false });
   expect(unlinkedRow).toMatchObject({ name: "unlinked", state: "missing", modified: true });
+  expect(danglingRow).toMatchObject({ name: "dangling", state: "missing" });
 });
 
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {

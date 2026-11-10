@@ -1,9 +1,8 @@
 import * as p from "@clack/prompts";
-import { existsSync } from "node:fs";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
-import { effectiveLockPath, type Scope } from "../core/paths.ts";
-import { readLock, splitDisabled } from "../core/install/lockfile.ts";
+import type { Scope } from "../core/paths.ts";
+import { loadLock, splitDisabled, type Lockfile } from "../core/install/lockfile.ts";
 import { policyViolations } from "../core/policy.ts";
 import { readProjectConfig } from "../core/project-config.ts";
 import {
@@ -46,8 +45,7 @@ export const run = async (options: InstallOptions): Promise<void> => {
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const { policy } = await readProjectConfig(scope);
   await migrateIfLegacy(scope);
-  if (options.frozenLockfile) requireLockfile(scope);
-  const { enabled, disabled } = splitDisabled(await readLock(scope));
+  const { enabled, disabled } = splitDisabled(await readInstallLock(scope, options.frozenLockfile));
   const skills = installedSkills(enabled);
   refuseViolations(policyViolations(policy, skills), "Nothing installed.");
   const disabledNames = Object.keys(disabled.skills).toSorted();
@@ -102,14 +100,14 @@ export const run = async (options: InstallOptions): Promise<void> => {
   );
 };
 
-const requireLockfile = (scope: Scope): void => {
-  const file = effectiveLockPath(scope);
-  if (existsSync(file)) return;
+const readInstallLock = async (scope: Scope, frozen = false): Promise<Lockfile> => {
+  const { file, lock, exists } = await loadLock(scope);
+  if (exists || !frozen) return lock;
   const remedy =
     scope === "project"
       ? "Commit niksi-lock.json, or run `nik add` to create it."
       : "Run `nik add -g` to create it.";
-  fail(`No lockfile at ${tildify(file)}. Nothing installed.\n${remedy}`);
+  return fail(`No lockfile at ${tildify(file)}. Nothing installed.\n${remedy}`);
 };
 
 const installLocations = (skills: InstalledSkill[], linked: AgentId[]): string[] => [

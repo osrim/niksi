@@ -325,7 +325,7 @@ Each skill carries its lockfile fields (see [lockfile.md](lockfile.md#entry-fiel
 | `missing` | No link or copy is at its recorded location. `nik install` restores it. |
 | `disabled` | `nik disable` removed it on purpose. `nik enable` restores it. |
 
-A link entry is `installed` or `modified` when at least one of its recorded agents has the link. `modified` stays `true` for a missing link entry whose canonical copy has edits, but its `state` is `missing`. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
+A link or agent copy counts as at its recorded location when at least one agent has it, as in the `nik list` table. A link counts only when its canonical copy exists. To find an entry that is missing for some of its agents, compare `agents` with the lockfile entry's `agents`. `modified` stays `true` for a missing link entry whose canonical copy has edits, but its `state` is `missing`. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
 
 ## `audit`
 

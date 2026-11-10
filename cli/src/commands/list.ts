@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
-import { skillPath } from "../core/install/link.ts";
+import { existsSync } from "node:fs";
+import { canonicalPath, skillPath } from "../core/install/link.ts";
 import { loadLock, type LockEntry, type Lockfile } from "../core/install/lockfile.ts";
 import {
   installedSkills,
@@ -34,19 +35,20 @@ interface ListRow {
   name: string;
   entry: LockEntry;
   location: Location;
+  present: boolean;
   modified: boolean;
   disabled: boolean;
 }
 
 type SkillState = "installed" | "missing" | "modified" | "disabled";
 
-const isMissing = (row: ListRow): boolean => !row.disabled && !locationPresent(row.location);
-
 const stateOf = (row: ListRow): SkillState => {
   if (row.disabled) return "disabled";
-  if (!locationPresent(row.location)) return "missing";
+  if (!row.present) return "missing";
   return row.modified ? "modified" : "installed";
 };
+
+const isMissing = (row: ListRow): boolean => stateOf(row) === "missing";
 
 export const run = async (options: ListOptions): Promise<void> => {
   if (options.json) return runJson(options);
@@ -73,19 +75,24 @@ const buildRows = async (lock: Lockfile, scope: Scope): Promise<ListRow[]> => {
   const skills = installedSkills(lock);
   const locations = await locationsOf(skills, scope);
   const modified = await modifiedSkills(skills, scope);
-  return skills.map(({ name, ...entry }) => ({
-    name,
-    entry,
-    location: locations.get(name)!,
-    modified: modified.has(name),
-    disabled: entry.disabled === true,
-  }));
+  return skills.map(({ name, ...entry }) => {
+    const location = locations.get(name)!;
+    const linkTargetGone = location.kind === "link" && !existsSync(canonicalPath(name, scope));
+    return {
+      name,
+      entry,
+      location,
+      present: locationPresent(location) && !linkTargetGone,
+      modified: modified.has(name),
+      disabled: entry.disabled === true,
+    };
+  });
 };
 
 const locationText = (row: ListRow): string => {
   if (row.disabled) return dim("disabled");
   const where = locationDisplayPath(row.name, row.location);
-  if (!locationPresent(row.location)) {
+  if (!row.present) {
     return row.location.kind === "path-copy"
       ? `${where} ${dim("copy")} ${dim("(missing)")}`
       : dim("missing");

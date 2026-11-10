@@ -73,6 +73,7 @@ Use these terms in code, docs, and output.
 | installed | Recorded in the lockfile and present as a link or copy. | added, present, tracked |
 | missing | Recorded, but no link or copy is present at its recorded location. | not linked, not installed, absent |
 | disabled | Recorded, and absent from disk on purpose. `install` and `update` skip it until `enable` restores it. | off, paused, muted, inactive |
+| state | What `list --json` reports for one lockfile entry: installed, modified, missing, or disabled. Distinct from `update`'s verdict. | status, presence |
 | enable | Restore a disabled skill from the lockfile with no new review. | re-enable, turn on, reinstall |
 | held | Installed skill that the `add` picker shows but does not offer. | taken |
 | extend | Add an installed skill to more agents without a new review. | relink, widen |

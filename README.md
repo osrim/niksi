@@ -132,6 +132,16 @@ Checked against each tool's documentation on 2026-09-19.
 | telemetry                | none                                      | on by default                       | none                                     |
 | search                   | none                                      | `find`                              | `search`                                 |
 
+## Let your agent install skills
+
+The niksi skill teaches your agent to install, update, and check skills with `nik`. Your agent shows you what the scan finds, and critical findings wait for you to approve them in your own terminal. Add the skill to a project:
+
+```sh
+nik add osrim/niksi niksi -p
+```
+
+The skill is in [`skills/niksi`](skills/niksi/SKILL.md). [`llms.txt`](llms.txt) gives agents links to every doc.
+
 ## Docs
 
 - [Commands](docs/commands.md): every command, flag, and exit code, plus non-interactive use.

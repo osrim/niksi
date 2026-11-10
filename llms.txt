@@ -20,7 +20,7 @@ agent this workflow.
 
 ## Agent skill
 
-- [niksi skill](https://raw.githubusercontent.com/osrim/niksi/main/skills/niksi/SKILL.md): install, update, and read installed skills with `nik` from an agent's shell
+- [niksi skill](https://raw.githubusercontent.com/osrim/niksi/main/skills/niksi/SKILL.md): install, update, and read installed skills with `nik` from an agent's shell. Install it in a project with `nik add osrim/niksi niksi -p`
 
 ## Optional
 

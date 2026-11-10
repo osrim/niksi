@@ -17,6 +17,7 @@ const LOADERS = {
   adopt: () => import("./commands/adopt.ts"),
   install: () => import("./commands/install.ts"),
   update: () => import("./commands/update.ts"),
+  outdated: () => import("./commands/outdated.ts"),
   remove: () => import("./commands/remove.ts"),
   list: () => import("./commands/list.ts"),
   audit: () => import("./commands/audit.ts"),
@@ -97,6 +98,12 @@ const buildCli = (): CAC => {
       "Skip releases younger than this many days unless named. Default 3, or minimumReleaseAge in niksi.json. 0 turns it off",
     )
     .action(async (skills, options) => (await LOADERS.update()).run(skills, options));
+  cli
+    .command("outdated", "Show which skills have upstream updates")
+    .option("-g, --global", "Use the global scope")
+    .option("-p, --project", "Use project scope")
+    .option("--json", "Write JSON")
+    .action(async (options) => (await LOADERS.outdated()).run(options));
   cli
     .command("remove [...skills]", "Remove installed skills")
     .alias("rm")
@@ -215,7 +222,7 @@ try {
     process.exit(2);
   }
   const { name } = cli.matchedCommand;
-  if ((name === "prune" || name === "audit") && cli.args.length > 0) {
+  if ((name === "prune" || name === "audit" || name === "outdated") && cli.args.length > 0) {
     console.error(`nik ${name} takes no arguments.\nSee \`nik ${name} --help\`.`);
     process.exit(2);
   }

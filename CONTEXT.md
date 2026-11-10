@@ -25,7 +25,7 @@ Use these terms in code, docs, and output.
 | upstream | Revision an installed skill would move to. | target, remote, head |
 | cooldown | Number of days an upstream revision that changes a skill's files must age before `update` takes it without being named. The age is the Git committer date of the upstream commit. A moved skill has no cooldown. | quarantine, release delay |
 | waiting | Outdated skill whose upstream revision is younger than the cooldown. `update` keeps it at its recorded revision unless you name or pick it. | held, delayed, cooling |
-| verdict | `update`'s classification of one installed skill: up to date, outdated, moved, pinned, rewritten, gone, or unreachable. | status, state |
+| verdict | `update`'s and `outdated`'s classification of one installed skill: up to date, outdated, moved, pinned, rewritten, gone, or unreachable. | status, state |
 | up to date | Installed files match upstream and the revision did not move. | current, fresh, synced |
 | ahead | Number of new commits on the skill path between the installed and upstream commits. | behind, distance |
 | unreachable | The source cannot be cloned or fetched. | offline, failed, error |

@@ -132,6 +132,6 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 - `update` leaves out a skill whose source the project policy doesn't allow before it checks upstream. It reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
-- `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted` when `integrityOf` the files equals the entry's `integrity`, and prints the findings with `logFindings`. It asks nothing and writes nothing. It ignores `denyWarn`.
+- `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted` when `integrityOf` the files equals the entry's `integrity`, and prints the findings with `logFindings`. In project scope, it marks each warn finding with `markDenyWarn` when the project policy sets `denyWarn`, and a marked finding exits `3`. It asks nothing and writes nothing.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

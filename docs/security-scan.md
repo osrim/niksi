@@ -18,7 +18,7 @@ Three commands scan:
 | `warn` | Pauses once per skill. `--yes` skips the pause. Under `policy.denyWarn`, it gates like `critical`. |
 | `info` | Never pauses. |
 
-When a project's `niksi.json` sets `policy.denyWarn` to `true`, `add`, `adopt`, and `update` gate a warn finding the same way as a critical one: it needs approval in a terminal, `--yes` doesn't accept it, and without a terminal the skill is skipped and the command exits `3`. `--dangerous-skip-critical-approval` skips that approval too. The lockfile records only critical rules as accepted, so an approved warn finding leaves no record. `audit` ignores `denyWarn`. See [Project configuration](configuration.md#project-configuration).
+When a project's `niksi.json` sets `policy.denyWarn` to `true`, `add`, `adopt`, and `update` gate a warn finding the same way as a critical one: it needs approval in a terminal, `--yes` doesn't accept it, and without a terminal the skill is skipped and the command exits `3`. `--dangerous-skip-critical-approval` skips that approval too. The lockfile records only critical rules as accepted, so an approved warn finding leaves no record. In project scope, `audit` exits `3` on every warn finding, approved or not. See [Project configuration](configuration.md#project-configuration).
 
 A skill you decline is skipped. The other skills in the batch still install.
 

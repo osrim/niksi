@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { MODE_EXEC, MODE_FILE } from "../skill/files.ts";
-import { CRITICAL_EXIT, criticalRules, markAccepted, runScanners, type Finding } from "./index.ts";
+import {
+  CRITICAL_EXIT,
+  criticalRules,
+  markAccepted,
+  markDenyWarn,
+  runScanners,
+  type Finding,
+} from "./index.ts";
 import { zip } from "./test-archive.ts";
 
 test("critical findings exit 3", () => {
@@ -185,4 +192,24 @@ test("markAccepted marks only critical findings whose rule is accepted", () => {
   ]);
   expect("accepted" in marked[1]!).toBe(false);
   expect(markAccepted([found("critical", "curl-pipe-shell")], [])[0]!.accepted).toBeUndefined();
+});
+
+test("markDenyWarn marks only warn findings, and only when the policy denies them", () => {
+  const findings = [
+    found("critical", "curl-pipe-shell"),
+    found("warn", "executable"),
+    found("info", "external-url"),
+  ];
+
+  const marked = markDenyWarn(findings, true);
+
+  expect(marked.map(({ rule, deniedBy }) => [rule, deniedBy])).toEqual([
+    ["curl-pipe-shell", undefined],
+    ["executable", "policy.denyWarn"],
+    ["external-url", undefined],
+  ]);
+  expect("deniedBy" in marked[0]!).toBe(false);
+  for (const denyWarn of [false, undefined]) {
+    expect(markDenyWarn(findings, denyWarn)).toEqual(findings);
+  }
 });

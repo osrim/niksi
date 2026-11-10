@@ -328,9 +328,10 @@ nik audit [-g|-p] [--json]
 - An acceptance holds only while the files on disk match the entry's `integrity`. For an agent copy, every present copy must match. For a modified skill, `audit` accepts no finding and says that the skill is modified.
 - It skips disabled and missing skills and names them. Run `nik install` to restore a missing skill, then audit again.
 - It reports a modified skill only when the entry accepts rules. `list` reports every modified skill.
+- In project scope, when `niksi.json` sets `policy.denyWarn`, a warn finding fails the audit like a critical one, and `audit` says that the policy is why. Global scope ignores `niksi.json`. See [Project configuration](configuration.md#project-configuration).
 - It takes no positional arguments; passing one exits `2`.
 - A skill that cannot be read is reported on stderr and left out of the scan. The batch continues.
-- It exits `3` when a skill has a critical finding that is not accepted, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code.
+- It exits `3` when a skill has a critical finding that is not accepted, or a warn finding under `policy.denyWarn`, else `1` when a skill has a warn finding or cannot be read, else `0`. Info findings and accepted critical findings do not change the exit code.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each scanned skill. `missing` and `disabled` hold the names of the skills `audit` did not scan.
 
@@ -362,7 +363,7 @@ nik audit [-g|-p] [--json]
 }
 ```
 
-`file` and `line` are absent when a finding has no location. An accepted critical finding has `accepted: true`. Other findings have no `accepted` field. `confidence` is `high`, `medium`, or `low`. A `critical` match with `low` confidence has `severity` `warn`. Rule names and confidence are in [security-scan.md](security-scan.md#confidence).
+`file` and `line` are absent when a finding has no location. An accepted critical finding has `accepted: true`. Other findings have no `accepted` field. Under `policy.denyWarn`, each warn finding has `deniedBy: "policy.denyWarn"`, since the policy is what makes it fail the audit. Other findings have no `deniedBy` field. `confidence` is `high`, `medium`, or `low`. A `critical` match with `low` confidence has `severity` `warn`. Rule names and confidence are in [security-scan.md](security-scan.md#confidence).
 
 ## `disable`
 
@@ -553,5 +554,5 @@ The report is written outside the repository, so `git add -A` does not commit it
 | `0` | Success or nothing to do. |
 | `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. |
 | `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
-| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
+| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept, or a warn finding under `policy.denyWarn`. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
 | `130` | Cancelled. |

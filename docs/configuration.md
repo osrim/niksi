@@ -88,7 +88,7 @@ When you pick a scope or agents in a prompt, or pass `-g`, `-p`, or `--agent`, `
 
 ## Project configuration
 
-Commit a `niksi.json` at the project root, next to `niksi-lock.json`, to set the cooldown for the project, the sources its skills may come from, and whether a warn finding needs approval. `niksi` reads it in project scope only. `add`, `update`, `install`, and `enable` read it. Global scope ignores it.
+Commit a `niksi.json` at the project root, next to `niksi-lock.json`, to set the cooldown for the project, the sources its skills may come from, and whether a warn finding needs approval. `niksi` reads it in project scope only. `add`, `update`, `install`, `enable`, and `audit` read it. Global scope ignores it.
 
 ```json
 {
@@ -112,7 +112,7 @@ Every key is optional.
 | `policy.sources` | object | The Git sources that skills may come from. Leave it out to allow every source. An empty object allows local sources only. |
 | `policy.sources.github` | array of strings | GitHub organizations or users. A skill from a repository on `github.com` that one of them owns is allowed, over HTTPS or SSH. Names match in any case. |
 | `policy.sources.git` | array of strings | Whole repository URLs. A skill whose `source` in `niksi-lock.json` is exactly one of them is allowed. |
-| `policy.denyWarn` | boolean | `true` makes `add`, `adopt`, and `update` treat a warn finding like a critical one: it needs approval in a terminal, and `--yes` doesn't accept it. Default `false`. See [security-scan.md](security-scan.md#severities). |
+| `policy.denyWarn` | boolean | `true` makes `add`, `adopt`, and `update` treat a warn finding like a critical one: it needs approval in a terminal, and `--yes` doesn't accept it. `audit` exits `3` on a warn finding, the same code as for a critical one. Default `false`. See [security-scan.md](security-scan.md#severities). |
 
 Local sources are always allowed. A `github` entry matches only a plain repository path: each path segment holds letters, digits, `.`, `_`, or `-`, and none is `.` or `..`. Any other form of a GitHub URL is refused, so list it under `git` if you need it. A `file://` URL is a Git source, so list it under `git`. `git` doesn't normalize URLs: `https://git.example.com/team/skills.git` doesn't match `https://git.example.com/team/skills`. Copy the `source` from `niksi-lock.json`.
 

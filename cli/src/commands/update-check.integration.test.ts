@@ -296,11 +296,14 @@ test("update --check runs ssh in batch mode, so ssh fails instead of asking for 
   const fakeSsh = join(tmp, "fake-ssh");
   await writeFile(fakeSsh, `#!/bin/sh\necho "$@" >> ${log}\nexit 255\n`);
   await chmod(fakeSsh, 0o755);
-  process.env.GIT_SSH_COMMAND = fakeSsh;
+  process.env.GIT_SSH_COMMAND = `${fakeSsh} -o BatchMode=no`;
 
   const result = await runCli(sshProject, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(1);
   expect(JSON.parse(result.stdout).skills[0].verdict).toBe("unreachable");
-  expect(await readFile(log, "utf8")).toContain("BatchMode=yes");
+  // ssh keeps the first value of an option, so the user's BatchMode=no doesn't apply.
+  const calls = (await readFile(log, "utf8")).split("\n").filter(Boolean);
+  expect(calls.length).toBeGreaterThan(0);
+  for (const call of calls) expect(call).toStartWith("-o BatchMode=yes -o BatchMode=no ");
 });

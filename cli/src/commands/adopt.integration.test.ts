@@ -185,7 +185,7 @@ test("an ssh entry in skills-lock.json is cloned with ssh set to fail instead of
   expect((await readLockJson(dir))["pdf"]).toMatchObject({ source: sshUrl, commit: commits[1] });
   const calls = (await readFile(log, "utf8")).split("\n").filter(Boolean);
   expect(calls.length).toBeGreaterThan(0);
-  for (const call of calls) expect(call).toStartWith("-o User=me -o BatchMode=yes ");
+  for (const call of calls) expect(call).toStartWith("-o BatchMode=yes -o User=me ");
 });
 
 // gh skill records only https repositories, so the test points one at the local repository.

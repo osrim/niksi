@@ -410,10 +410,10 @@ const fakeSsh = async (): Promise<{ log: string; ssh: string }> => {
 const sshCalls = async (log: string): Promise<string[]> =>
   (await readFile(log, "utf8").catch(() => "")).split("\n").filter(Boolean);
 
-test("an sshBatch clone runs every ssh call in batch mode and keeps the user's ssh options", async () => {
+test("an sshBatch clone runs every ssh call in batch mode over the user's BatchMode and keeps the user's other ssh options", async () => {
   const restore = captureEnv("GIT_SSH_COMMAND");
   const { log, ssh } = await fakeSsh();
-  process.env.GIT_SSH_COMMAND = `${ssh} -o User=me`;
+  process.env.GIT_SSH_COMMAND = `'${ssh}' -o User=me -o BatchMode=no`;
   try {
     const repo = `ssh://niksi-test.invalid${remote}`;
     const clone = await ensureClone(repo, { sshBatch: true });
@@ -423,7 +423,9 @@ test("an sshBatch clone runs every ssh call in batch mode and keeps the user's s
 
     const calls = await sshCalls(log);
     expect(calls.length).toBeGreaterThanOrEqual(3);
-    for (const call of calls) expect(call).toStartWith("-o User=me -o BatchMode=yes ");
+    // ssh keeps the first value of an option, so BatchMode=yes must come first.
+    for (const call of calls)
+      expect(call).toStartWith("-o BatchMode=yes -o User=me -o BatchMode=no ");
   } finally {
     restore();
   }

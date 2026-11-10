@@ -19,7 +19,7 @@ import { tildify, type Scope } from "../core/paths.ts";
 import { CRITICAL_EXIT, criticalRules, type Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import { minReleaseAge, unixNow, type Cooldown } from "../core/source/release-age.ts";
-import { policyViolations } from "../core/policy.ts";
+import { policyViolations, type PolicyViolation } from "../core/policy.ts";
 import { readProjectConfig, type ProjectPolicy } from "../core/project-config.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import {
@@ -36,6 +36,7 @@ import {
   selectUpdates,
   type MovedVerdict,
   type UpdatableVerdict,
+  type UpdateVerdict,
 } from "../core/source/upstream.ts";
 import {
   recordVerdicts,
@@ -44,6 +45,7 @@ import {
   type UpdateReport,
 } from "../core/update-report.ts";
 import { usageError } from "../core/usage.ts";
+import { checkExitCode, checkedSkill } from "../core/verdicts.ts";
 import { readOtherScopeLock, reportUpdateDeps, type UpdatedFiles } from "../ui/deps.ts";
 import { land } from "../ui/flow.ts";
 import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
@@ -52,8 +54,9 @@ import { migrateIfLegacy } from "../ui/migrate.ts";
 import { colorStat, escapeControl } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
-import { logError, logSkillError, logSourceCaution, warn } from "../ui/report.ts";
+import { logError, logSkillError, logSourceCaution, logWarn, warn } from "../ui/report.ts";
 import {
+  describeUpdate,
   emptyScopeMessage,
   logSourceBlocked,
   reportDisabled,
@@ -66,9 +69,11 @@ import { dim, skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Check upstream, review changes, and update selected skills. Name pinned skills to update them.",
+    "Check upstream, review changes, and update selected skills. Name pinned skills to update them. --check only shows which skills have updates: it never asks, installs and records nothing, and exits 1 when a skill is not up to date.",
   examples: [
     "$ nik update",
+    "$ nik update --check",
+    "$ nik update --check --json",
     "$ nik up grilling prototype",
     "$ nik update --all -y",
     "$ nik update --source local -y",
@@ -82,6 +87,8 @@ interface UpdateOptions extends ScopeOptions, ReviewOptions {
   report?: unknown;
   source?: unknown;
   minReleaseAge?: unknown;
+  check?: boolean;
+  json?: boolean;
 }
 
 interface Selection {
@@ -93,6 +100,8 @@ interface Selection {
 }
 
 export const run = async (names: string[], options: UpdateOptions): Promise<void> => {
+  if (options.check) return runCheck(names, options);
+  if (options.json) throw usageError("Pass --check with --json.");
   const source = sourceSelector(options.source, names);
   const reportPath = await reportTarget(options.report);
   p.intro("nik update");
@@ -507,4 +516,123 @@ const applyUpdate = async (
     revisionRange(verdict) ||
     `${displayLabel(skill)} → ${displayLabel({ ...verdict.upstream, integrity: applied.integrity })}`;
   return { ...applied, success: `updated ${range}` };
+};
+
+const CHECK_CONFLICTS = [
+  ["all", "--all"],
+  ["source", "--source"],
+  ["yes", "--yes"],
+  ["dangerousSkipCriticalApproval", "--dangerous-skip-critical-approval"],
+  ["report", "--report"],
+  ["minReleaseAge", "--min-release-age"],
+] as const;
+
+const refuseCheckConflicts = (names: string[], options: UpdateOptions): void => {
+  if (names.length > 0) throw usageError("Do not combine --check with skill names.");
+  const conflict = CHECK_CONFLICTS.find(([key]) => options[key] !== undefined);
+  if (conflict) throw usageError(`Do not combine --check with ${conflict[1]}.`);
+};
+
+interface CheckTarget {
+  loaded: LoadedLockfile;
+  skills: InstalledSkill[];
+  disabled: string[];
+  blocked: PolicyViolation[];
+}
+
+const byName = (a: { name: string }, b: { name: string }): number =>
+  a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+
+const openCheckScope = async (options: UpdateOptions): Promise<Scope> => {
+  const quiet = options.json === true;
+  const scope = resolveScope(options, quiet ? logWarn : p.log.warn) ?? "project";
+  await migrateIfLegacy(scope, quiet);
+  return scope;
+};
+
+const checkTarget = async (scope: Scope): Promise<CheckTarget> => {
+  const { policy } = await readProjectConfig(scope);
+  const loaded = await loadLock(scope);
+  const { enabled, disabled } = splitDisabled(loaded.lock);
+  const installed = installedSkills(enabled);
+  const blocked = policyViolations(policy, installed);
+  const names = new Set(blocked.map(({ name }) => name));
+  return {
+    loaded,
+    skills: installed.filter(({ name }) => !names.has(name)).toSorted(byName),
+    disabled: Object.keys(disabled.skills).toSorted(),
+    blocked,
+  };
+};
+
+// ssh fails instead of asking for a host key or a passphrase, so a check never waits on a prompt.
+const checkVerdicts = (skills: InstalledSkill[]): Promise<UpdateVerdict[]> =>
+  computeVerdicts(skills, [], { days: 0, now: unixNow() }, { sshBatch: true });
+
+const runCheck = async (names: string[], options: UpdateOptions): Promise<void> => {
+  refuseCheckConflicts(names, options);
+  if (options.json) return runCheckJson(options);
+
+  p.intro("nik update --check");
+  const scope = await openCheckScope(options);
+  const { skills, ...target } = await checkTarget(scope);
+  if (Object.keys(target.loaded.lock.skills).length === 0) {
+    p.outro(await emptyScopeMessage(scope));
+    return;
+  }
+  reportDisabled(target.disabled, scope);
+  for (const violation of target.blocked) logSourceBlocked(violation);
+  const verdicts =
+    skills.length === 0
+      ? []
+      : await withSpinner(
+          `Checking upstream for ${skills.length} skill(s)`,
+          () => checkVerdicts(skills),
+          () => "Checked upstream sources",
+        );
+  process.exitCode = checkExitCode(verdicts, target.blocked.length);
+  p.outro(reportCheck(verdicts, scope));
+};
+
+const reportCheck = (verdicts: UpdateVerdict[], scope: Scope): string => {
+  reportVerdicts(verdicts, [], scope);
+  const updatable = verdicts.filter(
+    (verdict): verdict is UpdatableVerdict =>
+      verdict.kind === "moved" || verdict.kind === "outdated",
+  );
+  for (const verdict of updatable) {
+    p.log.info(`${skillName(verdict.skill.name)}: ${describeUpdate(verdict)}`);
+  }
+  if (updatable.length > 0) {
+    p.log.info(`Run ${dim(`nik update${scopeFlag(scope)}`)} to choose which updates to install.`);
+  }
+  return checkSummary(verdicts, scope);
+};
+
+const checkSummary = (verdicts: UpdateVerdict[], scope: Scope): string => {
+  const counts = Map.groupBy(verdicts, ({ kind }) => kind.replaceAll("-", " "));
+  const notes = [...counts].map(([verdict, group]) => `${group.length} ${verdict}`);
+  const checked = `${verdicts.length} skill(s) checked (${scope})`;
+  return notes.length > 0 ? `${checked}: ${notes.join(", ")}.` : `${checked}.`;
+};
+
+const runCheckJson = async (options: UpdateOptions): Promise<void> => {
+  const scope = await openCheckScope(options);
+  const { skills, ...target } = await checkTarget(scope);
+  for (const violation of target.blocked) logSourceBlocked(violation);
+  const verdicts = await checkVerdicts(skills);
+  process.exitCode = checkExitCode(verdicts, target.blocked.length);
+  console.log(
+    JSON.stringify(
+      {
+        scope,
+        lockfile: target.loaded.file,
+        skills: verdicts.map(checkedSkill),
+        disabled: target.disabled,
+        blocked: target.blocked.map(({ name }) => name),
+      },
+      null,
+      2,
+    ),
+  );
 };

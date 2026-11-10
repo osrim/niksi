@@ -29,7 +29,7 @@ export const applyCommandHelp = (sections: HelpSection[], help: CommandHelp): vo
 
 const EXIT_CODES = [
   "0    success",
-  "1    error, warn findings in audit, or updates found by outdated",
+  "1    error, warn findings in audit, or updates found by update --check",
   "2    usage error",
   "3    critical findings need review or found by audit, or niksi.json blocks a source",
   "130  cancelled",

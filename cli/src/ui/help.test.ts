@@ -57,7 +57,7 @@ test("root help closes with aliases and exit codes", () => {
   expect(titles(sections)).toEqual([undefined, "Commands", "Aliases", "Exit codes"]);
   expect(sections[2]!.body).toBe("  i   install\n  up  update");
   expect(sections[3]!.body).toContain(
-    "  1    error, warn findings in audit, or updates found by outdated",
+    "  1    error, warn findings in audit, or updates found by update --check",
   );
   expect(sections[3]!.body).toContain(
     "  3    critical findings need review or found by audit, or niksi.json blocks a source",

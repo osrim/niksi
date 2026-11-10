@@ -4,7 +4,7 @@ import type { UpdateVerdict } from "./source/upstream.ts";
 
 type RevisionIds = Pick<Revision, "commit" | "tag" | "pinnedAs">;
 
-export interface OutdatedSkill {
+export interface CheckedSkill {
   name: string;
   source: string;
   path: string;
@@ -21,7 +21,7 @@ const idsOf = ({ commit, tag, pinnedAs }: RevisionIds): RevisionIds => ({
   ...(pinnedAs === undefined ? {} : { pinnedAs }),
 });
 
-export const outdatedSkill = (verdict: UpdateVerdict): OutdatedSkill => {
+export const checkedSkill = (verdict: UpdateVerdict): CheckedSkill => {
   const { skill } = verdict;
   return {
     name: skill.name,
@@ -35,7 +35,7 @@ export const outdatedSkill = (verdict: UpdateVerdict): OutdatedSkill => {
   };
 };
 
-export const outdatedExitCode = (verdicts: UpdateVerdict[], blocked: number): number => {
+export const checkExitCode = (verdicts: UpdateVerdict[], blocked: number): number => {
   if (blocked > 0) return CRITICAL_EXIT;
   return verdicts.every((verdict) => verdict.kind === "up-to-date") ? 0 : 1;
 };

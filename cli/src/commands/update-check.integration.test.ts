@@ -25,6 +25,7 @@ let secondCommit: string;
 const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "GIT_SSH_COMMAND");
 
 const LINK = ["-p", "--agent", "claude", "--yes"];
+const CHECK = ["update", "--check"];
 
 const add = async (cwd: string, ...args: string[]): Promise<void> => {
   const result = await runCli(cwd, "add", ...args, ...LINK);
@@ -32,7 +33,7 @@ const add = async (cwd: string, ...args: string[]): Promise<void> => {
 };
 
 beforeAll(async () => {
-  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-outdated-cli-test-")));
+  tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-update-check-cli-test-")));
   process.env.HOME = tmp;
   process.env.NIKSI_HOME = join(tmp, "niksi-home");
   runCli = cliRunner(tmp);
@@ -62,10 +63,10 @@ afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-test("outdated --json reports each skill's recorded and upstream revision without a terminal, and exits 1", async () => {
+test("update --check --json reports each skill's recorded and upstream revision without a terminal, and exits 1", async () => {
   const before = await readFile(lockPath, "utf8");
 
-  const result = await runCli(project, "outdated", "--json");
+  const result = await runCli(project, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(1);
   expect(JSON.parse(result.stdout)).toEqual({
@@ -115,7 +116,7 @@ test("outdated --json reports each skill's recorded and upstream revision withou
   expect(await readFile(lockPath, "utf8")).toBe(before);
 });
 
-test("outdated exits 0 when every checked skill is up to date and names disabled skills without checking them", async () => {
+test("update --check exits 0 when every checked skill is up to date and names disabled skills without checking them", async () => {
   const local = join(tmp, "local-project");
   await mkdir(join(local, ".git"), { recursive: true });
   for (const name of ["kept", "off"]) {
@@ -124,7 +125,7 @@ test("outdated exits 0 when every checked skill is up to date and names disabled
   }
   expect((await runCli(local, "disable", "off", "--yes")).exitCode).toBe(0);
 
-  const result = await runCli(local, "outdated", "--json");
+  const result = await runCli(local, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(0);
   const output = JSON.parse(result.stdout);
@@ -134,7 +135,7 @@ test("outdated exits 0 when every checked skill is up to date and names disabled
   expect(output.disabled).toEqual(["off"]);
 });
 
-test("outdated --json reports an unreachable source with its error and exits 1", async () => {
+test("update --check --json reports an unreachable source with its error and exits 1", async () => {
   const gone = join(tmp, "gone-source");
   await makeSkill(gone, "lost");
   await initRepo(gone);
@@ -144,7 +145,7 @@ test("outdated --json reports an unreachable source with its error and exits 1",
   await add(lost, pathToFileURL(gone).href, "lost");
   await rm(gone, { recursive: true, force: true });
 
-  const result = await runCli(lost, "outdated", "--json");
+  const result = await runCli(lost, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(1);
   const [skill] = JSON.parse(result.stdout).skills;
@@ -152,7 +153,7 @@ test("outdated --json reports an unreachable source with its error and exits 1",
   expect(skill.error).toEqual(expect.any(String));
 });
 
-test("outdated leaves out a skill whose source niksi.json does not allow and exits 3", async () => {
+test("update --check leaves out a skill whose source niksi.json does not allow and exits 3", async () => {
   const guarded = join(tmp, "policy-project");
   await mkdir(join(guarded, ".git"), { recursive: true });
   await add(guarded, source, "changed");
@@ -161,7 +162,7 @@ test("outdated leaves out a skill whose source niksi.json does not allow and exi
     JSON.stringify({ policy: { sources: { git: ["https://example.com/other.git"] } } }),
   );
 
-  const result = await runCli(guarded, "outdated", "--json");
+  const result = await runCli(guarded, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(3);
   const output = JSON.parse(result.stdout);
@@ -169,8 +170,8 @@ test("outdated leaves out a skill whose source niksi.json does not allow and exi
   expect(output.blocked).toEqual(["changed"]);
 });
 
-test("outdated without --json lists the skills with updates and exits 1", async () => {
-  const result = await runCli(project, "outdated");
+test("update --check without --json lists the skills with updates, points to nik update, and exits 1", async () => {
+  const result = await runCli(project, ...CHECK);
 
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toContain("changed: 1 new commit(s) (v1.0.0 → v1.1.0)");
@@ -179,16 +180,42 @@ test("outdated without --json lists the skills with updates and exits 1", async 
   expect(result.stdout).toContain(
     "4 skill(s) checked (project): 1 outdated, 1 up to date, 1 moved, 1 pinned.",
   );
+  expect(result.stdout).toContain("Run nik update to choose which updates to install.");
 });
 
-test("outdated takes no skill names and exits 2", async () => {
-  const result = await runCli(project, "outdated", "changed");
+test.each([
+  { args: ["changed"], message: "Do not combine --check with skill names." },
+  { args: ["--all"], message: "Do not combine --check with --all." },
+  { args: ["--source", "local"], message: "Do not combine --check with --source." },
+  { args: ["--yes"], message: "Do not combine --check with --yes." },
+  {
+    args: ["--dangerous-skip-critical-approval"],
+    message: "Do not combine --check with --dangerous-skip-critical-approval.",
+  },
+  { args: ["--report", "report.md"], message: "Do not combine --check with --report." },
+  { args: ["--min-release-age", "0"], message: "Do not combine --check with --min-release-age." },
+])("update --check with $args exits 2 and writes nothing", async ({ args, message }) => {
+  const before = await readFile(lockPath, "utf8");
+
+  const result = await runCli(project, ...CHECK, ...args);
 
   expect(result.exitCode).toBe(2);
-  expect(result.stderr).toContain("nik outdated takes no arguments.");
+  expect(result.stderr).toContain(message);
+  expect(result.stdout).toBe("");
+  expect(await readFile(lockPath, "utf8")).toBe(before);
 });
 
-test("outdated runs ssh in batch mode, so ssh fails instead of asking for a host key or passphrase", async () => {
+test("update --json without --check exits 2 and writes nothing", async () => {
+  const before = await readFile(lockPath, "utf8");
+
+  const result = await runCli(project, "update", "--json");
+
+  expect(result.exitCode).toBe(2);
+  expect(result.stderr).toContain("Pass --check with --json.");
+  expect(await readFile(lockPath, "utf8")).toBe(before);
+});
+
+test("update --check runs ssh in batch mode, so ssh fails instead of asking for a host key or passphrase", async () => {
   const sshProject = join(tmp, "ssh-project");
   await mkdir(join(sshProject, ".git"), { recursive: true });
   await writeFile(
@@ -201,7 +228,7 @@ test("outdated runs ssh in batch mode, so ssh fails instead of asking for a host
   await chmod(fakeSsh, 0o755);
   process.env.GIT_SSH_COMMAND = fakeSsh;
 
-  const result = await runCli(sshProject, "outdated", "--json");
+  const result = await runCli(sshProject, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(1);
   expect(JSON.parse(result.stdout).skills[0].verdict).toBe("unreachable");

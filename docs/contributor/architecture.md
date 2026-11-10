@@ -25,19 +25,19 @@ cli/src/
   test-cli.ts        CLI runners and fixtures, tests only
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
-  commands/          add, adopt, install, update, outdated, remove, list, audit, disable, enable, prune, completion
+  commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
     completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
     config.ts        remembered scope and agent choices
     paths.ts         XDG roots, project root, lockfile path
-    outdated.ts      JSON entry of each verdict and the exit code of outdated
     policy.ts        lockfile entries and sources checked against the project policy
     project-config.ts niksi.json: project cooldown and project policy, read in project scope only
     suggest.ts       command typo suggestions
     update-check.ts  latest release version check
     update-report.ts Markdown report of an update run
     usage.ts         usage error type
+    verdicts.ts      JSON entry of each verdict and the exit code of update --check
     source/          coordinates, Git and local sources, revisions, upstream, release age, provenance hints, content match
     skill/           files, frontmatter, integrity, dependency mentions, Markdown map
     scan/            scan rules, findings, and per-rule fixtures
@@ -133,7 +133,7 @@ New or changed files pass through `ui/gate.ts`. The gate takes a `ReviewOptions`
 - `update` leaves out a skill whose source the project policy doesn't allow before it checks upstream. It reaches the gate only when skill files changed. A moved revision with identical files skips it. Missing dependencies are reported, not installed.
 - `install` never reaches the gate. Every lockfile entry records content that already passed it, and the integrity check proves the files still match.
 - `enable` never reaches the gate. It restores a disabled entry through `restoreSkill`, the same path as `install`.
-- `outdated` never reaches the gate. It computes the same verdicts as `update` with no cooldown and ssh in batch mode, prints them, and installs or records nothing.
+- `update --check` never reaches the gate. It computes the same verdicts as `update` with no cooldown and ssh in batch mode, prints them, and installs or records nothing.
 - `audit` never reaches the gate. It calls `runScanners` on the installed files, marks the critical findings that the entry's `review.acceptedRules` accepts with `markAccepted` when `integrityOf` the files equals the entry's `integrity`, and prints the findings with `logFindings`. In project scope, it marks each warn finding with `markDenyWarn` when the project policy sets `denyWarn`, and a marked finding exits `3`. It asks nothing and writes nothing.
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the gate.

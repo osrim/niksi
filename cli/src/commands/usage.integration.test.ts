@@ -49,7 +49,6 @@ test("--help lists every command", async () => {
     "add",
     "install",
     "update",
-    "outdated",
     "remove",
     "list",
     "audit",

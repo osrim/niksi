@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { outdatedExitCode, outdatedSkill } from "./outdated.ts";
+import { checkExitCode, checkedSkill } from "./verdicts.ts";
 import { sourceFor } from "./source/index.ts";
 import type { UpdateVerdict } from "./source/upstream.ts";
 
@@ -29,7 +29,7 @@ const verdict = (kind: UpdateVerdict["kind"], extra: object = {}): UpdateVerdict
   }) as UpdateVerdict;
 
 test("an outdated skill reports its recorded and upstream commit and tag, and nothing else", () => {
-  expect(outdatedSkill(verdict("outdated", { waiting: true }))).toEqual({
+  expect(checkedSkill(verdict("outdated", { waiting: true }))).toEqual({
     name: "pdf",
     source: SOURCE,
     path: "skills/pdf",
@@ -41,7 +41,7 @@ test("an outdated skill reports its recorded and upstream commit and tag, and no
 });
 
 test("an unreachable skill carries the error and an empty upstream", () => {
-  const entry = outdatedSkill(
+  const entry = checkedSkill(
     verdict("unreachable", { upstream: { track: "auto" }, ahead: 0, error: "no route" }),
   );
 
@@ -53,18 +53,18 @@ test("an unreachable skill carries the error and an empty upstream", () => {
 });
 
 test("the exit code is 0 only when every checked skill is up to date", () => {
-  expect(outdatedExitCode([], 0)).toBe(0);
-  expect(outdatedExitCode([verdict("up-to-date")], 0)).toBe(0);
+  expect(checkExitCode([], 0)).toBe(0);
+  expect(checkExitCode([verdict("up-to-date")], 0)).toBe(0);
 });
 
 test.each(["outdated", "moved", "pinned", "rewritten", "gone", "unreachable"] as const)(
   "a %s skill exits 1",
   (kind) => {
-    expect(outdatedExitCode([verdict("up-to-date"), verdict(kind)], 0)).toBe(1);
+    expect(checkExitCode([verdict("up-to-date"), verdict(kind)], 0)).toBe(1);
   },
 );
 
 test("a skill the project policy leaves out exits 3, over any other result", () => {
-  expect(outdatedExitCode([verdict("up-to-date")], 1)).toBe(3);
-  expect(outdatedExitCode([verdict("outdated")], 1)).toBe(3);
+  expect(checkExitCode([verdict("up-to-date")], 1)).toBe(3);
+  expect(checkExitCode([verdict("outdated")], 1)).toBe(3);
 });

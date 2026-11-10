@@ -156,10 +156,12 @@ exits `1`.
 ## `install`
 
 ```text
-nik install [-g|-p] [-y] [--agent <id>]
+nik install [-g|-p] [-y] [--agent <id>] [--frozen-lockfile]
 ```
 
 `install` restores every enabled lockfile entry. It takes no positional arguments; passing one exits `2`.
+
+Without a lockfile, `install` prints `Nothing to install.` and exits `0`. With `--frozen-lockfile`, it names the lockfile path it looked for, installs nothing, and exits `1`. Use it in CI, so a job without `niksi-lock.json` fails instead of passing with no skills. A lockfile with no skills passes.
 
 `install` does not scan. `add` or `update` reviewed every entry, and `install` verifies each file against the recorded integrity before writing it. An entry whose content does not match is skipped and the command exits `1`.
 
@@ -303,6 +305,7 @@ Path copies show their project-relative destination. A disabled skill shows `dis
       "copy": true,
       "copyPath": "custom-directory",
       "disabled": true,
+      "state": "disabled",
       "modified": false,
       "agents": [],
       "links": []
@@ -311,7 +314,18 @@ Path copies show their project-relative destination. A disabled skill shows `dis
 }
 ```
 
-Each skill carries its lockfile fields (see [lockfile.md](lockfile.md#entry-fields)) plus `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
+Each skill carries its lockfile fields (see [lockfile.md](lockfile.md#entry-fields)) plus `state`, `modified`, `agents`, and `links`. The `agents` and `links` fields report what is on disk.
+
+`state` is one of these values:
+
+| state | meaning |
+| --- | --- |
+| `installed` | A link or copy is at its recorded location, and its files match the lockfile. |
+| `modified` | A link or copy is at its recorded location, and its files differ from the lockfile. `nik install` asks before it restores them. |
+| `missing` | No link or copy is at its recorded location. `nik install` restores it. |
+| `disabled` | `nik disable` removed it on purpose. `nik enable` restores it. |
+
+A link entry is `installed` or `modified` when at least one of its recorded agents has the link. `modified` stays `true` for a missing link entry whose canonical copy has edits, but its `state` is `missing`. A disabled entry carries `disabled: true` with empty `agents` and `links`. Its lockfile `agents` or `copyPath` stays recorded so `enable` can restore the placement.
 
 ## `audit`
 
@@ -507,12 +521,12 @@ curl -fsSL "$BASE/checksums.txt" | grep niksi-linux-x64.tar.gz | sha256sum -c -
 tar xzf niksi-linux-x64.tar.gz
 install -m 755 nik /usr/local/bin/nik
 
-nik install --agent claude --yes
+nik install --agent claude --yes --frozen-lockfile
 ```
 
-Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. It also exits `1`, and installs nothing, when an entry comes from a source that the policy in `niksi.json` doesn't allow. `CI` disables the update notice and its release check.
+Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. It also exits `1`, and installs nothing, when an entry comes from a source that the policy in `niksi.json` doesn't allow. With `--frozen-lockfile`, it also exits `1` when there is no `niksi-lock.json`, so a checkout without one fails the job. `CI` disables the update notice and its release check.
 
-`nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings, unless `niksi.json` sets `policy.denyWarn`. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output.
+`nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings, unless `niksi.json` sets `policy.denyWarn`. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output, with each skill's `state`: `installed`, `modified`, `missing`, or `disabled`.
 
 For reviewed sources whose critical findings you accept, use CI to keep a repository's published skill copies current. Every run still lists files, scans them, and prints all findings:
 
@@ -551,7 +565,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install --frozen-lockfile`, also no lockfile. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. |
 | `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
 | `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
 | `130` | Cancelled. |

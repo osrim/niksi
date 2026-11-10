@@ -1,6 +1,8 @@
 import * as p from "@clack/prompts";
+import { existsSync } from "node:fs";
 import type { AgentId } from "../core/install/agents.ts";
 import { assertSkillsDirSafe } from "../core/install/link.ts";
+import { effectiveLockPath, type Scope } from "../core/paths.ts";
 import { readLock, splitDisabled } from "../core/install/lockfile.ts";
 import { policyViolations } from "../core/policy.ts";
 import { readProjectConfig } from "../core/project-config.ts";
@@ -18,12 +20,17 @@ import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { warn } from "../ui/report.ts";
 import { refuseViolations, reportDisabled, reportModified } from "../ui/status.ts";
-import { skillName } from "../ui/style.ts";
+import { skillName, tildify } from "../ui/style.ts";
 import { chooseAgents, needsAgents, warnLinkCollisions } from "../ui/destination.ts";
 
 export const help: CommandHelp = {
   description: "Restore every skill in niksi-lock.json. Modified files need confirmation.",
-  examples: ["$ nik install", "$ nik i -g", "$ nik install --agent opencode -y"],
+  examples: [
+    "$ nik install",
+    "$ nik i -g",
+    "$ nik install --agent opencode -y",
+    "$ nik install --frozen-lockfile",
+  ],
 };
 
 const AGENT_IGNORED = "Ignoring --agent. Every lockfile entry records its destination.";
@@ -31,6 +38,7 @@ const AGENT_IGNORED = "Ignoring --agent. Every lockfile entry records its destin
 interface InstallOptions extends ScopeOptions {
   yes?: boolean;
   agent?: string | string[];
+  frozenLockfile?: boolean;
 }
 
 export const run = async (options: InstallOptions): Promise<void> => {
@@ -38,6 +46,7 @@ export const run = async (options: InstallOptions): Promise<void> => {
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const { policy } = await readProjectConfig(scope);
   await migrateIfLegacy(scope);
+  if (options.frozenLockfile) requireLockfile(scope);
   const { enabled, disabled } = splitDisabled(await readLock(scope));
   const skills = installedSkills(enabled);
   refuseViolations(policyViolations(policy, skills), "Nothing installed.");
@@ -91,6 +100,16 @@ export const run = async (options: InstallOptions): Promise<void> => {
   p.outro(
     `Installed ${installed}/${skills.length} skill(s) (${scope}: ${installLocations(skills, agents).join(", ")}).`,
   );
+};
+
+const requireLockfile = (scope: Scope): void => {
+  const file = effectiveLockPath(scope);
+  if (existsSync(file)) return;
+  const remedy =
+    scope === "project"
+      ? "Commit niksi-lock.json, or run `nik add` to create it."
+      : "Run `nik add -g` to create it.";
+  fail(`No lockfile at ${tildify(file)}. Nothing installed.\n${remedy}`);
 };
 
 const installLocations = (skills: InstalledSkill[], linked: AgentId[]): string[] => [

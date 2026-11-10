@@ -279,9 +279,11 @@ test("remove does not delete a link that niksi did not create", async () => {
   expect(await readSkills(root)).toEqual({});
 });
 
-test("list --json reports link and agent-copy entries, modified and missing", async () => {
-  const root = await project("list", "linked", "copied");
+test("list --json reports link and agent-copy entries, installed, modified, and missing", async () => {
+  const root = await project("list", "linked", "copied", "kept", "unlinked");
   await addLink(root, "linked");
+  await addLink(root, "kept");
+  await addLink(root, "unlinked");
   const copied = await runCli(
     root,
     "add",
@@ -295,6 +297,8 @@ test("list --json reports link and agent-copy entries, modified and missing", as
   expect(copied.exitCode).toBe(0);
   await writeFile(join(root, ".niksi", "skills", "linked", "SKILL.md"), "edited\n");
   await rm(join(root, ".claude", "skills", "copied"), { recursive: true });
+  await writeFile(join(root, ".niksi", "skills", "unlinked", "SKILL.md"), "edited\n");
+  await rm(join(root, ".claude", "skills", "unlinked"));
 
   const human = await runCli(root, "list");
   expect(human.exitCode).toBe(0);
@@ -304,7 +308,7 @@ test("list --json reports link and agent-copy entries, modified and missing", as
   expect(json.stderr).toBe("");
   const listed = JSON.parse(json.stdout);
   expect(listed).toMatchObject({ scope: "project", lockfile: join(root, "niksi-lock.json") });
-  const [copiedRow, linkedRow] = listed.skills;
+  const [copiedRow, keptRow, linkedRow, unlinkedRow] = listed.skills;
   expect(linkedRow).toEqual({
     name: "linked",
     source: "local:.",
@@ -312,6 +316,7 @@ test("list --json reports link and agent-copy entries, modified and missing", as
     root: "skills/linked",
     integrity: expect.stringMatching(/^sha256-/u),
     track: "auto",
+    state: "modified",
     modified: true,
     agents: ["claude"],
     links: [join(root, ".claude", "skills", "linked")],
@@ -325,9 +330,12 @@ test("list --json reports link and agent-copy entries, modified and missing", as
     track: "auto",
     copy: true,
     agents: [],
+    state: "missing",
     modified: false,
     links: [],
   });
+  expect(keptRow).toMatchObject({ name: "kept", state: "installed", modified: false });
+  expect(unlinkedRow).toMatchObject({ name: "unlinked", state: "missing", modified: true });
 });
 
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {

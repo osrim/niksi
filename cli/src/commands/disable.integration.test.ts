@@ -123,9 +123,12 @@ test("list shows a disabled skill as disabled, not missing, and --json carries t
   const rows = JSON.parse(json.stdout).skills;
   const alpha = rows.find((row: { name: string }) => row.name === "alpha");
   expect(alpha.disabled).toBe(true);
+  expect(alpha.state).toBe("disabled");
   expect(alpha.agents).toEqual([]);
   expect(alpha.links).toEqual([]);
-  expect(rows.find((row: { name: string }) => row.name === "beta").disabled).toBeUndefined();
+  const beta = rows.find((row: { name: string }) => row.name === "beta");
+  expect(beta.disabled).toBeUndefined();
+  expect(beta.state).toBe("installed");
 });
 
 test("install restores enabled entries only and reports the disabled ones", async () => {

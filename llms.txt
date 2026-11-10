@@ -7,7 +7,7 @@
 The binary is `nik`. `npx niksi` runs it without installing. An agent's shell
 has no terminal, so pass every answer as a flag, and leave critical findings
 for the user to approve in their own terminal. The niksi skill teaches an
-agent this workflow. Install it with `nik add osrim/niksi niksi`.
+agent this workflow.
 
 ## Docs
 

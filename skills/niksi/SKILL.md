@@ -17,6 +17,7 @@ every answer is a flag, and the user decides what to do about findings.
    this repository and records the skill in its `niksi-lock.json`, so
    teammates get it with `nik install`. `-g` (global) installs for every
    project on this machine. Use `-p` unless the user asks for all projects.
+   The commands below show `-p`: use the scope you chose.
 
 ## Install a skill
 
@@ -30,10 +31,14 @@ Skill names follow the coordinate. `--all` selects every skill in the source.
    terminal to ask`. That exit ends a good preview.
    - `needs to know which skills`: the source has several. Ask the user which
      ones, or use `--all` when they want every skill.
-   - `Linking to <ids>.` names the skills directories `nik` will use. If your
-     own agent's directory is missing (`claude` for Claude Code), add
-     `--agent claude` or the ids the user wants. `nik` remembers `--agent`
-     for later runs.
+   - `Linking to <ids>.` names the skills directories `nik` will use. Your
+     own agent's id is `claude` for Claude Code, and `universal` for Codex,
+     Gemini CLI, and most other agents. The Agents section of
+     https://raw.githubusercontent.com/osrim/niksi/main/docs/configuration.md
+     maps each agent to its ids. If yours is missing, add `--agent` with the
+     listed ids plus yours, such as `--agent universal,claude`.
+   - `nik` saves `-p`, `-g`, and `--agent` as the user's choices for later
+     runs, even in a preview run. Tell the user when you change them.
    - `is outside this project`: a local directory outside the project would
      record a path that other machines cannot resolve, and the preview stops
      before the scan. Ask the user to choose `--copy`, which puts the files in
@@ -42,16 +47,22 @@ Skill names follow the coordinate. `--all` selects every skill in the source.
    - No findings, or only `info`: go to step 3.
    - `warn`: show the user each finding (rule, file and line, detail) and ask
      whether to install. Go on only when they say yes.
-   - `critical`: `nik` skipped the skill and exits `3`. Show the user the
+   - `critical`: `nik` prints `<skill>: review critical findings in a
+     terminal.` and skips that skill. The run exits `3` when every selected
+     skill is blocked, else `2` at the confirmation for the rest, so read
+     each skill's findings rather than the exit code. Show the user the
      findings, and give them the same `nik add` command to run in their own
      terminal, where `nik` shows the files and asks them to decide. Critical
      approval belongs to the user in that terminal, so leave
      `--dangerous-skip-critical-approval` out of every command you run.
+   - When the project's `niksi.json` sets `policy.denyWarn`, a `warn` finding
+     blocks like a `critical` one, and `--yes` doesn't accept it. Handle it
+     as `critical`.
 3. Rerun the preview command with `--yes`, naming only the skills the user
    approved. `--yes` accepts their `warn` findings. Done when it exits `0`.
 4. Read `nik list -p --json` and confirm the skill's `agents` holds your
-   agent's id. Tell the user the skill name, source, revision (`tag`, else
-   `commit`), agents, and every finding.
+   agent's id. Tell the user the skill name, source, label (from
+   `installed @ <label>`), agents, and every finding.
 
 When `nik add` prints another `nik add` command for a skill that the new skill
 mentions, offer it to the user as a new install, starting from step 1.
@@ -67,7 +78,8 @@ mentions, offer it to the user as a new install, starting from step 1.
    user approved only some. Done when it exits `0`.
 
 - A new upstream revision waits 3 days before `--all` takes it, so a
-  hijacked release cannot reach everyone on day one. `nik` prints
+  hijacked release cannot reach everyone on day one. `minimumReleaseAge` in
+  the project's `niksi.json` changes the wait. `nik` prints
   `<skill>: <revision> available, <age> old, waits for cooldown`. Update such
   a skill only when the user names it: `nik update <skill> -p`, then again
   with `--yes`.
@@ -122,8 +134,9 @@ Each skill is in one state:
 - Missing: `agents` is empty, and `disabled` and `copyPath` are absent.
   `nik install -p` restores it from `niksi-lock.json`.
 - Disabled: `nik enable <name> -p` restores it.
-- Modified: `nik install -p --yes` restores the reviewed files and drops the
-  edits. Ask the user first.
+- Modified: `nik install -p --yes` restores the reviewed files of every
+  modified skill in the scope and drops all their edits. `install` takes no
+  skill names, so list every modified skill and ask the user first.
 
 ## Exit codes
 
@@ -131,8 +144,8 @@ Each skill is in one state:
 | --- | --- |
 | `0` | Done. |
 | `1` | A skill failed and the rest ran. The message names the cause, such as an unreachable source or a source that the project's `niksi.json` doesn't allow. |
-| `2` | `nik` needs an answer. After a preview run, that is the confirmation. Otherwise, read the message and pass the flag it names. |
-| `3` | The user must decide: critical findings blocked a skill, or in `update`, the project's `niksi.json` doesn't allow a skill's source. |
+| `2` | `nik` needs an answer, the usage is invalid, or the project's `niksi.json` is invalid. After a preview run, that is the confirmation. Otherwise, read the message: pass the flag it names, or fix what it names. |
+| `3` | The user must decide: critical findings, or warn findings under `policy.denyWarn`, blocked a skill, or in `update`, the project's `niksi.json` doesn't allow a skill's source. |
 
 Every command, flag, and exit code is in
 https://raw.githubusercontent.com/osrim/niksi/main/docs/commands.md.

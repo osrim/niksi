@@ -18,7 +18,7 @@ Three commands scan:
 | `warn` | Pauses once per skill. `--yes` skips the pause. Under `policy.denyWarn`, it gates like `critical`. |
 | `info` | Never pauses. |
 
-When a project's `niksi.json` sets `policy.denyWarn` to `true`, `add`, `adopt`, and `update` gate a warn finding the same way as a critical one: it needs approval in a terminal, `--yes` doesn't accept it, and without a terminal the skill is skipped and the command exits `3`. `--dangerous-skip-critical-approval` skips that approval too. The lockfile records only critical rules as accepted, so an approved warn finding leaves no record. `audit` ignores `denyWarn`. See [Project configuration](configuration.md#project-configuration).
+When a project's `niksi.json` sets `policy.denyWarn` to `true`, `add`, `adopt`, and `update` gate a warn finding the same way as a critical one: it needs approval in a terminal, `--yes` doesn't accept it, and without a terminal the skill is skipped and the command exits `3`. `--dangerous-skip-critical-approval` skips that approval too. The lockfile records only critical rules as accepted, so an approved warn finding leaves no record. In project scope, `audit` exits `3` on every warn finding, approved or not. See [Project configuration](configuration.md#project-configuration).
 
 A skill you decline is skipped. The other skills in the batch still install.
 
@@ -36,7 +36,7 @@ A `critical` finding with `low` confidence shows and gates as `warn`, so `--yes`
 
 An approval covers one source, path, integrity, and scope. Adding approved content to another agent does not reopen the review. `nik audit` reports a critical finding that an approval accepted, and the finding does not change its exit code.
 
-Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings that the lockfile does not accept. See [commands.md](commands.md#audit).
+Rules change between `niksi` versions. A skill approved under older rules can have new findings. `nik audit` scans the installed files again and exits `1` on warn findings and `3` on critical findings that the lockfile does not accept, or on warn findings under `policy.denyWarn`. See [commands.md](commands.md#audit).
 
 ## Accepted findings
 

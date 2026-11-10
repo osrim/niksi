@@ -69,13 +69,16 @@ mentions, offer it to the user as a new install, starting from step 1.
 
 ## Update skills
 
-1. Make a preview run: `nik update --all -p`. `nik` checks every source
-   upstream. For each skill with an update, it shows the diff stat, scans the
-   changed files, and exits `2` at the confirmation without writing. Exit
-   `0` with no scan means no update is due now.
+1. Make a preview run. When the user names skills, pass only those names:
+   `nik update <skill>... -p`. Use `nik update --all -p` only when they ask to
+   update every skill. `nik` checks the sources upstream. For each selected
+   skill with an update, it shows the diff stat, scans the changed files, and
+   exits `2` at the confirmation without writing. Exit `0` with no scan means
+   no update is due now.
 2. Act on the findings as in step 2 of installing.
-3. Rerun with `--yes`, naming the approved skills instead of `--all` when the
-   user approved only some. Done when it exits `0`.
+3. Rerun the preview command with `--yes`. When the user approved only some
+   skills, name just those, in place of `--all` or the other names. Done when
+   it exits `0`.
 
 - A new upstream revision waits 3 days before `--all` takes it, so a
   hijacked release cannot reach everyone on day one. `minimumReleaseAge` in

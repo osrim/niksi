@@ -1,7 +1,18 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   cliRunner,
@@ -30,6 +41,21 @@ const CHECK = ["update", "--check"];
 const add = async (cwd: string, ...args: string[]): Promise<void> => {
   const result = await runCli(cwd, "add", ...args, ...LINK);
   expect(result.exitCode).toBe(0);
+};
+
+// The lockfile, the `list --json` output, and every installed file and link with its contents.
+const installedState = async (dir: string): Promise<unknown> => {
+  const files: Record<string, string> = {};
+  for (const root of [".niksi", ".claude"]) {
+    for (const entry of await readdir(join(dir, root), { recursive: true, withFileTypes: true })) {
+      const path = join(entry.parentPath, entry.name);
+      if (entry.isSymbolicLink()) files[relative(dir, path)] = `-> ${await readlink(path)}`;
+      else if (entry.isFile()) files[relative(dir, path)] = await readFile(path, "utf8");
+    }
+  }
+  const listed = await runCli(dir, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  return { lock: await readFile(lockPath, "utf8"), list: JSON.parse(listed.stdout), files };
 };
 
 beforeAll(async () => {
@@ -64,7 +90,7 @@ afterAll(async () => {
 });
 
 test("update --check --json reports each skill's recorded and upstream revision without a terminal, and exits 1", async () => {
-  const before = await readFile(lockPath, "utf8");
+  const before = await installedState(project);
 
   const result = await runCli(project, ...CHECK, "--json");
 
@@ -113,7 +139,7 @@ test("update --check --json reports each skill's recorded and upstream revision 
     disabled: [],
     blocked: [],
   });
-  expect(await readFile(lockPath, "utf8")).toBe(before);
+  expect(await installedState(project)).toEqual(before);
 });
 
 test("update --check exits 0 when every checked skill is up to date and names disabled skills without checking them", async () => {
@@ -171,6 +197,8 @@ test("update --check leaves out a skill whose source niksi.json does not allow a
 });
 
 test("update --check without --json lists the skills with updates, points to nik update, and exits 1", async () => {
+  const before = await installedState(project);
+
   const result = await runCli(project, ...CHECK);
 
   expect(result.exitCode).toBe(1);
@@ -181,6 +209,48 @@ test("update --check without --json lists the skills with updates, points to nik
     "4 skill(s) checked (project): 1 outdated, 1 up to date, 1 moved, 1 pinned.",
   );
   expect(result.stdout).toContain("Run nik update to choose which updates to install.");
+  expect(await installedState(project)).toEqual(before);
+});
+
+test.each([{ args: [] }, { args: ["--json"] }])(
+  "update --check $args exits 1 with empty stdout when niksi-lock.json can't be read",
+  async ({ args }: { args: readonly string[] }) => {
+    const broken = join(tmp, `broken-project-${args.length}`);
+    await mkdir(join(broken, ".git"), { recursive: true });
+    await writeFile(join(broken, "niksi-lock.json"), "{");
+
+    const result = await runCli(broken, ...CHECK, ...args);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("niksi-lock.json");
+  },
+);
+
+test("update --check --json passed twice still writes only JSON to stdout", async () => {
+  // From the home directory, the scope warning goes to stderr.
+  const result = await runCli(tmp, ...CHECK, "--json", "--json");
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ scope: "global", skills: [] });
+  expect(result.stderr).toContain("Using global scope.");
+});
+
+test("update --check stops on a ski 0.2 layout, names nik list, and moves nothing", async () => {
+  const legacy = join(tmp, "legacy-project");
+  await mkdir(join(legacy, ".ski", "skills"), { recursive: true });
+  await mkdir(join(legacy, ".git"));
+  await writeFile(join(legacy, "ski-lock.json"), '{"lockfileVersion":1,"skills":{}}\n');
+
+  const result = await runCli(legacy, ...CHECK, "--json");
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toContain("Run `nik list` once to move them, then check again.");
+  expect(existsSync(join(legacy, "ski-lock.json"))).toBe(true);
+  expect(existsSync(join(legacy, ".ski", "skills"))).toBe(true);
+  expect(existsSync(join(legacy, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(legacy, ".niksi"))).toBe(false);
 });
 
 test.each([

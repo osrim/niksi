@@ -15,6 +15,7 @@ import {
   updateDestination,
   type InstalledSkill,
 } from "../core/install/destination.ts";
+import { legacyLayoutPresent } from "../core/install/migrate.ts";
 import { tildify, type Scope } from "../core/paths.ts";
 import { CRITICAL_EXIT, criticalRules, type Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
@@ -534,6 +535,7 @@ const refuseCheckConflicts = (names: string[], options: UpdateOptions): void => 
 };
 
 interface CheckTarget {
+  scope: Scope;
   loaded: LoadedLockfile;
   skills: InstalledSkill[];
   disabled: string[];
@@ -543,14 +545,17 @@ interface CheckTarget {
 const byName = (a: { name: string }, b: { name: string }): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 
-const openCheckScope = async (options: UpdateOptions): Promise<Scope> => {
-  const quiet = options.json === true;
-  const scope = resolveScope(options, quiet ? logWarn : p.log.warn) ?? "project";
-  await migrateIfLegacy(scope, quiet);
-  return scope;
-};
-
-const checkTarget = async (scope: Scope): Promise<CheckTarget> => {
+const checkTarget = async (
+  options: UpdateOptions,
+  scopeWarning: (message: string) => void,
+): Promise<CheckTarget> => {
+  const scope = resolveScope(options, scopeWarning) ?? "project";
+  // The check writes nothing, so it stops instead of moving files, as audit does.
+  if (legacyLayoutPresent(scope)) {
+    throw new Error(
+      `found files from ski 0.2. Run \`nik list${scopeFlag(scope)}\` once to move them, then check again.`,
+    );
+  }
   const { policy } = await readProjectConfig(scope);
   const loaded = await loadLock(scope);
   const { enabled, disabled } = splitDisabled(loaded.lock);
@@ -558,6 +563,7 @@ const checkTarget = async (scope: Scope): Promise<CheckTarget> => {
   const blocked = policyViolations(policy, installed);
   const names = new Set(blocked.map(({ name }) => name));
   return {
+    scope,
     loaded,
     skills: installed.filter(({ name }) => !names.has(name)).toSorted(byName),
     disabled: Object.keys(disabled.skills).toSorted(),
@@ -573,11 +579,17 @@ const runCheck = async (names: string[], options: UpdateOptions): Promise<void> 
   refuseCheckConflicts(names, options);
   if (options.json) return runCheckJson(options);
 
+  // Nothing reaches stdout until the lockfile loads, so a fatal error leaves stdout empty.
+  const warnings: string[] = [];
+  const { scope, skills, ...target } = await checkTarget(options, (message) => {
+    warnings.push(message);
+  });
+  const empty = Object.keys(target.loaded.lock.skills).length === 0;
+  const emptyMessage = empty ? await emptyScopeMessage(scope) : "";
   p.intro("nik update --check");
-  const scope = await openCheckScope(options);
-  const { skills, ...target } = await checkTarget(scope);
-  if (Object.keys(target.loaded.lock.skills).length === 0) {
-    p.outro(await emptyScopeMessage(scope));
+  for (const message of warnings) p.log.warn(message);
+  if (empty) {
+    p.outro(emptyMessage);
     return;
   }
   reportDisabled(target.disabled, scope);
@@ -617,8 +629,7 @@ const checkSummary = (verdicts: UpdateVerdict[], scope: Scope): string => {
 };
 
 const runCheckJson = async (options: UpdateOptions): Promise<void> => {
-  const scope = await openCheckScope(options);
-  const { skills, ...target } = await checkTarget(scope);
+  const { scope, skills, ...target } = await checkTarget(options, logWarn);
   for (const violation of target.blocked) logSourceBlocked(violation);
   const verdicts = await checkVerdicts(skills);
   process.exitCode = checkExitCode(verdicts, target.blocked.length);

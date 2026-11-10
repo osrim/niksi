@@ -271,6 +271,7 @@ With `--check`, `update` checks every enabled skill against its source and shows
 - It ignores the [cooldown](#cooldown). A skill with a young upstream revision still counts as outdated.
 - It doesn't check disabled skills. It names them in one info line.
 - In project scope, it doesn't check a skill whose source the policy in `niksi.json` doesn't allow. It names each such skill and its source. See [Project configuration](configuration.md#project-configuration).
+- When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
 - It takes only `-g`, `-p`, and `--json`. Skill names, `--all`, `--source`, `--yes`, `--dangerous-skip-critical-approval`, `--report`, and `--min-release-age` with `--check` exit `2`. So does `--json` without `--check`.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each checked skill, sorted by name. `disabled` holds the names of disabled skills, and `blocked` holds the names of skills that the project policy left out. The check covers neither.

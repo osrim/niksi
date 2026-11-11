@@ -7,7 +7,7 @@ Commands, flags, aliases, and exit codes are compatibility contracts. Paths, env
 | `add <coordinate> [...skills]` | | Fetch, review, and add skills. |
 | `adopt [...skills]` | | Record skills that are already in agent skills directories. |
 | `install` | `i` | Restore every enabled skill in `niksi-lock.json`. |
-| `update [...skills]` | `up` | Check upstream and update skills. |
+| `update [...skills]` | `up` | Check upstream and update skills. `--check` only shows which skills have updates. |
 | `remove [...skills]` | `rm` | Remove installed skills. |
 | `list` | `ls` | Show installed skills. |
 | `audit` | | Scan installed skills with the current rules. |
@@ -181,6 +181,7 @@ Link entries install to the agents recorded in the entry. A link entry without r
 
 ```text
 nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-skip-critical-approval] [--report <file>] [--min-release-age <days>]
+nik update --check [-g|-p] [--json]
 ```
 
 `update` checks every installed skill against its source, then shows and scans changed files before writing.
@@ -218,6 +219,7 @@ nik update [...skills] [-g|-p] [-a] [--source <coordinate>] [-y] [--dangerous-sk
 - In project scope, `update` leaves out each skill whose source the policy in `niksi.json` doesn't allow, and doesn't check that source upstream. It names each such skill and its source, keeps it at its recorded revision, updates the other skills, and exits `3`. Remove the skill with `nik remove`, or allow its source in `niksi.json`. See [Project configuration](configuration.md#project-configuration).
 - When `niksi.json` sets `policy.denyWarn`, a warn finding in changed files needs approval like a critical one, and `--yes` doesn't accept it. See [security-scan.md](security-scan.md#severities).
 - `--report <file>` writes a Markdown review of the run. See [Update report](#update-report).
+- `--check` only shows which skills have updates, and installs and records nothing. See [Check for updates](#check-for-updates).
 
 ### Cooldown
 
@@ -256,6 +258,80 @@ When every section is empty, the report says `No skill changed.` The report puts
 GitHub limits a pull request body to 65,536 characters. A run with many changed skills can exceed it, so post a long report as a comment or a job summary instead.
 
 The report is Markdown only, for people who review the change. For machine checks, use the exit code, the diff of `niksi-lock.json`, and `nik audit --json`, which lists the findings of every installed skill.
+
+### Check for updates
+
+```text
+nik update --check [-g|-p] [--json]
+```
+
+With `--check`, `update` checks every enabled skill against its source and shows which skills have an update. It doesn't install, update, or record anything. It never asks: ssh fails instead of asking for a host key or a passphrase. It runs the same with or without a terminal. Run `nik update` to choose which updates to install.
+
+- It checks the same upstream revision as `update`: the latest stable tag, or the head of the branch when the source has no tag. A pinned skill shows the revision that `nik update <skill>` would move it to.
+- It ignores the [cooldown](#cooldown). A skill with a young upstream revision still counts as outdated.
+- It doesn't check disabled skills. It names them in one info line.
+- In project scope, it doesn't check a skill whose source the policy in `niksi.json` doesn't allow. It names each such skill and its source. See [Project configuration](configuration.md#project-configuration).
+- When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
+- It takes only `-g`, `-p`, and `--json`. Skill names, `--all`, `--source`, `--yes`, `--dangerous-skip-critical-approval`, `--report`, and `--min-release-age` with `--check` exit `2`. So does `--json` without `--check`.
+
+`--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each checked skill, sorted by name. `disabled` holds the names of disabled skills, and `blocked` holds the names of skills that the project policy left out. The check covers neither.
+
+```json
+{
+  "scope": "project",
+  "lockfile": "/work/repo/niksi-lock.json",
+  "skills": [
+    {
+      "name": "pdf",
+      "source": "https://github.com/anthropics/skills",
+      "path": "skills/pdf",
+      "track": "auto",
+      "verdict": "outdated",
+      "recorded": {
+        "commit": "474e3e791559398762c4f5eff1399efe8f402156",
+        "tag": "v1.0.0"
+      },
+      "upstream": {
+        "commit": "9d1c2b7f0a6e4d3c8b5a2f1e0d9c8b7a6f5e4d3c",
+        "tag": "v1.1.0"
+      }
+    }
+  ],
+  "disabled": [],
+  "blocked": []
+}
+```
+
+`recorded` is the revision in `niksi-lock.json`. `upstream` is the revision that the skill would move to. Each one carries `commit`, `tag`, and `pinnedAs` when it has them, with the meaning they have in the lockfile (see [lockfile.md](lockfile.md#entry-fields)). A local source has no commit or tag, so both objects are empty. `upstream` is empty for an `unreachable` skill. For a `gone` skill, it is the revision that no longer has the skill. For a `rewritten` skill, it is the latest upstream revision, and `update` doesn't move the skill there. `track` is `auto` or `pin`.
+
+`verdict` is one of these values:
+
+| verdict | meaning |
+| --- | --- |
+| `up-to-date` | The installed files match upstream and the revision didn't move. |
+| `outdated` | The upstream files differ from the installed files. |
+| `moved` | The upstream revision changed, but the skill's files didn't. |
+| `pinned` | The skill is pinned, and upstream has a newer revision. Only `nik update <skill>` takes it. |
+| `rewritten` | The pinned tag or branch now resolves to a different commit. |
+| `gone` | The source no longer has the skill at its recorded path. |
+| `unreachable` | The source can't be cloned or fetched. The skill also has an `error` field with the message. |
+
+`update --check` exits with these codes, with or without `--json`:
+
+- `0`: every checked skill is `up-to-date`.
+- `1`: at least one skill has another verdict. Read `verdict` to see which. `1` also means an error stopped the check before it checked any skill, such as an unreadable `niksi-lock.json`. Then stdout is empty.
+- `2`: invalid usage, or an invalid `niksi.json`.
+- `3`: the project policy left out at least one skill. It takes precedence over `1`.
+
+To check for updates in a script:
+
+```sh
+status=0
+nik update --check --json > updates.json || status=$?
+[ "$status" -le 1 ] || exit "$status"
+jq -e .skills updates.json > /dev/null || exit 1
+jq -r '.skills[] | select(.verdict != "up-to-date") | "\(.name): \(.verdict)"' updates.json
+```
 
 ## `remove`
 
@@ -478,7 +554,8 @@ An unknown shell exits `2`.
 | `--dangerous-skip-critical-approval` | `add`, `adopt`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |
 | `--copy` | `add` | Write directories instead of links. |
 | `--path <directory>` | `add` | With `--copy`, write named skill directories below a project destination root. |
-| `--json` | `list`, `audit` | Write JSON only. |
+| `--check` | `update` | Only show which skills have updates. Install and record nothing, and never ask. |
+| `--json` | `list`, `audit`, `update --check` | Write JSON only. |
 | `--report <file>` | `update` | Write a Markdown review report. |
 | `--min-release-age <days>` | `add`, `update` | Set the [cooldown](#cooldown) in whole days. Default `3`, or `minimumReleaseAge` from `niksi.json` in project scope. `0` turns it off. |
 | `--source <coordinate>` | `update`, `adopt` | `update` selects the skills from one source. `adopt` compares the skills with one source. |
@@ -527,7 +604,7 @@ nik install --agent claude --yes --frozen-lockfile
 
 Git 2.30 or later must be on `PATH`. `nik install` exits `0` when every enabled entry in `niksi-lock.json` is on disk with its recorded integrity and every local source still matches it. It exits `1` when a local skill's source changed since `niksi-lock.json` or no longer has the skill. Run `nik update <skill>` or `nik remove <skill>` and commit the lockfile. It also exits `1`, and installs nothing, when an entry comes from a source that the policy in `niksi.json` doesn't allow. With `--frozen-lockfile`, it also exits `1` when there is no `niksi-lock.json`, so a checkout without one fails the job. `CI` disables the update notice and its release check.
 
-`nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings, unless `niksi.json` sets `policy.denyWarn`. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output, with each skill's `state`: `installed`, `modified`, `missing`, or `disabled`.
+`nik add` and `nik update` also run without a terminal. `--yes` accepts warn findings, unless `niksi.json` sets `policy.denyWarn`. A critical finding exits `3` unless `--dangerous-skip-critical-approval` skips approval. `nik list --json` prints machine-readable output, with each skill's `state`: `installed`, `modified`, `missing`, or `disabled`. `nik update --check --json` lists the skills with upstream updates and exits `1` when there is one; see [Check for updates](#check-for-updates).
 
 For reviewed sources whose critical findings you accept, use CI to keep a repository's published skill copies current. Every run still lists files, scans them, and prints all findings:
 
@@ -566,7 +643,7 @@ The report is written outside the repository, so `git add -A` does not commit it
 | code | meaning |
 | --- | --- |
 | `0` | Success or nothing to do. |
-| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install --frozen-lockfile`, also no lockfile. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. |
+| `1` | A skill failed. The rest of the batch still ran. In `install` and `enable`, this includes a local source that changed since `niksi-lock.json` or no longer has the skill. In `install --frozen-lockfile`, also no lockfile. In `install` and `enable`, also an entry from a source that the policy in `niksi.json` doesn't allow, and in `add`, a source that the policy doesn't allow. Then the command writes nothing. In `adopt`, also a skill whose source the policy doesn't allow. In `audit`, also a warn finding. In `update --check`, also a skill that isn't up to date. |
 | `2` | Invalid usage, an invalid `niksi.json`, or a prompt had no terminal and no flag. |
-| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept, or a warn finding under `policy.denyWarn`. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
+| `3` | Critical findings, or warn findings under `policy.denyWarn`, blocked at least one skill in `add`, `adopt`, or `update` without `--dangerous-skip-critical-approval`. In `update` and `update --check`, also a skill whose source the policy in `niksi.json` doesn't allow. In `audit`, a critical finding in an installed skill whose rule the lockfile entry does not accept, or a warn finding under `policy.denyWarn`. Accepted critical findings do not change the `audit` exit code. When a run has reasons for both `1` and `3`, it exits `3`. |
 | `130` | Cancelled. |

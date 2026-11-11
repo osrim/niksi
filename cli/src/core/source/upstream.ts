@@ -1,5 +1,6 @@
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Revision } from "./revision.ts";
+import type { CloneOptions } from "./git.ts";
 import { sourceFor, type Source } from "./index.ts";
 import { waitsForCooldown, type Cooldown } from "./release-age.ts";
 
@@ -59,17 +60,19 @@ export const computeVerdicts = (
   skills: InstalledSkill[],
   named: string[],
   cooldown: Cooldown,
+  clone: CloneOptions = {},
 ): Promise<UpdateVerdict[]> => {
   const names = new Set(named);
-  return Promise.all(skills.map((skill) => verdictOf(skill, names, cooldown)));
+  return Promise.all(skills.map((skill) => verdictOf(skill, names, cooldown, clone)));
 };
 
 const verdictOf = async (
   skill: InstalledSkill,
   names: Set<string>,
   cooldown: Cooldown,
+  clone: CloneOptions,
 ): Promise<UpdateVerdict> => {
-  const source = sourceFor(skill.source);
+  const source = sourceFor(skill.source, undefined, clone);
   try {
     return await classify(skill, source, names.has(skill.name), cooldown);
   } catch (e) {

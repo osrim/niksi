@@ -96,6 +96,7 @@ nik install
 | `nik adopt [skills]`            | Record skills that `gh skill`, `npx skills`, or you put on disk.       |
 | `nik install`                   | Restore every enabled skill in `niksi-lock.json`.                      |
 | `nik update [skills]`           | Compare installed skills with upstream and review the diff.            |
+| `nik update --check`            | Show which skills have upstream updates. `--json` for scripts.         |
 | `nik remove [skills]`           | Remove installed skills and their lockfile entries.                    |
 | `nik list`                      | Show installed skills. `--json` for scripts.                           |
 | `nik audit`                     | Scan installed skills with the current rules.                          |

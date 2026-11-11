@@ -51,7 +51,7 @@ grilling: v2.0.0 available, 1 day old, waits for cooldown
 
 A failed skill does not stop the batch. The command continues, writes state that matches disk, and exits `1`.
 
-No-op messages are `Nothing selected.`, `Nothing to add|adopt|copy|install|update.`, `Nothing added.` after a declined warning, or `Nothing adopted.` when no selected skill could be checked. When the project policy refuses an entry, `install` and `enable` end with `Nothing installed.` or `Nothing enabled.` and a remedy line. When it refuses the source, `add` ends with `Nothing added.`, and `adopt` with `Nothing adopted.` for a `--source`, each with a remedy line. `update`, and `adopt` for a source found on disk, print the refusal and its remedy as the skill's result line and continue.
+No-op messages are `Nothing selected.`, `Nothing to add|adopt|copy|install|update.`, `Nothing added.` after a declined warning, or `Nothing adopted.` when no selected skill could be checked. When the project policy refuses an entry, `install` and `enable` end with `Nothing installed.` or `Nothing enabled.` and a remedy line. `install --frozen-lockfile` without a lockfile names the path it looked for, then `Nothing installed.` and a remedy line. When it refuses the source, `add` ends with `Nothing added.`, and `adopt` with `Nothing adopted.` for a `--source`, each with a remedy line. `update`, and `adopt` for a source found on disk, print the refusal and its remedy as the skill's result line and continue.
 
 ## Color
 

@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, lstat, readlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, lstat, readlink, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
@@ -79,6 +79,22 @@ export const linkedAgents = async (name: string, scope: Scope): Promise<AgentId[
     ),
   );
   return hits.filter((id): id is AgentId => id !== null);
+};
+
+export const linkReachesCanonical = async (
+  name: string,
+  scope: Scope,
+  agent: AgentId,
+): Promise<boolean> => {
+  try {
+    const [target, canonical] = await Promise.all([
+      realpath(skillPath(name, scope, agent)),
+      realpath(canonicalPath(name, scope)),
+    ]);
+    return target === canonical;
+  } catch {
+    return false;
+  }
 };
 
 export const occupiedAgents = (name: string, scope: Scope): AgentId[] =>

@@ -162,8 +162,18 @@ test("list identifies a path copy and JSON keeps source and destination paths di
   const row = JSON.parse(json.stdout).skills[0];
   expect(row.path).toBe(`${source.slice(1)}/demo`);
   expect(row.copyPath).toBe("custom-directory");
+  expect(row.state).toBe("installed");
   expect(row.agents).toEqual([]);
   expect(row.links).toEqual([]);
+
+  await rm(join(project, "custom-directory", "demo"), { recursive: true });
+  const missing = await runCli(project, "list", "--json");
+  expect(missing.exitCode).toBe(0);
+  expect(JSON.parse(missing.stdout).skills[0]).toMatchObject({
+    copyPath: "custom-directory",
+    state: "missing",
+    modified: false,
+  });
 });
 
 test("update detects edits and replaces the recorded path copy", async () => {

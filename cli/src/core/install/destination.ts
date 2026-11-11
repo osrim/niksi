@@ -5,6 +5,7 @@ import {
   copyState,
   dirModified,
   linkedAgents,
+  linkReachesCanonical,
   occupiedAgents,
   removeCanonical,
   removeCopy,
@@ -24,7 +25,7 @@ export const installedSkills = (lock: Lockfile): InstalledSkill[] =>
   Object.entries(lock.skills).map(([name, entry]) => Object.assign({ name }, entry));
 
 export type Location =
-  | { kind: "link"; agents: AgentId[] }
+  | { kind: "link"; agents: AgentId[]; present: boolean }
   | { kind: "agent-copy"; agents: AgentId[] }
   | { kind: "path-copy"; copyPath: string; present: boolean };
 
@@ -32,7 +33,7 @@ export const locationAgents = (location: Location): AgentId[] =>
   location.kind === "path-copy" ? [] : location.agents;
 
 export const locationPresent = (location: Location): boolean =>
-  location.kind === "path-copy" ? location.present : location.agents.length > 0;
+  location.kind === "agent-copy" ? location.agents.length > 0 : location.present;
 
 export const locationDisplayPath = (name: string, location: Location): string =>
   location.kind === "path-copy"
@@ -47,7 +48,11 @@ type DestinationResult = { destination: Destination; defaulted: boolean };
 export const locationOf = async (skill: InstalledSkill, scope: Scope): Promise<Location> => {
   const placement = placementOf(skill);
   if (placement.kind === "link") {
-    return { kind: "link", agents: await linkedAgents(skill.name, scope) };
+    const agents = await linkedAgents(skill.name, scope);
+    const reached = await Promise.all(
+      agents.map((agent) => linkReachesCanonical(skill.name, scope, agent)),
+    );
+    return { kind: "link", agents, present: reached.includes(true) };
   }
   if (placement.kind === "agent-copy") {
     return {

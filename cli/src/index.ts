@@ -73,6 +73,7 @@ const buildCli = (): CAC => {
     .option("-g, --global", "Use the global scope")
     .option("-p, --project", "Use project scope")
     .option("-y, --yes", "Accept defaults and restore edits")
+    .option("--frozen-lockfile", "Fail when there is no niksi-lock.json")
     .option(
       "--agent <id>",
       "Agents to install to: universal, claude, opencode, kiro, cline, qwen. Agent names such as cursor or codex are accepted. Repeatable",

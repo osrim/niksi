@@ -38,7 +38,15 @@ interface ListRow {
   disabled: boolean;
 }
 
-const isMissing = (row: ListRow): boolean => !row.disabled && !locationPresent(row.location);
+type SkillState = "installed" | "missing" | "modified" | "disabled";
+
+const stateOf = (row: ListRow): SkillState => {
+  if (row.disabled) return "disabled";
+  if (!locationPresent(row.location)) return "missing";
+  return row.modified ? "modified" : "installed";
+};
+
+const isMissing = (row: ListRow): boolean => stateOf(row) === "missing";
 
 export const run = async (options: ListOptions): Promise<void> => {
   if (options.json) return runJson(options);
@@ -152,6 +160,7 @@ const runJson = async (options: ListOptions): Promise<void> => {
         skills: rows.map((row) => {
           const agents = row.disabled ? [] : locationAgents(row.location);
           return Object.assign({ name: row.name }, row.entry, {
+            state: stateOf(row),
             modified: row.modified,
             agents,
             links: agents.map((agent) => skillPath(row.name, scope, agent)),

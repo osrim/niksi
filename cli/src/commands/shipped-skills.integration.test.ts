@@ -52,7 +52,19 @@ test("the skills in skills/ install with nik add and audit with no warn or criti
   }
 
   const audit = await runCli(project, "audit", "--json");
-  const audited = (JSON.parse(audit.stdout) as { skills: AuditedSkill[] }).skills;
+  const report = JSON.parse(audit.stdout) as {
+    skills: AuditedSkill[];
+    missing: string[];
+    disabled: string[];
+  };
+  expect({ missing: report.missing, disabled: report.disabled }).toEqual({
+    missing: [],
+    disabled: [],
+  });
+  const audited = report.skills;
+  expect(audited.map(({ name }) => name).toSorted()).toEqual(
+    listed.map(({ name }) => name).toSorted(),
+  );
   const flagged = audited.flatMap(({ name, findings }) =>
     findings
       .filter((f) => f.severity !== "info")

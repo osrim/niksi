@@ -179,9 +179,7 @@ test("update --check --json reports an unreachable source with its error and exi
     expect(result.exitCode).toBe(1);
     const [skill] = JSON.parse(result.stdout).skills;
     expect(skill).toMatchObject({ name: "lost", verdict: "unreachable", upstream: {} });
-    expect(skill.error).toBe(
-      `cannot reach ${pathToFileURL(gone).href} ('${gone}' does not appear to be a git repository)`,
-    );
+    expect(skill.error).toBe(`cannot reach ${pathToFileURL(gone).href} (not a Git repository)`);
   } finally {
     restore();
   }

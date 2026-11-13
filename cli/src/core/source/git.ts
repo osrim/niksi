@@ -70,6 +70,22 @@ const failureLine = (lines: string[]): string | undefined => {
   return lines[fatal] === REMOTE_UNREADABLE && before?.trim() ? before : lines[fatal];
 };
 
+// Failures with a plain-words reason, matched on the line `firstReason` picks. Git, curl, and
+// ssh print these in English only, so a translated Git keeps its own line.
+const KNOWN_FAILURES: [RegExp, string][] = [
+  [
+    /does not appear to be a git repository|^repository '.*' does not exist$/u,
+    "not a Git repository",
+  ],
+  // curl and ssh (`hostname`), then git:// sources.
+  [/Could not resolve host|^unable to look up /u, "host not found"],
+  // curl, ssh, then git:// sources. Refused and timed out alike.
+  [
+    /Failed to connect to|Connection timed out after|^ssh: connect to host |^unable to connect to /u,
+    "connection failed",
+  ],
+];
+
 // Git ends many failures with a generic advisory paragraph, so its last line explains nothing.
 const firstReason = (err: string): string => {
   const text = err.trim();
@@ -90,7 +106,8 @@ export const gitReason = (result: Pick<GitResult, "err">): string => {
   if (/repository .* not found/u.test(result.err)) {
     return ` (repository not found)\n${NOT_FOUND_REMEDY}`;
   }
-  return ` (${reason})`;
+  const known = KNOWN_FAILURES.find(([pattern]) => pattern.test(reason));
+  return ` (${known?.[1] ?? reason})`;
 };
 
 export interface CloneOptions {

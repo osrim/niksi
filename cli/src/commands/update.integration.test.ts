@@ -463,7 +463,7 @@ test("--all exits 1 when a source is unreachable, after updating the rest", asyn
   }
 
   expect(await readFile(join(fixture.project, "update.md"), "utf8")).toContain(
-    `- \`lost\`: no upstream: \`cannot reach ${lock.skills.lost.source} ('${missing}' does not appear to be a git repository)\``,
+    `- \`lost\`: no upstream: \`cannot reach ${lock.skills.lost.source} (not a Git repository)\``,
   );
   const after = await readSkills(fixture.lockPath);
   expect(after.lost).toEqual(lock.skills.lost);

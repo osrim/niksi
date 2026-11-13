@@ -407,7 +407,7 @@ test("findRef reads a dash-prefixed ref as a ref", async () => {
 
 test("cloneOrFetch reads a dash-prefixed source as the repository", async () => {
   const repo = `--upload-pack=touch ${join(tmp, "probe")}`;
-  await expect(cloneOrFetch(repo)).rejects.toThrow(`(repository '${repo}' does not exist)`);
+  await expect(cloneOrFetch(repo)).rejects.toThrow(`cannot reach ${repo} (not a Git repository)`);
   expect(await probeFiles()).toEqual([]);
 });
 
@@ -487,7 +487,7 @@ test("a clone without sshBatch runs ssh as the user set it up", async () => {
 
 test("a failure on both addresses reports the https attempt the user named", async () => {
   await expect(cloneOrFetch("https://niksi-test.invalid/demo")).rejects.toThrow(
-    /cannot reach https:\/\/niksi-test\.invalid\/demo \(.*niksi-test\.invalid/u,
+    "cannot reach https://niksi-test.invalid/demo (",
   );
 }, 30_000);
 
@@ -512,28 +512,65 @@ test("gitReason names auth and not-found failures and passes the rest through", 
   );
   expect(
     gitReason({
-      err: "fatal: unable to access 'x': Could not resolve host: nope.invalid\n",
+      err: "fatal: unable to access 'x': SSL certificate problem: unable to get local issuer certificate\n",
     }),
-  ).toBe(" (unable to access 'x': Could not resolve host: nope.invalid)");
+  ).toBe(
+    " (unable to access 'x': SSL certificate problem: unable to get local issuer certificate)",
+  );
   expect(gitReason({ err: "" })).toBe("");
 });
 
 const ADVISORY =
   "fatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
 
-test("gitReason keeps the first fatal line, not the advisory paragraph after it", () => {
+test("gitReason says a source is not a Git repository in plain words", () => {
   expect(
     gitReason({ err: `fatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}` }),
-  ).toBe(" ('/srv/gone' does not appear to be a git repository)");
+  ).toBe(" (not a Git repository)");
+  expect(gitReason({ err: "fatal: repository '/srv/gone' does not exist\n" })).toBe(
+    " (not a Git repository)",
+  );
 });
 
-test("gitReason keeps ssh's explanation over git's generic fatal line", () => {
+test("gitReason keeps the first fatal line, not the advisory paragraph after it", () => {
+  expect(
+    gitReason({ err: `fatal: protocol error: bad line length character: Welc\n${ADVISORY}` }),
+  ).toBe(" (protocol error: bad line length character: Welc)");
+});
+
+test("gitReason says a host cannot be found in plain words", () => {
+  expect(
+    gitReason({
+      err: "fatal: unable to access 'https://nope.invalid/x/': Could not resolve host: nope.invalid\n",
+    }),
+  ).toBe(" (host not found)");
   expect(
     gitReason({
       err: `ssh: Could not resolve hostname nope.invalid: nodename nor servname provided, or not known\r\n${ADVISORY}`,
     }),
-  ).toBe(
-    " (ssh: Could not resolve hostname nope.invalid: nodename nor servname provided, or not known)",
+  ).toBe(" (host not found)");
+  expect(
+    gitReason({
+      err: "fatal: unable to look up nope.invalid (port 9418) (nodename nor servname provided, or not known)\n",
+    }),
+  ).toBe(" (host not found)");
+});
+
+test("gitReason says a connection failed in plain words", () => {
+  for (const err of [
+    "fatal: unable to access 'http://127.0.0.1:9/x/': Failed to connect to 127.0.0.1 port 9 after 0 ms: Couldn't connect to server\n",
+    "fatal: unable to access 'https://x/': Connection timed out after 300001 milliseconds\n",
+    `ssh: connect to host 127.0.0.1 port 9: Connection refused\r\n${ADVISORY}`,
+    `ssh: connect to host 192.0.2.1 port 22: Operation timed out\r\n${ADVISORY}`,
+    "fatal: unable to connect to 127.0.0.1:\n127.0.0.1[0: 127.0.0.1]: errno=Connection refused\n",
+  ]) {
+    expect(gitReason({ err })).toBe(" (connection failed)");
+  }
+});
+
+test("gitReason keeps ssh's explanation over git's generic fatal line", () => {
+  expect(gitReason({ err: `Connection closed by 192.0.2.1 port 22\r\n${ADVISORY}` })).toBe(
+    " (Connection closed by 192.0.2.1 port 22)",
   );
 });
 
@@ -569,7 +606,7 @@ test("gitReason skips ssh's warnings and keeps the server's error before git's g
     gitReason({
       err: `** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to "store now, decrypt later" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\nfatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}`,
     }),
-  ).toBe(" ('/srv/gone' does not appear to be a git repository)");
+  ).toBe(" (not a Git repository)");
 });
 
 test("gitReason prefers git's specific fatal line over server text before it", () => {

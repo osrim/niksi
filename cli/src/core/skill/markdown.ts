@@ -60,8 +60,9 @@ interface Tagger {
   tags: Uint8Array;
   starts: number[];
   hidden: Hidden[];
-  // An opener looks up its closer here instead of rescanning the text after it.
+  // An opener looks up its closer in these instead of rescanning the text after it.
   backtickRunsByLength: Map<number, number[]>;
+  commentCloses: number[];
 }
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
@@ -108,8 +109,8 @@ const codeSpan = (t: Tagger, i: number, end: number): number => {
 };
 
 const comment = (t: Tagger, i: number, end: number): number => {
-  const close = t.text.indexOf("-->", i + 4);
-  const closed = close !== -1 && close < end;
+  const close = firstAtOrAfter(t.commentCloses, i + 4);
+  const closed = close !== undefined && close < end;
   hide(t, "comment", i + 4, closed ? close : end);
   return closed ? close + 3 : end;
 };
@@ -337,6 +338,7 @@ export const mapMarkdown = (text: string): MarkdownMap => {
     starts: lineStarts(text),
     hidden: [],
     backtickRunsByLength: indexBacktickRuns(text),
+    commentCloses: Array.from(text.matchAll(/-->/gu), (close) => close.index),
   };
   const skipped = markFrontmatter(t);
   const body = "\n".repeat(skipped) + text.slice(offsetOf(t, skipped));

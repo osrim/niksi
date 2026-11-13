@@ -60,6 +60,8 @@ interface Tagger {
   tags: Uint8Array;
   starts: number[];
   hidden: Hidden[];
+  // Backtick run starts by run length, so an unmatched opener never rescans the text after it.
+  ticks: Map<number, number[]>;
 }
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
@@ -75,17 +77,34 @@ const hide = (t: Tagger, kind: HiddenKind, start: number, end: number): void => 
   t.hidden.push({ kind, start, end, line: lineOf(t.starts, start) + 1 });
 };
 
+const tickRuns = (text: string): Map<number, number[]> => {
+  const runs = new Map<number, number[]>();
+  for (const run of text.matchAll(/`+/gu)) {
+    const starts = runs.get(run[0].length) ?? [];
+    starts.push(run.index);
+    runs.set(run[0].length, starts);
+  }
+  return runs;
+};
+
+const firstFrom = (sorted: readonly number[], from: number): number | undefined => {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid]! < from) lo = mid + 1;
+    else hi = mid;
+  }
+  return sorted[lo];
+};
+
 const codeSpan = (t: Tagger, i: number, end: number): number => {
   let n = 0;
   while (t.text[i + n] === "`") n++;
-  const ticks = /`+/gu;
-  ticks.lastIndex = i + n;
-  for (let run = ticks.exec(t.text); run && run.index < end; run = ticks.exec(t.text)) {
-    if (run[0].length !== n) continue;
-    mark(t, i + n, run.index, "inline");
-    return run.index + n;
-  }
-  return i + n;
+  const close = firstFrom(t.ticks.get(n) ?? [], i + n);
+  if (close === undefined || close >= end) return i + n;
+  mark(t, i + n, close, "inline");
+  return close + n;
 };
 
 const comment = (t: Tagger, i: number, end: number): number => {
@@ -317,6 +336,7 @@ export const mapMarkdown = (text: string): MarkdownMap => {
     tags: new Uint8Array(text.length),
     starts: lineStarts(text),
     hidden: [],
+    ticks: tickRuns(text),
   };
   const skipped = markFrontmatter(t);
   const body = "\n".repeat(skipped) + text.slice(offsetOf(t, skipped));

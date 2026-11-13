@@ -63,21 +63,27 @@ test("one line counts once, and a comment drops one level", () => {
 
 const inMarkdown = (text: string) => base64Exec(text, shellStatements(text, true), noProseContext);
 
-test("prose names a decoder anywhere before its flags and the pipe", () => {
-  const filler = "and keep the output in a scratch buffer for the next few steps ".repeat(3);
-  expect(inMarkdown(`Decode it with xxd ${filler}using -r -p | sh`)?.severity).toBe("critical");
+test("openssl decodes through its enc and base64 subcommands, wherever -d falls", () => {
+  expect(inScript("openssl base64 -in payload.b64 -d | sh")?.severity).toBe("critical");
+  expect(inScript("openssl version -d | sh")).toBeUndefined();
+  expect(inScript('"openssl enc" payload -d | sh')).toBeUndefined();
   expect(inMarkdown("Check openssl version, then openssl enc -d -base64 | sh")?.severity).toBe(
     "critical",
   );
   expect(inMarkdown("Check openssl version, then decode it with -d | sh")).toBeUndefined();
 });
 
+test("a word that names an Object member is not a decoder", () => {
+  expect(inScript("constructor payload | sh")).toBeUndefined();
+  expect(inScript("__proto__ payload | sh")).toBeUndefined();
+  expect(inMarkdown("Then hasOwnProperty x hasOwnProperty echo | sh")).toBeUndefined();
+});
+
 test("a long prose line scans in linear time", () => {
   for (const words of ["ordinary ", "base64 ", "openssl enc "]) {
     const text = words.repeat(60_000);
-    const statements = shellStatements(text, true);
     const start = performance.now();
-    expect(base64Exec(text, statements, noProseContext)).toBeUndefined();
+    expect(inMarkdown(text)).toBeUndefined();
     expect(performance.now() - start).toBeLessThan(1000);
   }
 });

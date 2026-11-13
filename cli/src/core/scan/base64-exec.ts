@@ -33,8 +33,7 @@ const HEX_ESCAPE = /\\x[\da-f]{2}/iu;
 const DECODERS: Record<string, (args: string[]) => boolean> = {
   base64: (args) => args.some((arg) => /^(?:-[a-zA-Z]*[dD][a-zA-Z]*|--decode)$/u.test(arg)),
   xxd: (args) => args.some((arg) => /^-(?:[ps]*r[ps]*|revert)$/u.test(arg)),
-  "openssl enc": (args) => args.includes("-d"),
-  "openssl base64": (args) => args.includes("-d"),
+  openssl: (args) => args.includes("-d"),
   printf: (args) => args.some((arg) => HEX_ESCAPE.test(arg)),
   echo: (args) =>
     args.some((arg) => /^-[a-zA-Z]*e/u.test(arg)) && args.some((arg) => HEX_ESCAPE.test(arg)),
@@ -42,29 +41,43 @@ const DECODERS: Record<string, (args: string[]) => boolean> = {
   gunzip: () => true,
 };
 
-// openssl decodes only through its enc and base64 subcommands.
-const decoderName = (words: string[], i: number): string => {
-  const name = commandName(words[i] ?? "");
-  return name === "openssl" ? `${name} ${words[i + 1] ?? ""}` : name;
+const OPENSSL_DECODES = /^(?:enc|base64)$/u;
+
+interface Decoder {
+  name: string;
+  check: (args: string[]) => boolean;
+  argsFrom: number;
+}
+
+// openssl decodes only through its enc and base64 subcommands, so its name includes one.
+const decoderAt = (words: string[], i: number): Decoder | undefined => {
+  const command = commandName(words[i] ?? "");
+  const check = Object.hasOwn(DECODERS, command) ? DECODERS[command] : undefined;
+  if (check === undefined) return undefined;
+  if (command !== "openssl") return { name: command, check, argsFrom: i + 1 };
+  const subcommand = words[i + 1] ?? "";
+  return OPENSSL_DECODES.test(subcommand)
+    ? { name: `openssl ${subcommand}`, check, argsFrom: i + 2 }
+    : undefined;
 };
 
-const decodesAt = (words: string[], i: number, name: string): boolean =>
-  DECODERS[name]?.(words.slice(i + name.split(" ").length)) ?? false;
+const decodesAt = (words: string[], decoder: Decoder | undefined): boolean =>
+  decoder?.check(words.slice(decoder.argsFrom)) ?? false;
 
 // Prose names the command after other words, as in "decode it with xxd -r | sh".
-// Checking each decoder name from its first start only keeps a long prose line linear.
+// Trying each decoder name from its first start only keeps a long line linear.
 const decodesInProse = (words: string[]): boolean => {
   const tried = new Set<string>();
   return words.some((_, i) => {
-    const name = decoderName(words, i);
-    if (DECODERS[name] === undefined || tried.has(name)) return false;
-    tried.add(name);
-    return decodesAt(words, i, name);
+    const decoder = decoderAt(words, i);
+    if (decoder === undefined || tried.has(decoder.name)) return false;
+    tried.add(decoder.name);
+    return decodesAt(words, decoder);
   });
 };
 
 const decodes = (words: string[], prose: boolean): boolean =>
-  prose ? decodesInProse(words) : decodesAt(words, 0, decoderName(words, 0));
+  prose ? decodesInProse(words) : decodesAt(words, decoderAt(words, 0));
 
 const decodesInside = (body: string): boolean =>
   shellStatements(body, false).some((statement) =>

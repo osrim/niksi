@@ -25,6 +25,7 @@ import {
   linkSkill,
   occupiedAgents,
   removeCanonical,
+  resolvedAgents,
   skillPath,
   unlinkSkill,
   writeCanonical,
@@ -406,6 +407,7 @@ test("copyState counts a dangling symlink as a missing copy, not a modified one"
     modified: [],
   });
   expect(occupiedAgents("lost", "global")).toEqual(["claude"]);
+  expect(resolvedAgents("lost", "global")).toEqual([]);
 });
 
 test("unlinkSkill refuses a symlink that does not point at the canonical dir", async () => {

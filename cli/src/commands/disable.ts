@@ -4,6 +4,7 @@ import {
   holdsOwnSource,
   installedSkills,
   locationAgents,
+  occupiedLocationAgents,
   locationsOf,
   modifiedSkills,
   removeInstalledSkill,
@@ -58,7 +59,7 @@ export const run = async (args: string[], options: DisableOptions): Promise<void
     return;
   }
 
-  const agents = new Set(names.flatMap((name) => locationAgents(locations.get(name)!)));
+  const agents = new Set(names.flatMap((name) => occupiedLocationAgents(locations.get(name)!)));
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }

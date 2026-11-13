@@ -100,8 +100,7 @@ export const linkReachesCanonical = async (
 export const occupiedAgents = (name: string, scope: Scope): AgentId[] =>
   SKILLS_DIRS.filter((dir) => present(skillPath(name, scope, dir.id))).map((dir) => dir.id);
 
-// Unlike occupiedAgents, follows symlinks, so a dangling link holds no copy.
-export const copiedAgents = (name: string, scope: Scope): AgentId[] =>
+export const resolvedAgents = (name: string, scope: Scope): AgentId[] =>
   SKILLS_DIRS.filter((dir) => existsSync(skillPath(name, scope, dir.id))).map((dir) => dir.id);
 
 export const linkSkill = async (name: string, scope: Scope, agent: AgentId): Promise<void> => {

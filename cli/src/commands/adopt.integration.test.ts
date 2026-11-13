@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -174,9 +175,7 @@ test("an adopted npx copy whose real directory is gone is missing, and install r
   await rename(join(dir, ".agents", "skills", "pdf"), join(tmp, "npx-lost-moved"));
   await rm(join(dir, ".claude", "skills", "zeta"), { recursive: true });
 
-  const listed = await runCli(dir, "list", "-p", "--json");
-  expect(listed.exitCode).toBe(0);
-  expect(JSON.parse(listed.stdout).skills).toMatchObject([
+  expect(await listJson(dir)).toMatchObject([
     { name: "pdf", state: "missing", agents: [] },
     { name: "zeta", state: "missing", agents: [] },
   ]);
@@ -191,6 +190,25 @@ test("an adopted npx copy whose real directory is gone is missing, and install r
     { name: "pdf", state: "installed", agents: ["universal", "claude"] },
     { name: "zeta", state: "installed", agents: ["claude"] },
   ]);
+});
+
+test("removing an adopted npx copy whose real directory is gone deletes its dangling link", async () => {
+  const dir = await project("npx-lost-remove");
+  const source = join(tmp, "npx-lost-remove-source");
+  await writeSkillMd(join(source, "pdf"), V1);
+  await writeSkillMd(join(dir, ".agents", "skills", "pdf"), V1);
+  await mkdir(join(dir, ".claude", "skills"), { recursive: true });
+  await symlink("../../.agents/skills/pdf", join(dir, ".claude", "skills", "pdf"));
+  expect((await runCli(dir, "adopt", "pdf", "-p", "-y", "--source", source)).exitCode).toBe(0);
+  await rename(join(dir, ".agents", "skills", "pdf"), join(tmp, "npx-lost-remove-moved"));
+
+  expect((await runCli(dir, "remove", "pdf", "-p", "-y")).exitCode).toBe(0);
+  expect(await readLockJson(dir)).toEqual({});
+  expect(await lstat(join(dir, ".claude", "skills", "pdf")).catch(() => null)).toBeNull();
+
+  const added = await runCli(dir, "add", source, "pdf", "-p", "--agent", "claude", "-y");
+  expect(added.exitCode).toBe(0);
+  expect(await readFile(join(dir, ".claude", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V1);
 });
 
 test("an ssh entry in skills-lock.json is cloned with ssh set to fail instead of asking", async () => {

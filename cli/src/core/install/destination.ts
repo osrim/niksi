@@ -2,13 +2,14 @@ import { AGENT_IDS, defaultAgents, type AgentId } from "./agents.ts";
 import type { Destination } from "./apply.ts";
 import {
   canonicalPath,
-  copiedAgents,
   copyState,
   dirModified,
   linkedAgents,
   linkReachesCanonical,
+  occupiedAgents,
   removeCanonical,
   removeCopy,
+  resolvedAgents,
   skillPath,
   unlinkSkill,
 } from "./link.ts";
@@ -26,11 +27,15 @@ export const installedSkills = (lock: Lockfile): InstalledSkill[] =>
 
 export type Location =
   | { kind: "link"; agents: AgentId[]; present: boolean }
-  | { kind: "agent-copy"; agents: AgentId[] }
+  | { kind: "agent-copy"; agents: AgentId[]; occupied: AgentId[] }
   | { kind: "path-copy"; copyPath: string; present: boolean };
 
 export const locationAgents = (location: Location): AgentId[] =>
   location.kind === "path-copy" ? [] : location.agents;
+
+// Includes dangling links, which hold no copy but still need removing.
+export const occupiedLocationAgents = (location: Location): AgentId[] =>
+  location.kind === "agent-copy" ? location.occupied : locationAgents(location);
 
 export const locationPresent = (location: Location): boolean =>
   location.kind === "agent-copy" ? location.agents.length > 0 : location.present;
@@ -41,7 +46,7 @@ export const locationDisplayPath = (name: string, location: Location): string =>
     : location.agents.join(", ");
 
 const presentAgents = (name: string, scope: Scope, recorded: AgentId[]): AgentId[] =>
-  copiedAgents(name, scope).filter((agent) => recorded.includes(agent));
+  resolvedAgents(name, scope).filter((agent) => recorded.includes(agent));
 
 type DestinationResult = { destination: Destination; defaulted: boolean };
 
@@ -58,6 +63,9 @@ export const locationOf = async (skill: InstalledSkill, scope: Scope): Promise<L
     return {
       kind: "agent-copy",
       agents: presentAgents(skill.name, scope, placement.agents),
+      occupied: occupiedAgents(skill.name, scope).filter((agent) =>
+        placement.agents.includes(agent),
+      ),
     };
   }
   const { copyPath } = placement;
@@ -230,7 +238,7 @@ export const removeInstalledSkill = async (
     return;
   }
   if (location.kind === "agent-copy") {
-    for (const agent of location.agents) await removeCopy(name, scope, agent);
+    for (const agent of occupiedLocationAgents(location)) await removeCopy(name, scope, agent);
     return;
   }
   await removePathCopy(name, location.copyPath);

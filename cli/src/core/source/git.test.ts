@@ -517,3 +517,44 @@ test("gitReason names auth and not-found failures and passes the rest through", 
   ).toBe(" (unable to access 'x': Could not resolve host: nope.invalid)");
   expect(gitReason({ err: "" })).toBe("");
 });
+
+const ADVISORY =
+  "fatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
+
+test("gitReason keeps the first fatal line, not the advisory paragraph after it", () => {
+  expect(
+    gitReason({ err: `fatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}` }),
+  ).toBe(" ('/srv/gone' does not appear to be a git repository)");
+});
+
+test("gitReason keeps ssh's explanation over git's generic fatal line", () => {
+  expect(
+    gitReason({
+      err: `ssh: Could not resolve hostname nope.invalid: nodename nor servname provided, or not known\r\n${ADVISORY}`,
+    }),
+  ).toBe(
+    " (ssh: Could not resolve hostname nope.invalid: nodename nor servname provided, or not known)",
+  );
+});
+
+test("gitReason takes the first error line past hints and warnings when there is no fatal line", () => {
+  expect(
+    gitReason({
+      err: "hint: Run 'git maintenance' to repack.\nwarning: refname 'main' is ambiguous.\nerror: unable to read tree 0123abcd\nerror: could not fetch 0123abcd from promisor remote\n",
+    }),
+  ).toBe(" (unable to read tree 0123abcd)");
+});
+
+test("gitReason joins a wrapped paragraph when git names no fatal or error line", () => {
+  expect(
+    gitReason({
+      err: "\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+    }),
+  ).toBe(" (Please make sure you have the correct access rights and the repository exists.)");
+});
+
+test("gitReason keeps a warning when it is all git printed", () => {
+  expect(gitReason({ err: "warning: unable to access '/home/me/.config/git/attributes'\n" })).toBe(
+    " (warning: unable to access '/home/me/.config/git/attributes')",
+  );
+});

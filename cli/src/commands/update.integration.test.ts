@@ -442,12 +442,16 @@ test("a Git source that lost a named skill exits 1 after updating the rest", asy
 test("--all exits 1 when a source is unreachable, after updating the rest", async () => {
   const fixture = await setupUpdate("all-unreachable", ["lost", "kept"], ["kept"]);
   const lock = JSON.parse(await readFile(fixture.lockPath, "utf8"));
-  lock.skills.lost.source = pathToFileURL(join(tmp, "all-unreachable-missing")).href;
+  const missing = join(tmp, "all-unreachable-missing");
+  lock.skills.lost.source = pathToFileURL(missing).href;
   await writeFile(fixture.lockPath, `${JSON.stringify(lock, null, 2)}\n`);
 
-  const result = await runCli(fixture.project, "update", "--all", "--yes");
+  const result = await runCli(fixture.project, "update", "--all", "--yes", "--report", "update.md");
 
   expect(result.exitCode).toBe(1);
+  expect(await readFile(join(fixture.project, "update.md"), "utf8")).toContain(
+    `- \`lost\`: no upstream: \`cannot reach ${lock.skills.lost.source} ('${missing}' does not appear to be a git repository)\``,
+  );
   const after = await readSkills(fixture.lockPath);
   expect(after.lost).toEqual(lock.skills.lost);
   expect(after.kept?.commit).toBe(fixture.upstreamCommit);

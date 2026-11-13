@@ -58,12 +58,26 @@ const NOT_FOUND_REMEDY =
   "Check the name. A private repo also reads as not found when git has no credentials for it.";
 const AUTH_FAILURE =
   /terminal prompts disabled|Authentication failed|Permission denied|Host key verification/u;
-export const gitReason = (result: Pick<GitResult, "err">): string => {
-  const line = result.err
+const NOTE = /^(?:hint|warning):/u;
+const holding =
+  (prefix: string) =>
+  (paragraph: string[]): boolean =>
+    paragraph.some((line) => line.startsWith(prefix));
+
+// Git ends many failures with a generic advisory paragraph, so its last line explains nothing.
+// The explanation opens the paragraph that holds the fatal line, and ssh may write it there first.
+const firstReason = (err: string): string => {
+  const paragraphs = err
     .trim()
-    .split("\n")
-    .findLast(Boolean)
-    ?.replace(/^fatal:\s*/u, "");
+    .split(/\r?\n\s*\r?\n/u)
+    .map((p) => p.split(/\r?\n/u).filter((line) => !NOTE.test(line)));
+  const failure = paragraphs.find(holding("fatal:")) ?? paragraphs.find(holding("error:"));
+  if (failure) return failure[0]!.replace(/^(?:fatal|error):\s*/u, "");
+  return paragraphs.find((p) => p.length > 0)?.join(" ") ?? err.trim().split(/\r?\n/u)[0]!;
+};
+
+export const gitReason = (result: Pick<GitResult, "err">): string => {
+  const line = firstReason(result.err);
   if (!line) return "";
   if (AUTH_FAILURE.test(result.err)) return ` (authentication failed)\n${AUTH_REMEDY}`;
   if (/repository .* not found/u.test(result.err)) {

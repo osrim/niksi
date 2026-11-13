@@ -87,15 +87,15 @@ bun scripts/brew-formula.ts alpha 0.2.0-alpha.0 dist/checksums.txt dist/tap
 brew style dist/tap/Formula/*.rb
 ```
 
-To check the npm packages locally, stage them with the binary you just built. Then install the two that fit this machine into an empty directory. `npm pack --dry-run` on `dist/npm/niksi` must list only `LICENSE`, `README.md`, `bin/nik.js`, and `package.json`.
+To check the npm packages locally, stage them with the binary you just built. Then install the two that fit this machine into a new empty directory. `--install-links` copies them in the way a registry install does. Without it, npm links the directories and `nik` can't find its binary. `npm pack --dry-run` on `dist/npm/niksi` must list only `LICENSE`, `README.md`, `bin/nik.js`, and `package.json`.
 
 ```sh
 platform=$(./dist/nik --version | cut -d' ' -f2)   # darwin-arm64, linux-x64, ...
 bun scripts/npm-packages.ts 0.1.0 dist/npm
 cp dist/nik "dist/npm/niksi-$platform/nik"
 npm pack --dry-run dist/npm/niksi
-mkdir -p /tmp/niksi-npm && cd /tmp/niksi-npm && npm init -y > /dev/null
-npm install "$OLDPWD/dist/npm/niksi" "$OLDPWD/dist/npm/niksi-$platform"
+cd "$(mktemp -d)" && npm init -y > /dev/null
+npm install --install-links "$OLDPWD/dist/npm/niksi" "$OLDPWD/dist/npm/niksi-$platform"
 ./node_modules/.bin/nik --version
 ```
 

@@ -584,10 +584,14 @@ test("add writes a skill from a source that niksi.json allows", async () => {
   );
 });
 
-const helperSource = async (path: string, body: string, ...extra: string[]) => {
+const helperSource = async (
+  path: string,
+  body: string,
+  ...otherSkills: string[]
+): Promise<{ source: string; commit: string }> => {
   const repo = join(tmp, path);
   await makeSkill(repo, "helper", body);
-  for (const name of extra) await makeSkill(repo, name);
+  for (const name of otherSkills) await makeSkill(repo, name);
   await initRepo(repo);
   return { source: pathToFileURL(repo).href, commit: await commitAll(repo, body) };
 };

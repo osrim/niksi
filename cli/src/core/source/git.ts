@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, rm, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { cacheDir } from "../paths.ts";
 
 interface GitResult {
@@ -138,7 +138,7 @@ export const cloneOrFetch = async (repo: string, options: CloneOptions = {}): Pr
     await rename(fresh, dir);
     return dir;
   }
-  await mkdir(join(cacheDir(), "repos"), { recursive: true });
+  await mkdir(dirname(dir), { recursive: true });
   const cloned = await cloneTo(repo, dir, sshBatch);
   if (cloned.code !== 0) {
     await rm(dir, { recursive: true, force: true });

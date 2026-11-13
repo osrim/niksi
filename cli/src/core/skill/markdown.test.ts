@@ -153,7 +153,8 @@ test("many paragraphs with unclosed comments map in linear time", () => {
   const text = "a <!--\n\n".repeat(80_000);
   const started = performance.now();
   const map = mapMarkdown(text);
-  expect(performance.now() - started).toBeLessThan(250);
+  // Linear takes about 250ms on a CI runner; rescanning for each closer takes seconds.
+  expect(performance.now() - started).toBeLessThan(500);
   expect(map.hidden).toHaveLength(80_000);
 });
 

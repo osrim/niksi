@@ -592,7 +592,7 @@ On GitHub Actions, use the [`niksi` action](ci.md). On other CI systems, install
 
 ```sh
 set -e
-NIKSI_VERSION=0.3.0
+NIKSI_VERSION=0.5.0
 BASE="https://github.com/osrim/niksi/releases/download/v$NIKSI_VERSION"
 curl -fsSLO "$BASE/niksi-linux-x64.tar.gz"
 curl -fsSL "$BASE/checksums.txt" | grep niksi-linux-x64.tar.gz | sha256sum -c -

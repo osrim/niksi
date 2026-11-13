@@ -1,0 +1,28 @@
+# niksi
+
+> `nik` installs agent skills from Git repositories and local directories. It
+> scans every file before it writes, records each skill in `niksi-lock.json`,
+> and links it into Claude Code, Codex, Cursor, and other agents.
+
+The binary is `nik`. `npx niksi` runs it without installing. An agent's shell
+has no terminal, so pass every answer as a flag, and leave critical findings
+for the user to approve in their own terminal. The niksi skill teaches an
+agent this workflow.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/osrim/niksi/main/README.md): what niksi does, how to install it, and a quick start
+- [Commands](https://raw.githubusercontent.com/osrim/niksi/main/docs/commands.md): every command, flag, and exit code, plus non-interactive use and `nik list --json`
+- [Configuration](https://raw.githubusercontent.com/osrim/niksi/main/docs/configuration.md): scope, agents, paths, environment variables, and the project's `niksi.json`
+- [Lockfile format](https://raw.githubusercontent.com/osrim/niksi/main/docs/lockfile.md): every field of `niksi-lock.json` and how the integrity is computed
+- [Security scan](https://raw.githubusercontent.com/osrim/niksi/main/docs/security-scan.md): what the scan catches, its severities, and what it cannot catch
+- [CI](https://raw.githubusercontent.com/osrim/niksi/main/docs/ci.md): the GitHub Action and its modes
+
+## Agent skill
+
+- [niksi skill](https://raw.githubusercontent.com/osrim/niksi/main/skills/niksi/SKILL.md): install, update, and read installed skills with `nik` from an agent's shell. Install it in a project with `nik add osrim/niksi niksi -p`
+
+## Optional
+
+- [Changelog](https://raw.githubusercontent.com/osrim/niksi/main/CHANGELOG.md): changes in each release
+- [Contributing](https://raw.githubusercontent.com/osrim/niksi/main/CONTRIBUTING.md): how to report a bug and submit a change

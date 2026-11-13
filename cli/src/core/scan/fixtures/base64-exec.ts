@@ -1,5 +1,7 @@
 import { entry, type Case } from "../test-fixture.ts";
 
+const filler = "and keep the output in a scratch buffer for the next few steps ".repeat(3);
+
 export default [
   {
     name: "base64 decoded into sh",
@@ -56,6 +58,12 @@ export default [
     fire: [{ severity: "critical", line: 1 }],
   },
   {
+    name: "prose names the decoder long before its flags and the pipe",
+    path: "SKILL.md",
+    content: entry(`Decode it with xxd ${filler}using -r -p | sh`),
+    fire: [{ severity: "critical", line: 5 }],
+  },
+  {
     name: "a certificate decoded into a file",
     path: "SKILL.md",
     content: entry('echo "$CERT_B64" | base64 -d > cert.pem'),
@@ -89,6 +97,12 @@ export default [
     name: "F8 a warning against eval",
     path: "SKILL.md",
     content: entry("Never eval base64 input from users."),
+    silent: "none",
+  },
+  {
+    name: "one long line of prose that names decoders",
+    path: "SKILL.md",
+    content: entry("Decode it with base64 or xxd and read the result. ".repeat(4000)),
     silent: "none",
   },
 ] satisfies Case[];

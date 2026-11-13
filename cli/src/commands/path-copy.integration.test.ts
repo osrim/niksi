@@ -243,6 +243,8 @@ test("a path copy at a dangling symlink is missing, and install restores it", as
   ).toBe(0);
 
   const target = join(project, "published", "demo");
+  const lockPath = join(project, "niksi-lock.json");
+  const beforeLock = await readFile(lockPath, "utf8");
   await rm(target, { recursive: true });
   await symlink(join(tmp, "dangling-gone"), target);
   const listed = await runCli(project, "list", "--json");
@@ -254,6 +256,12 @@ test("a path copy at a dangling symlink is missing, and install restores it", as
   expect((await runCli(project, "install", "--yes")).exitCode).toBe(0);
   expect((await lstat(target)).isDirectory()).toBe(true);
   expect(await readFile(join(target, "SKILL.md"), "utf8")).toContain("name: demo");
+  expect(await readFile(lockPath, "utf8")).toBe(beforeLock);
+  const relisted = await runCli(project, "list", "--json");
+  expect(relisted.exitCode).toBe(0);
+  expect(JSON.parse(relisted.stdout).skills).toMatchObject([
+    { name: "demo", state: "installed", copyPath: "published" },
+  ]);
 });
 
 test("install keeps a modified path copy without --yes and replaces it with --yes", async () => {

@@ -60,6 +60,9 @@ interface Tagger {
   tags: Uint8Array;
   starts: number[];
   hidden: Hidden[];
+  // An opener looks up its closer in these instead of rescanning the text after it.
+  backtickRunsByLength: Map<number, number[]>;
+  commentCloses: number[];
 }
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
@@ -75,22 +78,39 @@ const hide = (t: Tagger, kind: HiddenKind, start: number, end: number): void => 
   t.hidden.push({ kind, start, end, line: lineOf(t.starts, start) + 1 });
 };
 
+const indexBacktickRuns = (text: string): Map<number, number[]> => {
+  const runs = new Map<number, number[]>();
+  for (const run of text.matchAll(/`+/gu)) {
+    const starts = runs.get(run[0].length) ?? [];
+    starts.push(run.index);
+    runs.set(run[0].length, starts);
+  }
+  return runs;
+};
+
+const firstAtOrAfter = (sorted: readonly number[], from: number): number | undefined => {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid]! < from) lo = mid + 1;
+    else hi = mid;
+  }
+  return sorted[lo];
+};
+
 const codeSpan = (t: Tagger, i: number, end: number): number => {
   let n = 0;
   while (t.text[i + n] === "`") n++;
-  const ticks = /`+/gu;
-  ticks.lastIndex = i + n;
-  for (let run = ticks.exec(t.text); run && run.index < end; run = ticks.exec(t.text)) {
-    if (run[0].length !== n) continue;
-    mark(t, i + n, run.index, "inline");
-    return run.index + n;
-  }
-  return i + n;
+  const close = firstAtOrAfter(t.backtickRunsByLength.get(n) ?? [], i + n);
+  if (close === undefined || close >= end) return i + n;
+  mark(t, i + n, close, "inline");
+  return close + n;
 };
 
 const comment = (t: Tagger, i: number, end: number): number => {
-  const close = t.text.indexOf("-->", i + 4);
-  const closed = close !== -1 && close < end;
+  const close = firstAtOrAfter(t.commentCloses, i + 4);
+  const closed = close !== undefined && close < end;
   hide(t, "comment", i + 4, closed ? close : end);
   return closed ? close + 3 : end;
 };
@@ -317,6 +337,8 @@ export const mapMarkdown = (text: string): MarkdownMap => {
     tags: new Uint8Array(text.length),
     starts: lineStarts(text),
     hidden: [],
+    backtickRunsByLength: indexBacktickRuns(text),
+    commentCloses: Array.from(text.matchAll(/-->/gu), (close) => close.index),
   };
   const skipped = markFrontmatter(t);
   const body = "\n".repeat(skipped) + text.slice(offsetOf(t, skipped));

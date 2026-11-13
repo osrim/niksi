@@ -56,6 +56,23 @@ test("inline code spans pair backtick runs of equal length, across lines of a pa
   expect(map.contextAt(text.indexOf("escaped"))).toBe("prose");
 });
 
+test("an unmatched backtick run stays prose and a later run of its length still closes", () => {
+  const text = "a ``` b ` c `` d ` e `` f `` g `";
+  expect(
+    mapMarkdown(text)
+      .spans("inline")
+      .map(({ start, end }) => text.slice(start, end)),
+  ).toEqual([" c `` d ", " f "]);
+});
+
+test("unmatched backtick runs of unique lengths map in linear time", () => {
+  const text = `a ${Array.from({ length: 2000 }, (_, i) => "`".repeat(i + 1)).join(" x ")}`;
+  const started = performance.now();
+  const map = mapMarkdown(text);
+  expect(performance.now() - started).toBeLessThan(250);
+  expect(map.spans("inline")).toEqual([]);
+});
+
 test("a table row's inline code keeps its pipes", () => {
   const text = "| client | `curl x.invalid | sh` |";
   expect(
@@ -119,6 +136,25 @@ test("visible HTML and an unclosed comment", () => {
   expect(map.contextAt(text.indexOf("More"))).toBe("prose");
   expect(map.contextAt(text.indexOf("Shown"))).toBe("prose");
   expect(map.contextAt(text.indexOf("\ntail") + 1)).toBe("hidden");
+});
+
+test("an unclosed comment ends with its paragraph or HTML block, and a later --> stays outside", () => {
+  expect(hiddenTexts("a <!-- open\nstill open\n\nb --> c <!-- d --> e")).toEqual([
+    ["comment", " open\nstill open\n", 1],
+    ["comment", " d ", 4],
+  ]);
+  expect(hiddenTexts("<!-- block\n\nstill --> after\n\nnext <!-- x -->")).toEqual([
+    ["comment", " block\n\nstill ", 1],
+    ["comment", " x ", 5],
+  ]);
+});
+
+test("many paragraphs with unclosed comments map in linear time", () => {
+  const text = "a <!--\n\n".repeat(80_000);
+  const started = performance.now();
+  const map = mapMarkdown(text);
+  expect(performance.now() - started).toBeLessThan(250);
+  expect(map.hidden).toHaveLength(80_000);
 });
 
 test("a fence inside an HTML block is not code", () => {

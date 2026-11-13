@@ -1,6 +1,15 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -220,6 +229,30 @@ test("install restores a missing path copy without selecting agents", async () =
   expect(installed.stdout).not.toContain("Linking to");
   expect(installed.stdout).not.toContain("No agent detected");
   expect(installed.stdout).toContain("Installed 1/1 skill(s) (project: published)");
+  expect(await readFile(join(target, "SKILL.md"), "utf8")).toContain("name: demo");
+});
+
+test("a path copy at a dangling symlink is missing, and install restores it", async () => {
+  const project = join(tmp, "dangling-project");
+  const source = join(tmp, "dangling-source");
+  await mkdir(join(project, ".git"), { recursive: true });
+  await makeSkill(source, "demo");
+  expect(
+    (await runCli(project, "add", source, "--copy", "--path", "published", "--all", "--yes"))
+      .exitCode,
+  ).toBe(0);
+
+  const target = join(project, "published", "demo");
+  await rm(target, { recursive: true });
+  await symlink(join(tmp, "dangling-gone"), target);
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toMatchObject([
+    { name: "demo", state: "missing", copyPath: "published" },
+  ]);
+
+  expect((await runCli(project, "install", "--yes")).exitCode).toBe(0);
+  expect((await lstat(target)).isDirectory()).toBe(true);
   expect(await readFile(join(target, "SKILL.md"), "utf8")).toContain("name: demo");
 });
 

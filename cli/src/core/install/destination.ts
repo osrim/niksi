@@ -2,11 +2,11 @@ import { AGENT_IDS, defaultAgents, type AgentId } from "./agents.ts";
 import type { Destination } from "./apply.ts";
 import {
   canonicalPath,
+  copiedAgents,
   copyState,
   dirModified,
   linkedAgents,
   linkReachesCanonical,
-  occupiedAgents,
   removeCanonical,
   removeCopy,
   skillPath,
@@ -41,7 +41,7 @@ export const locationDisplayPath = (name: string, location: Location): string =>
     : location.agents.join(", ");
 
 const presentAgents = (name: string, scope: Scope, recorded: AgentId[]): AgentId[] =>
-  occupiedAgents(name, scope).filter((agent) => recorded.includes(agent));
+  copiedAgents(name, scope).filter((agent) => recorded.includes(agent));
 
 type DestinationResult = { destination: Destination; defaulted: boolean };
 

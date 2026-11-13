@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readFile,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -152,6 +153,44 @@ test("an npx skills copy and its symlink match the commit in skills-lock.json, t
   expect(updated.exitCode).toBe(0);
   expect((await readLockJson(dir))["pdf"]).toMatchObject({ commit: commits[1] });
   expect(await readFile(join(dir, ".agents", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V2);
+});
+
+test("an adopted npx copy whose real directory is gone is missing, and install restores it", async () => {
+  const dir = await project("npx-lost");
+  const source = join(tmp, "npx-lost-source");
+  const zeta = V1.replaceAll("pdf", "zeta").replace("PDF", "Zeta");
+  await writeSkillMd(join(source, "pdf"), V1);
+  await writeSkillMd(join(source, "zeta"), zeta);
+  await writeSkillMd(join(dir, ".agents", "skills", "pdf"), V1);
+  await writeSkillMd(join(dir, ".claude", "skills", "zeta"), zeta);
+  await symlink("../../.agents/skills/pdf", join(dir, ".claude", "skills", "pdf"));
+
+  const adopted = await runCli(dir, "adopt", "pdf", "zeta", "-p", "-y", "--source", source);
+  expect(adopted.exitCode).toBe(0);
+  const lock = await readLockJson(dir);
+  expect(lock["pdf"]).toMatchObject({ copy: true, agents: ["universal", "claude"] });
+  expect(lock["zeta"]).toMatchObject({ copy: true, agents: ["claude"] });
+
+  await rename(join(dir, ".agents", "skills", "pdf"), join(tmp, "npx-lost-moved"));
+  await rm(join(dir, ".claude", "skills", "zeta"), { recursive: true });
+
+  const listed = await runCli(dir, "list", "-p", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toMatchObject([
+    { name: "pdf", state: "missing", agents: [] },
+    { name: "zeta", state: "missing", agents: [] },
+  ]);
+
+  const installed = await runCli(dir, "install", "-p", "-y");
+  expect(installed.exitCode).toBe(0);
+  expect(await readFile(join(dir, ".agents", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V1);
+  expect(await readFile(join(dir, ".claude", "skills", "pdf", "SKILL.md"), "utf8")).toBe(V1);
+  expect(await readFile(join(dir, ".claude", "skills", "zeta", "SKILL.md"), "utf8")).toBe(zeta);
+  expect(await readLockJson(dir)).toEqual(lock);
+  expect(await listJson(dir)).toMatchObject([
+    { name: "pdf", state: "installed", agents: ["universal", "claude"] },
+    { name: "zeta", state: "installed", agents: ["claude"] },
+  ]);
 });
 
 test("an ssh entry in skills-lock.json is cloned with ssh set to fail instead of asking", async () => {

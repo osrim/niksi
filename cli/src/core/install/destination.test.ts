@@ -79,6 +79,29 @@ test("a link's agents come from disk, a copy's from the entry's directories that
   });
 });
 
+test("an agent copy reached through a dangling symlink is missing, and install rewrites it", async () => {
+  await copySkill("npx", files, "global", "universal", false);
+  const claudeCopy = skillPath("npx", "global", "claude");
+  await mkdir(dirname(claudeCopy), { recursive: true });
+  await symlink(relative(dirname(claudeCopy), skillPath("npx", "global", "universal")), claudeCopy);
+  const npx = entry("npx", ["universal", "claude"]);
+  expect(await locationOf(npx, "global")).toEqual({
+    kind: "agent-copy",
+    agents: ["universal", "claude"],
+  });
+
+  await rm(skillPath("npx", "global", "universal"), { recursive: true });
+  expect(await locationOf(npx, "global")).toEqual({ kind: "agent-copy", agents: [] });
+  expect(await installedPaths(npx, "global")).toEqual([]);
+  expect([...(await modifiedSkills([npx], "global"))]).toEqual([]);
+  expect(await installDestination(npx, "global", ["claude"])).toEqual({
+    kind: "agent-copy",
+    scope: "global",
+    agents: ["universal", "claude"],
+    managed: ["universal", "claude"],
+  });
+});
+
 test("a link is present only when one agent link leads to its canonical copy", async () => {
   await linkInto("retargeted", "claude", "opencode");
   const claudeLink = skillPath("retargeted", "global", "claude");

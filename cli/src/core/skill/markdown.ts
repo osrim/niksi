@@ -60,8 +60,8 @@ interface Tagger {
   tags: Uint8Array;
   starts: number[];
   hidden: Hidden[];
-  // Backtick run starts by run length, so an unmatched opener never rescans the text after it.
-  ticks: Map<number, number[]>;
+  // An opener looks up its closer here instead of rescanning the text after it.
+  backtickRunsByLength: Map<number, number[]>;
 }
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
@@ -77,7 +77,7 @@ const hide = (t: Tagger, kind: HiddenKind, start: number, end: number): void => 
   t.hidden.push({ kind, start, end, line: lineOf(t.starts, start) + 1 });
 };
 
-const tickRuns = (text: string): Map<number, number[]> => {
+const indexBacktickRuns = (text: string): Map<number, number[]> => {
   const runs = new Map<number, number[]>();
   for (const run of text.matchAll(/`+/gu)) {
     const starts = runs.get(run[0].length) ?? [];
@@ -87,7 +87,7 @@ const tickRuns = (text: string): Map<number, number[]> => {
   return runs;
 };
 
-const firstFrom = (sorted: readonly number[], from: number): number | undefined => {
+const firstAtOrAfter = (sorted: readonly number[], from: number): number | undefined => {
   let lo = 0;
   let hi = sorted.length;
   while (lo < hi) {
@@ -101,7 +101,7 @@ const firstFrom = (sorted: readonly number[], from: number): number | undefined 
 const codeSpan = (t: Tagger, i: number, end: number): number => {
   let n = 0;
   while (t.text[i + n] === "`") n++;
-  const close = firstFrom(t.ticks.get(n) ?? [], i + n);
+  const close = firstAtOrAfter(t.backtickRunsByLength.get(n) ?? [], i + n);
   if (close === undefined || close >= end) return i + n;
   mark(t, i + n, close, "inline");
   return close + n;
@@ -336,7 +336,7 @@ export const mapMarkdown = (text: string): MarkdownMap => {
     tags: new Uint8Array(text.length),
     starts: lineStarts(text),
     hidden: [],
-    ticks: tickRuns(text),
+    backtickRunsByLength: indexBacktickRuns(text),
   };
   const skipped = markFrontmatter(t);
   const body = "\n".repeat(skipped) + text.slice(offsetOf(t, skipped));

@@ -183,7 +183,7 @@ The `pull-request` job needs the same [permissions and repository setting](#perm
 
 ## Scan a skill repository
 
-Scan mode checks the skills you publish the way `nik add` checks them for your users. It copies every skill under `path` into a temporary project with `nik add --all --copy`, then scans the copies with `nik audit`. It fails the step on a critical finding. Warn and info findings don't fail it.
+Scan mode checks the skills you publish the way `nik add` checks them for your users. It copies every skill under `path` into a temporary project with `nik add --all --copy`, then scans the copies with `nik audit`. It fails the step on a critical finding. Warn and info findings don't fail it. The scanned repository's `niksi.json` doesn't apply in that temporary project, so `policy.denyWarn` doesn't make a warn finding fail the step.
 
 ```yaml
 name: skill scan

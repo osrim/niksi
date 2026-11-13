@@ -10,7 +10,14 @@ import {
 } from "../core/install/destination.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { Scope } from "../core/paths.ts";
-import { CRITICAL_EXIT, markAccepted, runScanners, type Finding } from "../core/scan/index.ts";
+import { PROJECT_CONFIG_NAME, readProjectConfig } from "../core/project-config.ts";
+import {
+  CRITICAL_EXIT,
+  markAccepted,
+  markDenyWarn,
+  runScanners,
+  type Finding,
+} from "../core/scan/index.ts";
 import { rank } from "../core/scan/severity.ts";
 import { readDirFiles, type SkillFile } from "../core/skill/files.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
@@ -21,7 +28,7 @@ import { skillName, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
-    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings that the lockfile does not accept.",
+    "Scan installed skills with the current rules. Exits 1 on warn findings and 3 on critical findings that the lockfile does not accept. When niksi.json sets policy.denyWarn, warn findings exit 3.",
   examples: ["$ nik audit", "$ nik audit -g", "$ nik audit --json"],
 };
 
@@ -51,6 +58,9 @@ const flags = (finding: Finding, flag: Flag): boolean =>
 const flagged = (scanned: Scanned[], flag: Flag): number =>
   scanned.filter(({ findings }) => findings.some((finding) => flags(finding, flag))).length;
 
+const deniesWarn = (scanned: Scanned[]): boolean =>
+  scanned.some(({ findings }) => findings.some(({ deniedBy }) => deniedBy !== undefined));
+
 const acceptedCount = (scanned: Scanned[]): number =>
   scanned.reduce(
     (sum, { findings }) => sum + findings.filter(({ accepted }) => accepted).length,
@@ -74,9 +84,13 @@ const scanCopies = (name: string, contents: SkillFile[][]): Finding[] => {
   );
 };
 
-const scanSkill = (skill: InstalledSkill, copies: SkillFile[][]): Scanned => {
+const scanSkill = (
+  skill: InstalledSkill,
+  copies: SkillFile[][],
+  denyWarn: boolean | undefined,
+): Scanned => {
   const contents = new Map(copies.map((files) => [integrityOf(files), files]));
-  const findings = scanCopies(skill.name, [...contents.values()]);
+  const findings = markDenyWarn(scanCopies(skill.name, [...contents.values()]), denyWarn);
   const recorded = skill.review?.acceptedRules ?? [];
   if (recorded.length > 0 && [...contents.keys()].some((sum) => sum !== skill.integrity)) {
     return { skill, findings, modified: true };
@@ -84,7 +98,11 @@ const scanSkill = (skill: InstalledSkill, copies: SkillFile[][]): Scanned => {
   return { skill, findings: markAccepted(findings, recorded), modified: false };
 };
 
-const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit> => {
+const auditLock = async (
+  { lock }: LoadedLockfile,
+  scope: Scope,
+  denyWarn: boolean | undefined,
+): Promise<Audit> => {
   const audit: Audit = { scanned: [], missing: [], disabled: [], failed: false };
   for (const skill of installedSkills(lock)) {
     if (skill.disabled) {
@@ -97,7 +115,7 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
         continue;
       }
       const paths = await installedPaths(skill, scope);
-      audit.scanned.push(scanSkill(skill, await Promise.all(paths.map(readDirFiles))));
+      audit.scanned.push(scanSkill(skill, await Promise.all(paths.map(readDirFiles)), denyWarn));
     } catch (cause) {
       logSkillError(skill.name, cause);
       audit.failed = true;
@@ -107,7 +125,7 @@ const auditLock = async ({ lock }: LoadedLockfile, scope: Scope): Promise<Audit>
 };
 
 const setExitCode = ({ scanned, failed }: Audit): void => {
-  if (flagged(scanned, "critical") > 0) process.exitCode = CRITICAL_EXIT;
+  if (flagged(scanned, "critical") > 0 || deniesWarn(scanned)) process.exitCode = CRITICAL_EXIT;
   else if (failed || flagged(scanned, "warn") > 0) process.exitCode = 1;
 };
 
@@ -117,13 +135,14 @@ export const run = async (options: AuditOptions): Promise<void> => {
   p.intro("nik audit");
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const loaded = await openLock(scope);
+  const { policy } = await readProjectConfig(scope);
   if (Object.keys(loaded.lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
     return;
   }
 
   p.log.step(`Scanning installed skills (${tildify(loaded.file)})`);
-  const audit = await auditLock(loaded, scope);
+  const audit = await auditLock(loaded, scope, policy?.denyWarn);
   for (const scanned of audit.scanned) reportScanned(scanned, scope);
   reportSkipped(audit, scope);
   reportRemedy(audit, scope);
@@ -150,6 +169,9 @@ const reportSkipped = ({ missing, disabled }: Audit, scope: Scope): void => {
 
 const reportRemedy = ({ scanned }: Audit, scope: Scope): void => {
   if (flagged(scanned, "critical") + flagged(scanned, "warn") === 0) return;
+  if (deniesWarn(scanned)) {
+    warn(`${PROJECT_CONFIG_NAME} sets policy.denyWarn, so warn findings fail the audit.`);
+  }
   warn(
     `Read the flagged files. Run \`nik disable${scopeFlag(scope)}\` or \`nik remove${scopeFlag(scope)}\` to stop agents loading a skill.`,
   );
@@ -171,7 +193,8 @@ const summaryLine = ({ scanned }: Audit, scope: Scope): string => {
 const runJson = async (options: AuditOptions): Promise<void> => {
   const scope = resolveScope(options, logWarn) ?? "project";
   const loaded = await openLock(scope);
-  const audit = await auditLock(loaded, scope);
+  const { policy } = await readProjectConfig(scope);
+  const audit = await auditLock(loaded, scope, policy?.denyWarn);
   setExitCode(audit);
   console.log(
     JSON.stringify(

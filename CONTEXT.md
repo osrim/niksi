@@ -73,6 +73,7 @@ Use these terms in code, docs, and output.
 | installed | Recorded in the lockfile and present as a link or copy. | added, present, tracked |
 | missing | Recorded, but no link or copy is present at its recorded location. | not linked, not installed, absent |
 | disabled | Recorded, and absent from disk on purpose. `install` and `update` skip it until `enable` restores it. | off, paused, muted, inactive |
+| state | What `list --json` reports for one lockfile entry: installed, modified, missing, or disabled. Distinct from `update`'s verdict. | status, presence |
 | enable | Restore a disabled skill from the lockfile with no new review. | re-enable, turn on, reinstall |
 | held | Installed skill that the `add` picker shows but does not offer. | taken |
 | extend | Add an installed skill to more agents without a new review. | relink, widen |
@@ -104,7 +105,7 @@ Use these terms in code, docs, and output.
 | blocked | Critical findings, or warn findings under `denyWarn`, with no terminal to approve them and no flag to skip approval. In `update`, also a skill whose source the project policy doesn't allow. The skill is skipped and the command exits `3`. | refused, rejected |
 | skipped | Skill the command did not write: declined, blocked, modified without consent, or failed. | ignored, omitted |
 | project configuration | Committed `niksi.json` at the project root: the project's cooldown and project policy. Only project scope reads it. Code abbreviates it to project config. | project settings, workspace config |
-| project policy | `policy` in the project configuration: the Git sources that the project's skills may come from, and whether a warn finding needs approval (`denyWarn`). `add` refuses a source it doesn't allow before fetching, `adopt` skips a skill from one, and `update` blocks a skill from one. `install` and `enable` write nothing while an entry they would restore breaks it. Local sources always pass. | allowlist, rules |
+| project policy | `policy` in the project configuration: the Git sources that the project's skills may come from, and whether a warn finding needs approval (`denyWarn`). `add` refuses a source it doesn't allow before fetching, `adopt` skips a skill from one, and `update` blocks a skill from one. `install` and `enable` write nothing while an entry they would restore breaks it, and `audit` exits `3` on a warn finding under `denyWarn`. Local sources always pass. | allowlist, rules |
 
 ## Agents
 

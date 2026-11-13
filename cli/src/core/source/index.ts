@@ -7,6 +7,7 @@ import type { Revision } from "./revision.ts";
 import type { SkillFile } from "../skill/files.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import { GitSource } from "./git-source.ts";
+import type { CloneOptions } from "./git.ts";
 import { LocalSource } from "./local-source.ts";
 
 export const LOCAL_PREFIX = "local:";
@@ -52,12 +53,12 @@ export interface Source {
   changes(from: InstalledSkill, to: string | undefined, before: string): Promise<Changes>;
 }
 
-export const sourceFor = (id: string, base?: string): Source => {
+export const sourceFor = (id: string, base?: string, clone?: CloneOptions): Source => {
   if (id.startsWith(LOCAL_PREFIX)) {
     const dir = id.slice(LOCAL_PREFIX.length);
     return new LocalSource(isAbsolute(dir) ? dir : resolve(base ?? projectRoot(), dir));
   }
-  return new GitSource(id);
+  return new GitSource(id, clone);
 };
 
 export const sourceForCoordinate = (coordinate: Coordinate): Source =>

@@ -45,6 +45,7 @@ export interface LoadedLockfile {
   scope: Scope;
   file: string;
   lock: Lockfile;
+  exists: boolean;
 }
 
 export type Placement =
@@ -323,7 +324,10 @@ export const parseLock = (text: string, file: string): Lockfile => {
   return { lockfileVersion: 2, skills };
 };
 
-const readLockFile = async (scope: Scope, file: string): Promise<Lockfile> => {
+const readLockFile = async (
+  scope: Scope,
+  file: string,
+): Promise<{ lock: Lockfile; exists: boolean }> => {
   try {
     const lock = parseLock(await readFile(file, "utf8"), file);
     for (const [name, entry] of Object.entries(lock.skills)) {
@@ -335,22 +339,25 @@ const readLockFile = async (scope: Scope, file: string): Promise<Lockfile> => {
         throw new Error(`${file}: ${name}: ${e.message}`, { cause: e });
       });
     }
-    return lock;
+    return { lock, exists: true };
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    return emptyLock();
+    return { lock: emptyLock(), exists: false };
   }
 };
 
-export const readLock = (scope: Scope): Promise<Lockfile> =>
-  readLockFile(scope, effectiveLockPath(scope));
+export const readLock = async (scope: Scope): Promise<Lockfile> =>
+  (await readLockFile(scope, effectiveLockPath(scope))).lock;
 
 export const loadLock = async (scope: Scope): Promise<LoadedLockfile> => {
   const file = effectiveLockPath(scope);
-  return { scope, file, lock: await readLockFile(scope, file) };
+  return { scope, file, ...(await readLockFile(scope, file)) };
 };
 
-export const writeLock = async ({ file, lock }: LoadedLockfile): Promise<void> => {
+export const writeLock = async ({
+  file,
+  lock,
+}: Pick<LoadedLockfile, "file" | "lock">): Promise<void> => {
   await mkdir(dirname(file), { recursive: true });
   await writeFileAtomic(file, serializeLock(lock));
 };

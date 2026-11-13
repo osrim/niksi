@@ -10,10 +10,16 @@ interface GitResult {
   err: string;
 }
 
-// ssh fails instead of asking for a passphrase or a host key. The user's ssh options still apply.
-const sshBatchEnv = (): Record<string, string> => ({
-  GIT_SSH_COMMAND: `${process.env.GIT_SSH_COMMAND ?? "ssh"} -o BatchMode=yes`,
-});
+// Leading `NAME=value` words, then the program: a quoted path or one word.
+const SSH_PROGRAM = /^\s*(?:[A-Za-z_]\w*=\S*\s+)*(?:'[^']*'|"(?:[^"\\]|\\.)*"|\S+)/u;
+
+// ssh fails instead of asking for a passphrase or a host key. The user's other ssh options still
+// apply. ssh keeps the first value of an option, so BatchMode goes before the user's options.
+const sshBatchEnv = (): Record<string, string> => {
+  const command = process.env.GIT_SSH_COMMAND || "ssh";
+  const program = SSH_PROGRAM.exec(command)?.[0] ?? command;
+  return { GIT_SSH_COMMAND: `${program} -o BatchMode=yes${command.slice(program.length)}` };
+};
 
 // Clones made with `sshBatch`. Every git call in them, fetches included, runs ssh in batch mode.
 const batchClones = new Set<string>();
@@ -66,7 +72,7 @@ export const gitReason = (result: Pick<GitResult, "err">): string => {
 };
 
 export interface CloneOptions {
-  // For a source that came from a file on disk rather than from the user.
+  // ssh fails instead of asking. For a source read from a file on disk, or a run that never asks.
   sshBatch?: boolean;
 }
 

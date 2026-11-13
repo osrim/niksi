@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import {
   cp,
   lstat,
@@ -335,4 +336,30 @@ test.each([
   expect(result.stderr).toContain(join(root, "niksi.json"));
   expect(result.stderr).toContain(message);
   await nothingInstalled(root);
+});
+
+test("install --frozen-lockfile exits 1 without a lockfile in either scope, and install without it exits 0", async () => {
+  const root = await project("frozen-absent");
+
+  const frozen = await runCli(root, "install", "--frozen-lockfile");
+
+  expect(frozen.exitCode).toBe(1);
+  expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(root, ".niksi"))).toBe(false);
+  expect((await runCli(root, "install")).exitCode).toBe(0);
+  expect((await runCli(root, "install", "-g", "--frozen-lockfile")).exitCode).toBe(1);
+});
+
+test("install --frozen-lockfile restores from a lockfile, and accepts one with no skills", async () => {
+  const origin = await project("frozen-origin", "demo");
+  await addLink(origin, "./skills/demo");
+  const { root, run } = await checkout(origin, "frozen-checkout");
+
+  const result = await run(root, "install", "--frozen-lockfile");
+
+  expect(result.exitCode).toBe(0);
+  expect(await isLink(join(root, ".claude", "skills", "demo"))).toBe(true);
+  const empty = await project("frozen-empty");
+  await writeFile(join(empty, "niksi-lock.json"), '{"lockfileVersion":2,"skills":{}}\n');
+  expect((await runCli(empty, "install", "--frozen-lockfile")).exitCode).toBe(0);
 });

@@ -18,6 +18,7 @@ export interface Finding {
   line?: number;
   detail: string;
   accepted?: true;
+  deniedBy?: "policy.denyWarn";
 }
 
 export interface ScannedSkill {
@@ -41,6 +42,14 @@ export const markAccepted = (findings: Finding[], acceptedRules: readonly string
     found.severity === "critical" && acceptedRules.includes(found.rule)
       ? { ...found, accepted: true }
       : found,
+  );
+
+export const deniedWarn = (found: Finding, denyWarn: boolean | undefined): boolean =>
+  denyWarn === true && found.severity === "warn";
+
+export const markDenyWarn = (findings: Finding[], denyWarn: boolean | undefined): Finding[] =>
+  findings.map((found) =>
+    deniedWarn(found, denyWarn) ? { ...found, deniedBy: "policy.denyWarn" } : found,
   );
 
 export const runScanners = (skill: ScannedSkill): Finding[] => {

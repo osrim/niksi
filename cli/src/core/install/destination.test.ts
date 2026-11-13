@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { integrityOf } from "../skill/integrity.ts";
 import type { SkillFile } from "../skill/files.ts";
@@ -65,13 +65,44 @@ const linkInto = async (name: string, ...agents: AgentId[]): Promise<void> => {
 test("a link's agents come from disk, a copy's from the entry's directories that are present", async () => {
   await linkInto("linked", "claude");
   await mkdir(join(skillsDir("global", "opencode"), "linked"), { recursive: true });
-  expect(await locationOf(entry("linked"), "global")).toEqual({ kind: "link", agents: ["claude"] });
+  expect(await locationOf(entry("linked"), "global")).toEqual({
+    kind: "link",
+    agents: ["claude"],
+    present: true,
+  });
 
   await copySkill("copied", files, "global", "claude", false);
   await mkdir(join(skillsDir("global", "opencode"), "copied"), { recursive: true });
   expect(await locationOf(entry("copied", ["claude", "universal"]), "global")).toEqual({
     kind: "agent-copy",
     agents: ["claude"],
+  });
+});
+
+test("a link is present only when one agent link leads to its canonical copy", async () => {
+  await linkInto("retargeted", "claude", "opencode");
+  const claudeLink = skillPath("retargeted", "global", "claude");
+  await rm(claudeLink);
+  await symlink(relative(dirname(claudeLink), canonicalPath("missing", "global")), claudeLink);
+  expect(await locationOf(entry("retargeted"), "global")).toEqual({
+    kind: "link",
+    agents: ["claude", "opencode"],
+    present: true,
+  });
+
+  await rm(skillPath("retargeted", "global", "opencode"));
+  expect(await locationOf(entry("retargeted"), "global")).toEqual({
+    kind: "link",
+    agents: ["claude"],
+    present: false,
+  });
+
+  await linkInto("orphaned", "claude");
+  await rm(canonicalPath("orphaned", "global"), { recursive: true });
+  expect(await locationOf(entry("orphaned"), "global")).toEqual({
+    kind: "link",
+    agents: ["claude"],
+    present: false,
   });
 });
 

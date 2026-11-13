@@ -73,6 +73,7 @@ const buildCli = (): CAC => {
     .option("-g, --global", "Use the global scope")
     .option("-p, --project", "Use project scope")
     .option("-y, --yes", "Accept defaults and restore edits")
+    .option("--frozen-lockfile", "Fail when there is no niksi-lock.json")
     .option(
       "--agent <id>",
       "Agents to install to: universal, claude, opencode, kiro, cline, qwen. Agent names such as cursor or codex are accepted. Repeatable",
@@ -95,6 +96,8 @@ const buildCli = (): CAC => {
       "--min-release-age <days>",
       "Skip releases younger than this many days unless named. Default 3, or minimumReleaseAge in niksi.json. 0 turns it off",
     )
+    .option("--check", "Only show which skills have updates. Never ask, install, or record")
+    .option("--json", "With --check, write JSON")
     .action(async (skills, options) => (await LOADERS.update()).run(skills, options));
   cli
     .command("remove [...skills]", "Remove installed skills")

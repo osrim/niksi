@@ -558,3 +558,24 @@ test("gitReason keeps a warning when it is all git printed", () => {
     " (warning: unable to access '/home/me/.config/git/attributes')",
   );
 });
+
+test("gitReason skips ssh's warnings and keeps the server's error before git's generic line", () => {
+  expect(
+    gitReason({
+      err: `Warning: Permanently added 'git.example.com' (ED25519) to the list of known hosts.\r\nERROR: Repository not found.\n${ADVISORY}`,
+    }),
+  ).toBe(" (ERROR: Repository not found.)");
+  expect(
+    gitReason({
+      err: `** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to "store now, decrypt later" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\nfatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}`,
+    }),
+  ).toBe(" ('/srv/gone' does not appear to be a git repository)");
+});
+
+test("gitReason prefers git's specific fatal line over server text before it", () => {
+  expect(
+    gitReason({
+      err: "remote: Internal Server Error\nfatal: unable to access 'https://x/': The requested URL returned error: 500\n",
+    }),
+  ).toBe(" (unable to access 'https://x/': The requested URL returned error: 500)");
+});

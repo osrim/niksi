@@ -58,32 +58,39 @@ const NOT_FOUND_REMEDY =
   "Check the name. A private repo also reads as not found when git has no credentials for it.";
 const AUTH_FAILURE =
   /terminal prompts disabled|Authentication failed|Permission denied|Host key verification/u;
-const NOTE = /^(?:hint|warning):/u;
-const holding =
-  (prefix: string) =>
-  (paragraph: string[]): boolean =>
-    paragraph.some((line) => line.startsWith(prefix));
+// Git's hints and warnings, and ssh's `Warning:` and `** WARNING` banners.
+const NOTE_LINE = /^(?:hint:|warning:|\*\* )/iu;
+// Git's generic line after ssh or the server explains the failure on the line before.
+const REMOTE_UNREADABLE = "fatal: Could not read from remote repository.";
+
+const failureLine = (lines: string[]): string | undefined => {
+  const fatal = lines.findIndex((line) => line.startsWith("fatal:"));
+  if (fatal === -1) return lines.find((line) => line.startsWith("error:"));
+  const before = lines[fatal - 1];
+  return lines[fatal] === REMOTE_UNREADABLE && before?.trim() ? before : lines[fatal];
+};
 
 // Git ends many failures with a generic advisory paragraph, so its last line explains nothing.
-// The explanation opens the paragraph that holds the fatal line, and ssh may write it there first.
 const firstReason = (err: string): string => {
-  const paragraphs = err
-    .trim()
-    .split(/\r?\n\s*\r?\n/u)
-    .map((p) => p.split(/\r?\n/u).filter((line) => !NOTE.test(line)));
-  const failure = paragraphs.find(holding("fatal:")) ?? paragraphs.find(holding("error:"));
-  if (failure) return failure[0]!.replace(/^(?:fatal|error):\s*/u, "");
-  return paragraphs.find((p) => p.length > 0)?.join(" ") ?? err.trim().split(/\r?\n/u)[0]!;
+  const text = err.trim();
+  const lines = text.split(/\r?\n/u).filter((line) => !NOTE_LINE.test(line));
+  const failure = failureLine(lines);
+  if (failure) return failure.replace(/^(?:fatal|error):\s*/u, "");
+  const paragraph = lines
+    .join("\n")
+    .split(/\n\s*\n/u)
+    .find((p) => p.trim());
+  return paragraph?.trim().split("\n").join(" ") ?? text.split(/\r?\n/u)[0]!;
 };
 
 export const gitReason = (result: Pick<GitResult, "err">): string => {
-  const line = firstReason(result.err);
-  if (!line) return "";
+  const reason = firstReason(result.err);
+  if (!reason) return "";
   if (AUTH_FAILURE.test(result.err)) return ` (authentication failed)\n${AUTH_REMEDY}`;
   if (/repository .* not found/u.test(result.err)) {
     return ` (repository not found)\n${NOT_FOUND_REMEDY}`;
   }
-  return ` (${line})`;
+  return ` (${reason})`;
 };
 
 export interface CloneOptions {

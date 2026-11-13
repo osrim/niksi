@@ -1,6 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -351,6 +361,29 @@ test("agent copies and path copies go through a disable and enable cycle", async
   lock = await readLockJson(project);
   expect(lock["gamma"]!["disabled"]).toBeUndefined();
   expect(lock["delta"]!["disabled"]).toBeUndefined();
+});
+
+test("disabling an adopted copy whose real directory is gone deletes its dangling link", async () => {
+  const { project, source } = await setup("dangling-copy");
+  await makeSkill(source, "pdf");
+  await makeSkill(join(project, ".agents", "skills"), "pdf");
+  await mkdir(join(project, ".claude", "skills"), { recursive: true });
+  await symlink("../../.agents/skills/pdf", join(project, ".claude", "skills", "pdf"));
+  expect((await runCli(project, "adopt", "pdf", "-p", "-y", "--source", source)).exitCode).toBe(0);
+  await rename(join(project, ".agents", "skills", "pdf"), join(tmp, "dangling-copy-moved"));
+
+  const disabled = await runCli(project, "disable", "pdf", "-y");
+  expect(disabled.exitCode).toBe(0);
+  expect(disabled.stdout).toContain("pdf: disabled");
+  expect(await lstat(join(project, ".claude", "skills", "pdf")).catch(() => null)).toBeNull();
+  expect((await readLockJson(project))["pdf"]).toMatchObject({
+    copy: true,
+    agents: ["universal", "claude"],
+    disabled: true,
+  });
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toMatchObject([{ name: "pdf", state: "disabled" }]);
 });
 
 const setupReferenced = async (name: string): Promise<{ project: string; source: string }> => {

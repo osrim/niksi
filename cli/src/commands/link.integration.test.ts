@@ -635,6 +635,11 @@ test("add installs from the allowed source after a lookalike source was fetched"
   expect(await readFile(join(root, ".claude", "skills", "helper", "SKILL.md"), "utf8")).toContain(
     "trusted helper",
   );
+  expect(await listedRow(root)).toMatchObject({
+    name: "helper",
+    source: trusted.source,
+    commit: trusted.commit,
+  });
 });
 
 const warnSource = async (name: string): Promise<string> => {

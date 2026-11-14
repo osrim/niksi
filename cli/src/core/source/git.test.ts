@@ -616,3 +616,37 @@ test("gitReason prefers git's specific fatal line over server text before it", (
     }),
   ).toBe(" (unable to access 'https://x/': The requested URL returned error: 500)");
 });
+
+// gitlab-shell frames a server error in bare `remote: ` lines and a ruler of 72 `=`
+// (internal/console/console.go), then git adds its generic fatal line.
+const gitlabBanner = (message: string): string => {
+  const blank = "remote: \n";
+  const ruler = `remote: ${"=".repeat(72)}\n`;
+  return `${blank}${ruler}${blank}remote: ${message}\n${blank}${ruler}${blank}${ADVISORY}`;
+};
+
+test("gitReason keeps the server's error inside a GitLab ssh banner", () => {
+  expect(
+    gitReason({
+      err: gitlabBanner(
+        "ERROR: The project you were looking for could not be found or you don't have permission to view it.",
+      ),
+    }),
+  ).toBe(
+    " (remote: ERROR: The project you were looking for could not be found or you don't have permission to view it.)",
+  );
+});
+
+test("gitReason never gives a bare prefix or a ruler as the reason", () => {
+  const banner = `remote: \nremote: ${"=".repeat(72)}\nremote: \n`;
+  expect(gitReason({ err: `${banner}${ADVISORY}` })).toBe(
+    " (Could not read from remote repository.)",
+  );
+  expect(gitReason({ err: banner })).toBe("");
+  expect(gitReason({ err: `${banner}Connection reset by peer\n` })).toBe(
+    " (Connection reset by peer)",
+  );
+  expect(gitReason({ err: "error: \nerror: unable to read tree 0123abcd\n" })).toBe(
+    " (unable to read tree 0123abcd)",
+  );
+});

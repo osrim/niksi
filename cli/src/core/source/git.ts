@@ -60,6 +60,10 @@ const AUTH_FAILURE =
   /terminal prompts disabled|Authentication failed|Permission denied|Host key verification/u;
 // Git's hints and warnings, and ssh's `Warning:` and `** WARNING` banners.
 const NOTE_LINE = /^(?:hint:|warning:|\*\* )/iu;
+// A line with nothing after its prefix, or only a ruler, as in GitLab's ssh banners. Blank lines
+// stay, since they separate paragraphs.
+const isFiller = (line: string): boolean =>
+  line.trim() !== "" && !/[\p{L}\p{N}]/u.test(line.replace(/^(?:remote|fatal|error):/u, ""));
 // Git's generic line after ssh or the server explains the failure on the line before.
 const REMOTE_UNREADABLE = "fatal: Could not read from remote repository.";
 
@@ -88,15 +92,18 @@ const KNOWN_FAILURES: [RegExp, string][] = [
 
 // Git ends many failures with a generic advisory paragraph, so its last line explains nothing.
 const firstReason = (err: string): string => {
-  const text = err.trim();
-  const lines = text.split(/\r?\n/u).filter((line) => !NOTE_LINE.test(line));
+  const all = err
+    .trim()
+    .split(/\r?\n/u)
+    .filter((line) => !isFiller(line));
+  const lines = all.filter((line) => !NOTE_LINE.test(line));
   const failure = failureLine(lines);
   if (failure) return failure.replace(/^(?:fatal|error):\s*/u, "");
   const paragraph = lines
     .join("\n")
     .split(/\n\s*\n/u)
     .find((p) => p.trim());
-  return paragraph?.trim().split("\n").join(" ") ?? text.split(/\r?\n/u)[0]!;
+  return paragraph?.trim().split("\n").join(" ") ?? all.find((line) => line.trim())?.trim() ?? "";
 };
 
 export const gitReason = (result: Pick<GitResult, "err">): string => {

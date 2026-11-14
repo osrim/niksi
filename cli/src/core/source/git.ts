@@ -58,18 +58,63 @@ const NOT_FOUND_REMEDY =
   "Check the name. A private repo also reads as not found when git has no credentials for it.";
 const AUTH_FAILURE =
   /terminal prompts disabled|Authentication failed|Permission denied|Host key verification/u;
-export const gitReason = (result: Pick<GitResult, "err">): string => {
-  const line = result.err
+// Git's hints and warnings, and ssh's `Warning:` and `** WARNING` banners.
+const NOTE_LINE = /^(?:hint:|warning:|\*\* )/iu;
+// A line with nothing after its prefix, or only a ruler, as in GitLab's ssh banners. Blank lines
+// stay, since they separate paragraphs.
+const isFiller = (line: string): boolean =>
+  line.trim() !== "" && !/[\p{L}\p{N}]/u.test(line.replace(/^(?:remote|fatal|error):/u, ""));
+// Git's generic line after ssh or the server explains the failure on the line before.
+const REMOTE_UNREADABLE = "fatal: Could not read from remote repository.";
+
+const failureLine = (lines: string[]): string | undefined => {
+  const fatal = lines.findIndex((line) => line.startsWith("fatal:"));
+  if (fatal === -1) return lines.find((line) => line.startsWith("error:"));
+  const before = lines[fatal - 1];
+  return lines[fatal] === REMOTE_UNREADABLE && before?.trim() ? before : lines[fatal];
+};
+
+// Failures with a plain-words reason, matched on the line `firstReason` picks. Git, curl, and
+// ssh print these in English only, so a translated Git keeps its own line.
+const KNOWN_FAILURES: [RegExp, string][] = [
+  [
+    /does not appear to be a git repository|^repository '.*' does not exist$/u,
+    "not a Git repository",
+  ],
+  // curl and ssh (`hostname`), then git:// sources.
+  [/Could not resolve host|^unable to look up /u, "host not found"],
+  // curl, ssh, then git:// sources. Refused and timed out alike.
+  [
+    /Failed to connect to|Connection timed out after|^ssh: connect to host |^unable to connect to /u,
+    "connection failed",
+  ],
+];
+
+// Git ends many failures with a generic advisory paragraph, so its last line explains nothing.
+const firstReason = (err: string): string => {
+  const all = err
     .trim()
-    .split("\n")
-    .findLast(Boolean)
-    ?.replace(/^fatal:\s*/u, "");
-  if (!line) return "";
+    .split(/\r?\n/u)
+    .filter((line) => !isFiller(line));
+  const lines = all.filter((line) => !NOTE_LINE.test(line));
+  const failure = failureLine(lines);
+  if (failure) return failure.replace(/^(?:fatal|error):\s*/u, "");
+  const paragraph = lines
+    .join("\n")
+    .split(/\n\s*\n/u)
+    .find((p) => p.trim());
+  return paragraph?.trim().split("\n").join(" ") ?? all.find((line) => line.trim())?.trim() ?? "";
+};
+
+export const gitReason = (result: Pick<GitResult, "err">): string => {
+  const reason = firstReason(result.err);
+  if (!reason) return "";
   if (AUTH_FAILURE.test(result.err)) return ` (authentication failed)\n${AUTH_REMEDY}`;
   if (/repository .* not found/u.test(result.err)) {
     return ` (repository not found)\n${NOT_FOUND_REMEDY}`;
   }
-  return ` (${line})`;
+  const known = KNOWN_FAILURES.find(([pattern]) => pattern.test(reason));
+  return ` (${known?.[1] ?? reason})`;
 };
 
 export interface CloneOptions {

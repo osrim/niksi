@@ -170,13 +170,19 @@ test("update --check --json reports an unreachable source with its error and exi
   await mkdir(join(lost, ".git"), { recursive: true });
   await add(lost, pathToFileURL(gone).href, "lost");
   await rm(gone, { recursive: true, force: true });
+  // Git translates its messages, and this test reads one.
+  const restore = captureEnv("LC_ALL");
+  process.env.LC_ALL = "C";
+  try {
+    const result = await runCli(lost, ...CHECK, "--json");
 
-  const result = await runCli(lost, ...CHECK, "--json");
-
-  expect(result.exitCode).toBe(1);
-  const [skill] = JSON.parse(result.stdout).skills;
-  expect(skill).toMatchObject({ name: "lost", verdict: "unreachable", upstream: {} });
-  expect(skill.error).toEqual(expect.any(String));
+    expect(result.exitCode).toBe(1);
+    const [skill] = JSON.parse(result.stdout).skills;
+    expect(skill).toMatchObject({ name: "lost", verdict: "unreachable", upstream: {} });
+    expect(skill.error).toBe(`cannot reach ${pathToFileURL(gone).href} (not a Git repository)`);
+  } finally {
+    restore();
+  }
 });
 
 test("update --check leaves out a skill whose source niksi.json does not allow and exits 3", async () => {

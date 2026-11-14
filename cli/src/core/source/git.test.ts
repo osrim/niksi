@@ -407,7 +407,7 @@ test("findRef reads a dash-prefixed ref as a ref", async () => {
 
 test("cloneOrFetch reads a dash-prefixed source as the repository", async () => {
   const repo = `--upload-pack=touch ${join(tmp, "probe")}`;
-  await expect(cloneOrFetch(repo)).rejects.toThrow(`(repository '${repo}' does not exist)`);
+  await expect(cloneOrFetch(repo)).rejects.toThrow(`cannot reach ${repo} (not a Git repository)`);
   expect(await probeFiles()).toEqual([]);
 });
 
@@ -487,7 +487,7 @@ test("a clone without sshBatch runs ssh as the user set it up", async () => {
 
 test("a failure on both addresses reports the https attempt the user named", async () => {
   await expect(cloneOrFetch("https://niksi-test.invalid/demo")).rejects.toThrow(
-    /cannot reach https:\/\/niksi-test\.invalid\/demo \(.*niksi-test\.invalid/u,
+    "cannot reach https://niksi-test.invalid/demo (",
   );
 }, 30_000);
 
@@ -512,8 +512,141 @@ test("gitReason names auth and not-found failures and passes the rest through", 
   );
   expect(
     gitReason({
-      err: "fatal: unable to access 'x': Could not resolve host: nope.invalid\n",
+      err: "fatal: unable to access 'x': SSL certificate problem: unable to get local issuer certificate\n",
     }),
-  ).toBe(" (unable to access 'x': Could not resolve host: nope.invalid)");
+  ).toBe(
+    " (unable to access 'x': SSL certificate problem: unable to get local issuer certificate)",
+  );
   expect(gitReason({ err: "" })).toBe("");
+});
+
+const ADVISORY =
+  "fatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n";
+
+test("gitReason says a source is not a Git repository in plain words", () => {
+  expect(
+    gitReason({ err: `fatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}` }),
+  ).toBe(" (not a Git repository)");
+  expect(gitReason({ err: "fatal: repository '/srv/gone' does not exist\n" })).toBe(
+    " (not a Git repository)",
+  );
+});
+
+test("gitReason keeps the first fatal line, not the advisory paragraph after it", () => {
+  expect(
+    gitReason({ err: `fatal: protocol error: bad line length character: Welc\n${ADVISORY}` }),
+  ).toBe(" (protocol error: bad line length character: Welc)");
+});
+
+test("gitReason says a host cannot be found in plain words", () => {
+  expect(
+    gitReason({
+      err: "fatal: unable to access 'https://nope.invalid/x/': Could not resolve host: nope.invalid\n",
+    }),
+  ).toBe(" (host not found)");
+  expect(
+    gitReason({
+      err: `ssh: Could not resolve hostname nope.invalid: nodename nor servname provided, or not known\r\n${ADVISORY}`,
+    }),
+  ).toBe(" (host not found)");
+  expect(
+    gitReason({
+      err: "fatal: unable to look up nope.invalid (port 9418) (nodename nor servname provided, or not known)\n",
+    }),
+  ).toBe(" (host not found)");
+});
+
+test("gitReason says a connection failed in plain words", () => {
+  for (const err of [
+    "fatal: unable to access 'http://127.0.0.1:9/x/': Failed to connect to 127.0.0.1 port 9 after 0 ms: Couldn't connect to server\n",
+    "fatal: unable to access 'https://x/': Connection timed out after 300001 milliseconds\n",
+    `ssh: connect to host 127.0.0.1 port 9: Connection refused\r\n${ADVISORY}`,
+    `ssh: connect to host 192.0.2.1 port 22: Operation timed out\r\n${ADVISORY}`,
+    "fatal: unable to connect to 127.0.0.1:\n127.0.0.1[0: 127.0.0.1]: errno=Connection refused\n",
+  ]) {
+    expect(gitReason({ err })).toBe(" (connection failed)");
+  }
+});
+
+test("gitReason keeps ssh's explanation over git's generic fatal line", () => {
+  expect(gitReason({ err: `Connection closed by 192.0.2.1 port 22\r\n${ADVISORY}` })).toBe(
+    " (Connection closed by 192.0.2.1 port 22)",
+  );
+});
+
+test("gitReason takes the first error line past hints and warnings when there is no fatal line", () => {
+  expect(
+    gitReason({
+      err: "hint: Run 'git maintenance' to repack.\nwarning: refname 'main' is ambiguous.\nerror: unable to read tree 0123abcd\nerror: could not fetch 0123abcd from promisor remote\n",
+    }),
+  ).toBe(" (unable to read tree 0123abcd)");
+});
+
+test("gitReason joins a wrapped paragraph when git names no fatal or error line", () => {
+  expect(
+    gitReason({
+      err: "\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+    }),
+  ).toBe(" (Please make sure you have the correct access rights and the repository exists.)");
+});
+
+test("gitReason keeps a warning when it is all git printed", () => {
+  expect(gitReason({ err: "warning: unable to access '/home/me/.config/git/attributes'\n" })).toBe(
+    " (warning: unable to access '/home/me/.config/git/attributes')",
+  );
+});
+
+test("gitReason skips ssh's warnings and keeps the server's error before git's generic line", () => {
+  expect(
+    gitReason({
+      err: `Warning: Permanently added 'git.example.com' (ED25519) to the list of known hosts.\r\nERROR: Repository not found.\n${ADVISORY}`,
+    }),
+  ).toBe(" (ERROR: Repository not found.)");
+  expect(
+    gitReason({
+      err: `** WARNING: connection is not using a post-quantum key exchange algorithm.\n** This session may be vulnerable to "store now, decrypt later" attacks.\n** The server may need to be upgraded. See https://openssh.com/pq.html\nfatal: '/srv/gone' does not appear to be a git repository\n${ADVISORY}`,
+    }),
+  ).toBe(" (not a Git repository)");
+});
+
+test("gitReason prefers git's specific fatal line over server text before it", () => {
+  expect(
+    gitReason({
+      err: "remote: Internal Server Error\nfatal: unable to access 'https://x/': The requested URL returned error: 500\n",
+    }),
+  ).toBe(" (unable to access 'https://x/': The requested URL returned error: 500)");
+});
+
+// gitlab-shell frames a server error in bare `remote: ` lines and a ruler of 72 `=`
+// (internal/console/console.go), then git adds its generic fatal line.
+const gitlabBanner = (message: string): string => {
+  const blank = "remote: \n";
+  const ruler = `remote: ${"=".repeat(72)}\n`;
+  return `${blank}${ruler}${blank}remote: ${message}\n${blank}${ruler}${blank}${ADVISORY}`;
+};
+
+test("gitReason keeps the server's error inside a GitLab ssh banner", () => {
+  expect(
+    gitReason({
+      err: gitlabBanner(
+        "ERROR: The project you were looking for could not be found or you don't have permission to view it.",
+      ),
+    }),
+  ).toBe(
+    " (remote: ERROR: The project you were looking for could not be found or you don't have permission to view it.)",
+  );
+});
+
+test("gitReason never gives a bare prefix or a ruler as the reason", () => {
+  const banner = `remote: \nremote: ${"=".repeat(72)}\nremote: \n`;
+  expect(gitReason({ err: `${banner}${ADVISORY}` })).toBe(
+    " (Could not read from remote repository.)",
+  );
+  expect(gitReason({ err: banner })).toBe("");
+  expect(gitReason({ err: `${banner}Connection reset by peer\n` })).toBe(
+    " (Connection reset by peer)",
+  );
+  expect(gitReason({ err: "error: \nerror: unable to read tree 0123abcd\n" })).toBe(
+    " (unable to read tree 0123abcd)",
+  );
 });

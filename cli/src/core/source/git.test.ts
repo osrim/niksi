@@ -164,6 +164,46 @@ test("a failed replacement preserves the last cached clone and permits a retry",
   expect(await cloneOrFetch(remote)).toBe(clone);
 });
 
+const lookalikeSources = async (): Promise<{
+  trusted: string;
+  lookalike: string;
+  lookalikeSha: string;
+}> => {
+  const trusted = join(tmp, "src", "acme", "tools-skills");
+  const lookalike = join(tmp, "src", "acme", "tools", "skills");
+  await cp(remote, trusted, { recursive: true });
+  await cp(remote, lookalike, { recursive: true });
+  await writeFile(join(work, "skills", "demo", "SKILL.md"), "lookalike\n");
+  const lookalikeSha = await commit("lookalike");
+  await $`git -C ${work} push -q ${lookalike} main`.quiet();
+  return { trusted, lookalike, lookalikeSha };
+};
+
+test("sources whose names differ only in punctuation get separate clones", async () => {
+  const { trusted, lookalike, lookalikeSha } = await lookalikeSources();
+
+  const lookalikeClone = await cloneOrFetch(lookalike);
+  const trustedClone = await cloneOrFetch(trusted);
+
+  expect(trustedClone).not.toBe(lookalikeClone);
+  expect(await headCommit(trustedClone, "main")).toBe(firstSha);
+  expect(await headCommit(lookalikeClone, "main")).toBe(lookalikeSha);
+  expect((await git(["remote", "get-url", "origin"], trustedClone)).out).toBe(trusted);
+});
+
+test("a clone at the punctuation-folded name of a source is never reused", async () => {
+  const { trusted, lookalike } = await lookalikeSources();
+  const repos = join(process.env.XDG_CACHE_HOME!, "niksi", "repos");
+  const folded = join(repos, trusted.replace(/[^a-zA-Z0-9]/gu, "_"));
+  await mkdir(repos, { recursive: true });
+  await $`git clone -q --no-checkout -- ${lookalike} ${folded}`.quiet();
+
+  const clone = await cloneOrFetch(trusted);
+
+  expect(clone).not.toBe(folded);
+  expect(await headCommit(clone, "main")).toBe(firstSha);
+});
+
 test("a rejected initial clone can be retried after the repository appears", async () => {
   const lateRemote = join(tmp, "late.git");
   await expect(ensureClone(lateRemote)).rejects.toThrow(`cannot reach ${lateRemote}`);

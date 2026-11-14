@@ -548,6 +548,7 @@ test("add exits 1 before it fetches a source that niksi.json does not allow", as
   const { repo } = await freshSource("policy-denied-add-source");
   const root = await project("policy-denied-add");
   await writeFile(join(root, "niksi.json"), '{"policy":{"sources":{"github":["osrim"]}}}\n');
+  const clonedBefore = await clonedRepos();
 
   const denied = await runCli(
     root,
@@ -562,7 +563,7 @@ test("add exits 1 before it fetches a source that niksi.json does not allow", as
   expect(denied.exitCode).toBe(1);
   expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
   expect(existsSync(join(root, ".niksi"))).toBe(false);
-  expect((await clonedRepos()).some((dir) => dir.includes("policy_denied_add_source"))).toBe(false);
+  expect(await clonedRepos()).toEqual(clonedBefore);
 });
 
 test("add writes a skill from a source that niksi.json allows", async () => {
@@ -581,6 +582,64 @@ test("add writes a skill from a source that niksi.json allows", async () => {
   expect(await readFile(join(root, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toContain(
     "version one",
   );
+});
+
+const helperSource = async (
+  path: string,
+  body: string,
+  ...otherSkills: string[]
+): Promise<{ source: string; commit: string }> => {
+  const repo = join(tmp, path);
+  await makeSkill(repo, "helper", body);
+  for (const name of otherSkills) await makeSkill(repo, name);
+  await initRepo(repo);
+  return { source: pathToFileURL(repo).href, commit: await commitAll(repo, body) };
+};
+
+test("add installs from the allowed source after a lookalike source was fetched", async () => {
+  const trusted = await helperSource("src/acme/tools-skills", "trusted helper\n");
+  const lookalike = await helperSource("src/acme/tools/skills", "lookalike helper\n", "other");
+  const root = await project("lookalike-source-add");
+  await writeFile(
+    join(root, "niksi.json"),
+    JSON.stringify({ policy: { sources: { git: [trusted.source] } } }),
+  );
+  const global = await runCli(
+    tmp,
+    "add",
+    lookalike.source,
+    "other",
+    "-g",
+    "--agent",
+    "claude",
+    "--yes",
+  );
+  expect(global.exitCode).toBe(0);
+
+  const result = await runCli(
+    root,
+    "add",
+    trusted.source,
+    "helper",
+    "-p",
+    "--agent",
+    "claude",
+    "--yes",
+  );
+
+  expect(result.exitCode).toBe(0);
+  expect((await readSkills(root)).helper).toMatchObject({
+    source: trusted.source,
+    commit: trusted.commit,
+  });
+  expect(await readFile(join(root, ".claude", "skills", "helper", "SKILL.md"), "utf8")).toContain(
+    "trusted helper",
+  );
+  expect(await listedRow(root)).toMatchObject({
+    name: "helper",
+    source: trusted.source,
+    commit: trusted.commit,
+  });
 });
 
 const warnSource = async (name: string): Promise<string> => {

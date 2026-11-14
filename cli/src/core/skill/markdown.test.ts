@@ -154,12 +154,11 @@ test("many paragraphs with unclosed comments map in linear time", () => {
   const unclosed = "abcd <!--\n\n".repeat(40_000);
   const closed = "a <!---->\n\n".repeat(40_000);
   expect(mapMarkdown(unclosed).hidden).toHaveLength(40_000);
-  expect(
-    slowdown(
-      () => mapMarkdown(unclosed),
-      () => mapMarkdown(closed),
-    ),
-  ).toBeLessThan(3);
+  const { ratio, rounds } = slowdown(
+    () => mapMarkdown(unclosed),
+    () => mapMarkdown(closed),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
 });
 
 test("a fence inside an HTML block is not code", () => {

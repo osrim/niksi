@@ -730,12 +730,11 @@ test("concealment partners in thousands of files scan in linear time", () => {
   const partners = concealingSkill("~/.aws/credentials");
   const plain = concealingSkill("~/docs/credentials");
   expect(concealment(...partners.slice(0, 2))).toEqual({ severity: "warn", confidence: "low" });
-  expect(
-    slowdown(
-      () => scan(...partners),
-      () => scan(...plain),
-    ),
-  ).toBeLessThan(3);
+  const { ratio, rounds } = slowdown(
+    () => scan(...partners),
+    () => scan(...plain),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
 });
 
 test("# nosec above curl | sh keeps the critical and adds an info suppression finding", () => {

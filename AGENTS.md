@@ -10,7 +10,7 @@ Read the relevant reference before changing code:
 - [docs/contributor/terminal-style.md](docs/contributor/terminal-style.md) for terminal output
 - [docs/contributor/architecture.md](docs/contributor/architecture.md) for module boundaries
 
-A timing test compares against a measured linear baseline (`slowdown` in [cli/src/test-timing.ts](cli/src/test-timing.ts)) or allows several times its usual CI time, never a tight fixed number of milliseconds.
+A timing test compares against a measured linear baseline of the same size (`slowdown` in [cli/src/test-timing.ts](cli/src/test-timing.ts)) or allows several times its usual CI time, never a tight fixed number of milliseconds.
 
 Use the `linear` MCP server for issues in the `ski` team. Issue IDs start with `SKI-`. Mark an issue `In Progress` when work starts.
 

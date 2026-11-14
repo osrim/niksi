@@ -151,7 +151,7 @@ test("an unclosed comment ends with its paragraph or HTML block, and a later -->
 });
 
 test("many paragraphs with unclosed comments map in linear time", () => {
-  const unclosed = "a <!--\n\n".repeat(40_000);
+  const unclosed = "abcd <!--\n\n".repeat(40_000);
   const closed = "a <!---->\n\n".repeat(40_000);
   expect(mapMarkdown(unclosed).hidden).toHaveLength(40_000);
   expect(

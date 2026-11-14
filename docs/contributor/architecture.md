@@ -25,6 +25,7 @@ cli/src/
   test-cli.ts        CLI runners and fixtures, tests only
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
+  test-timing.ts     slowdown against a same-size linear baseline, tests only
   commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/

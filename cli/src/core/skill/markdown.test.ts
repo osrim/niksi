@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { slowdown } from "../../test-timing.ts";
 import { mapMarkdown } from "./markdown.ts";
 
 const doc = (...lines: string[]) => lines.join("\n");
@@ -150,11 +151,15 @@ test("an unclosed comment ends with its paragraph or HTML block, and a later -->
 });
 
 test("many paragraphs with unclosed comments map in linear time", () => {
-  const text = "a <!--\n\n".repeat(80_000);
-  const started = performance.now();
-  const map = mapMarkdown(text);
-  expect(performance.now() - started).toBeLessThan(250);
-  expect(map.hidden).toHaveLength(80_000);
+  const unclosed = "a <!--\n\n".repeat(40_000);
+  const closed = "a <!---->\n\n".repeat(40_000);
+  expect(mapMarkdown(unclosed).hidden).toHaveLength(40_000);
+  expect(
+    slowdown(
+      () => mapMarkdown(unclosed),
+      () => mapMarkdown(closed),
+    ),
+  ).toBeLessThan(3);
 });
 
 test("a fence inside an HTML block is not code", () => {

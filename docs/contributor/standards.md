@@ -38,6 +38,7 @@ Integration tests (`bun run test:integration`) spawn the CLI from `commands/<top
 - Integration tests assert the exit code, files on disk, the lockfile, and the `list --json` shape. Match stderr only for exit `2`.
 - Assert against literals, worked examples, fixtures, or documented contracts. Do not copy implementation logic into assertions.
 - Use temporary directories. Restore environment changes with `test-env.ts`. Capture output and fake a terminal with `test-output.ts`.
+- A timing test compares a hostile input against a same-size input that takes the linear path, with `slowdown` from `test-timing.ts`, or allows several times its usual CI time. A CI runner can take 3 times as long as a laptop, so a tight fixed number of milliseconds fails there.
 - Cover branches and failure paths. Do not chase a coverage number.
 - Keep `bun run test` under 30 seconds. Share one temporary directory and fixture repository per file.
 

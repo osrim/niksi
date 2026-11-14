@@ -20,10 +20,12 @@ import {
   assertSkillsDirSafe,
   canonicalPath,
   copySkill,
+  copyState,
   linkedAgents,
   linkSkill,
   occupiedAgents,
   removeCanonical,
+  resolvedAgents,
   skillPath,
   unlinkSkill,
   writeCanonical,
@@ -388,6 +390,24 @@ test("a symlink niksi did not create is refused, not clobbered", async () => {
     "exists but is unmanaged",
   );
   expect(await readlink(join(dir, "dangling"))).toBe(join(tmp, "never-existed"));
+});
+
+test("copyState counts a dangling symlink as a missing copy, not a modified one", async () => {
+  await copySkill("lost", files, "global", "universal", false);
+  const claudeCopy = skillPath("lost", "global", "claude");
+  await symlink(skillPath("lost", "global", "universal"), claudeCopy);
+  expect(await copyState("lost", integrity, "global", ["universal", "claude"])).toEqual({
+    missing: [],
+    modified: [],
+  });
+
+  await rm(skillPath("lost", "global", "universal"), { recursive: true });
+  expect(await copyState("lost", integrity, "global", ["universal", "claude"])).toEqual({
+    missing: ["universal", "claude"],
+    modified: [],
+  });
+  expect(occupiedAgents("lost", "global")).toEqual(["claude"]);
+  expect(resolvedAgents("lost", "global")).toEqual([]);
 });
 
 test("unlinkSkill refuses a symlink that does not point at the canonical dir", async () => {

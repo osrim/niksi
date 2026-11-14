@@ -2,7 +2,7 @@ import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { loadLock } from "../core/install/lockfile.ts";
 import {
   installedSkills,
-  locationAgents,
+  occupiedLocationAgents,
   locationDisplayPath,
   locationsOf,
   removeInstalledSkill,
@@ -60,7 +60,7 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
     outro("Nothing selected.");
     return;
   }
-  const agents = new Set(selection.flatMap((name) => locationAgents(locations.get(name)!)));
+  const agents = new Set(selection.flatMap((name) => occupiedLocationAgents(locations.get(name)!)));
   for (const agent of agents) {
     await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
   }

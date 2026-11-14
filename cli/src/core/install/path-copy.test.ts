@@ -6,7 +6,7 @@ import { captureEnv } from "../../test-env.ts";
 import { integrityOf } from "../skill/integrity.ts";
 import type { SkillFile } from "../skill/files.ts";
 import { locationDisplayPath, locationOf, modifiedSkills } from "./destination.ts";
-import { normalizeCopyPath, pathCopyTarget } from "./path-copy.ts";
+import { normalizeCopyPath, pathCopyState, pathCopyTarget } from "./path-copy.ts";
 
 let tmp: string;
 const restoreEnv = captureEnv("HOME");
@@ -118,5 +118,20 @@ test("a path copy location reports its destination, presence, and modified state
 
     await writeFile(join(target, "SKILL.md"), "edited\n");
     expect([...(await modifiedSkills([skill], "project"))]).toEqual(["demo"]);
+  });
+});
+
+test("pathCopyState counts a dangling symlink as missing", async () => {
+  const root = join(tmp, "dangling-project");
+  await mkdir(join(root, ".git"), { recursive: true });
+
+  await inDir(root, async () => {
+    const target = await pathCopyTarget("demo", "published");
+    await mkdir(join(root, "published"), { recursive: true });
+    await symlink(join(tmp, "dangling-gone"), target);
+    expect(await pathCopyState("demo", integrity, "published")).toEqual({
+      missing: true,
+      modified: false,
+    });
   });
 });

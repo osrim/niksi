@@ -100,6 +100,9 @@ export const linkReachesCanonical = async (
 export const occupiedAgents = (name: string, scope: Scope): AgentId[] =>
   SKILLS_DIRS.filter((dir) => present(skillPath(name, scope, dir.id))).map((dir) => dir.id);
 
+export const resolvedAgents = (name: string, scope: Scope): AgentId[] =>
+  SKILLS_DIRS.filter((dir) => existsSync(skillPath(name, scope, dir.id))).map((dir) => dir.id);
+
 export const linkSkill = async (name: string, scope: Scope, agent: AgentId): Promise<void> => {
   const path = skillPath(name, scope, agent);
   const dir = dirname(path);
@@ -160,7 +163,7 @@ export const copyState = async (
   const state: CopyState = { missing: [], modified: [] };
   for (const agent of agents) {
     const path = skillPath(name, scope, agent);
-    if (!present(path)) state.missing.push(agent);
+    if (!existsSync(path)) state.missing.push(agent);
     else if (await dirModified(path, integrity)) state.modified.push(agent);
   }
   return state;

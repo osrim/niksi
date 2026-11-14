@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { rm } from "node:fs/promises";
 import { childPath, projectRoot } from "../paths.ts";
@@ -63,6 +64,6 @@ export const pathCopyState = async (
   copyPath: string,
 ): Promise<{ missing: boolean; modified: boolean }> => {
   const target = await pathCopyTarget(name, copyPath);
-  if (!present(target)) return { missing: true, modified: false };
+  if (!existsSync(target)) return { missing: true, modified: false };
   return { missing: false, modified: (await integrityOfDir(target)) !== integrity };
 };

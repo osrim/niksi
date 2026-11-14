@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { tmpdir } from "node:os";
@@ -18,6 +18,7 @@ import {
   modifiedSkills,
   locationOf,
   recordedLocations,
+  removeInstalledSkill,
   updateDestination,
   type InstalledSkill,
 } from "./destination.ts";
@@ -76,7 +77,36 @@ test("a link's agents come from disk, a copy's from the entry's directories that
   expect(await locationOf(entry("copied", ["claude", "universal"]), "global")).toEqual({
     kind: "agent-copy",
     agents: ["claude"],
+    occupied: ["claude"],
   });
+});
+
+test("an agent copy reached through a dangling symlink is missing, install plans to rewrite it, and remove deletes the link", async () => {
+  await copySkill("npx", files, "global", "universal", false);
+  const claudeCopy = skillPath("npx", "global", "claude");
+  await mkdir(dirname(claudeCopy), { recursive: true });
+  await symlink(relative(dirname(claudeCopy), skillPath("npx", "global", "universal")), claudeCopy);
+  const npx = entry("npx", ["universal", "claude"]);
+  expect(await locationOf(npx, "global")).toEqual({
+    kind: "agent-copy",
+    agents: ["universal", "claude"],
+    occupied: ["universal", "claude"],
+  });
+
+  await rm(skillPath("npx", "global", "universal"), { recursive: true });
+  const location = await locationOf(npx, "global");
+  expect(location).toEqual({ kind: "agent-copy", agents: [], occupied: ["claude"] });
+  expect(await installedPaths(npx, "global")).toEqual([]);
+  expect([...(await modifiedSkills([npx], "global"))]).toEqual([]);
+  expect(await installDestination(npx, "global", ["claude"])).toEqual({
+    kind: "agent-copy",
+    scope: "global",
+    agents: ["universal", "claude"],
+    managed: ["universal", "claude"],
+  });
+
+  await removeInstalledSkill("npx", "global", location);
+  expect(await lstat(claudeCopy).catch(() => null)).toBeNull();
 });
 
 test("a link is present only when one agent link leads to its canonical copy", async () => {

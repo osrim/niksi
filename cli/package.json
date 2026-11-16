@@ -20,7 +20,7 @@
 		"release": "bumpp"
 	},
 	"dependencies": {
-		"@clack/prompts": "1.8.1",
+		"@clack/prompts": "1.9.0",
 		"ansis": "4.5.0",
 		"cac": "7.1.0",
 		"cli-truncate": "6.2.0",
@@ -38,8 +38,8 @@
 		"@types/bun": "1.4.4",
 		"@types/write-file-atomic": "4.0.3",
 		"bumpp": "12.3.0",
-		"oxfmt": "0.76.0",
-		"oxlint": "1.91.0",
+		"oxfmt": "0.78.0",
+		"oxlint": "1.93.0",
 		"typescript": "7.0.2"
 	}
 }

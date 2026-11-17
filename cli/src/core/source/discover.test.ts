@@ -60,6 +60,59 @@ test("skills/<name>/SKILL.md layout", async () => {
   ]);
 });
 
+// Tree of Snowflake-Labs/coco-skills at f5aa1734: skills/* beside plugins/*/skills/*.
+test("plugin skills are listed beside skills/<name>/SKILL.md", async () => {
+  const [dir, sha] = await repoWith("coco-skills", {
+    "README.md": "catalog",
+    "skills/dbt-model-generator/SKILL.md": "---\nname: dbt-model-generator\n---\n",
+    "skills/devops-guidance/SKILL.md": "---\nname: devops-guidance\n---\n",
+    "plugins/people-hydrator/.claude-plugin/plugin.json": "{}",
+    "plugins/people-hydrator/skills/people_hydrator/SKILL.md": "---\nname: people_hydrator\n---\n",
+    "plugins/people-hydrator/skills/people_hydrator/templates/people/skills/attrition_insights/SKILL.md":
+      "---\nname: attrition_insights\n---\n",
+    "plugins/supaflow/skills/setup/SKILL.md": '---\nname: "setup"\n---\n',
+    "plugins/supaflow/skills/using-supaflow/SKILL.md": '---\nname: "using-supaflow"\n---\n',
+    "plugins/xo/skills/xo/SKILL.md": "---\nname: xo\n---\n",
+  });
+  const skills = await discoverSkills(dir, sha, "coco-skills");
+  expect(skills.map((s) => [s.name, s.path])).toEqual([
+    ["dbt-model-generator", "skills/dbt-model-generator"],
+    ["devops-guidance", "skills/devops-guidance"],
+    ["people-hydrator", "plugins/people-hydrator/skills/people_hydrator"],
+    ["setup", "plugins/supaflow/skills/setup"],
+    ["using-supaflow", "plugins/supaflow/skills/using-supaflow"],
+    ["xo", "plugins/xo/skills/xo"],
+  ]);
+});
+
+test("beside skills/<name>/SKILL.md, a SKILL.md outside both layouts stays hidden", async () => {
+  const [dir, sha] = await repoWith("fixtures", {
+    "skills/real/SKILL.md": "---\nname: real\n---\n",
+    "plugins/tool/skills/helper/SKILL.md": "---\nname: helper\n---\n",
+    "plugins/tool/tests/fixtures/sample/skills/fake/SKILL.md": "---\nname: fake\n---\n",
+    "tests/fixtures/sample-plugin/skills/fake/SKILL.md": "---\nname: fake\n---\n",
+    "examples/demo/SKILL.md": "---\nname: demo\n---\n",
+  });
+  const skills = await discoverSkills(dir, sha, "fixtures");
+  expect(skills.map((s) => s.path)).toEqual(["plugins/tool/skills/helper", "skills/real"]);
+});
+
+// Tree of ctxrs/ctx at 33ba4645: the same ctx skill in skills/ and in its plugin.
+test("a plugin skill named like a skills/<name> skill is ambiguous, and both are listed", async () => {
+  const [dir, sha] = await repoWith("ctx", {
+    ".claude-plugin/marketplace.json": "{}",
+    "plugins/ctx/.claude-plugin/plugin.json": "{}",
+    "plugins/ctx/skills/ctx/SKILL.md": "---\nname: ctx\n---\n",
+    "skills/ctx/SKILL.md": "---\nname: ctx\n---\n",
+  });
+  const skills = await discoverSkills(dir, sha, "ctx");
+  expect(skills.map((s) => [s.name, s.path, s.ambiguous ?? false])).toEqual([
+    ["ctx", "plugins/ctx/skills/ctx", true],
+    ["ctx", "skills/ctx", true],
+  ]);
+  expect(skills.map(selector)).toEqual(["plugins/ctx/skills/ctx", "skills/ctx"]);
+});
+
 test("a skill directory that git would quote is found by its name on disk", async () => {
   const [dir, sha] = await repoWith("quoted", {
     "skills/café/SKILL.md": "---\nname: cafe\n---\n",

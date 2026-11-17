@@ -349,6 +349,31 @@ test("list --json reports link and agent-copy entries, installed, modified, and 
   });
 });
 
+test("add --all installs the skills in skills/ and in plugins/*/skills/ together", async () => {
+  const root = await project("plugin-layout");
+  await makeSkill(join(root, "collection", "skills"), "demo");
+  await makeSkill(join(root, "collection", "plugins", "tool", "skills"), "helper");
+
+  const added = await runCli(root, "add", "./collection", "--all", "-p", "--agent", "claude", "-y");
+
+  expect(added.exitCode).toBe(0);
+  const skills = await readSkills(root);
+  expect(Object.keys(skills).toSorted()).toEqual(["demo", "helper"]);
+  expect(skills["demo"]).toMatchObject({ path: "collection/skills/demo" });
+  expect(skills["helper"]).toMatchObject({ path: "collection/plugins/tool/skills/helper" });
+  expect(existsSync(join(root, ".claude", "skills", "helper", "SKILL.md"))).toBe(true);
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toEqual([
+    expect.objectContaining({ name: "demo", path: "collection/skills/demo", state: "installed" }),
+    expect.objectContaining({
+      name: "helper",
+      path: "collection/plugins/tool/skills/helper",
+      state: "installed",
+    }),
+  ]);
+});
+
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {
   const forge = "https://github.com/o/hidden-skills";
   const repo = join(tmp, "hidden-skills");

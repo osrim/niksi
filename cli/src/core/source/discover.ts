@@ -23,6 +23,8 @@ const MAX_DEPTH = 5;
 
 const CONVENTIONAL_LAYOUT = new Glob("skills/*/SKILL.md");
 
+const PLUGIN_LAYOUT = new Glob("plugins/*/skills/*/SKILL.md");
+
 const MAX_DESCRIPTION = 1024;
 
 const standardWarnings = (name: string, fromFallback: boolean, description?: string): string[] => {
@@ -44,10 +46,11 @@ const standardWarnings = (name: string, fromFallback: boolean, description?: str
 const skillDirs = (paths: string[]): string[] => {
   if (paths.includes("SKILL.md")) return [""];
 
-  const conventional = paths
-    .filter((path) => CONVENTIONAL_LAYOUT.match(path))
-    .map((path) => dirname(path));
-  if (conventional.length > 0) return conventional;
+  if (paths.some((path) => CONVENTIONAL_LAYOUT.match(path))) {
+    return paths
+      .filter((path) => CONVENTIONAL_LAYOUT.match(path) || PLUGIN_LAYOUT.match(path))
+      .map((path) => dirname(path));
+  }
 
   const candidates = paths
     .filter((path) => basename(path) === "SKILL.md")

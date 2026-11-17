@@ -63,7 +63,7 @@ export class GitSource implements Source {
     const clone = await this.clone();
     const commit = commitOf(skill);
     const branch = branchOf(skill);
-    const upstream = await resolveUpstream(clone, this.id, branch);
+    const upstream = await resolveUpstream(clone, this.id, branch, skill);
     const baseOid = await subtreeOid(clone, commit, skill.path);
     const headOid = await subtreeOid(clone, upstream.commit, skill.path);
     const gone = headOid === null;

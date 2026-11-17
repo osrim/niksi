@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { $ } from "bun";
+import { commitAll as commitAt, FIXTURE_COMMIT_TIME, initRepo, tagHead } from "../../test-cli.ts";
 import { ensureClone } from "./git.ts";
 import { displayLabel, resolveRevision, resolveUpstream, shortId } from "./revision.ts";
 
@@ -66,6 +67,100 @@ test("with a release: track auto resolves the latest semver tag", async () => {
 
   const latest = await resolveUpstream(clone, upstream, "main");
   expect(latest).toEqual({ commit: first, tag: "v0.1.0" });
+});
+
+const DAY = 86_400;
+const TAGGED_AT = FIXTURE_COMMIT_TIME;
+
+// Tags are repo-wide, so each case that needs its own tags gets its own repo.
+const datedRepo = async (name: string, headAt: number): Promise<{ repo: string; head: string }> => {
+  const repo = join(tmp, name);
+  await mkdir(repo, { recursive: true });
+  await initRepo(repo);
+  await writeFile(join(repo, "SKILL.md"), "released\n");
+  await commitAt(repo, "released", TAGGED_AT);
+  await tagHead(repo, "v1.0.0");
+  await writeFile(join(repo, "SKILL.md"), "unreleased\n");
+  return { repo, head: await commitAt(repo, "unreleased", headAt) };
+};
+
+const tagCommit = async (repo: string, tag: string): Promise<string> =>
+  (await $`git -C ${repo} rev-parse ${tag}^{commit}`.text()).trim();
+
+test("auto: a tag more than 365 days older than the branch head gives way to the head", async () => {
+  const { repo, head } = await datedRepo("abandoned-tag", TAGGED_AT + 365 * DAY + 1);
+  const clone = await ensureClone(repo);
+
+  expect(await resolveRevision(clone, repo)).toEqual({
+    commit: head,
+    branch: "main",
+    track: "auto",
+  });
+  expect(await resolveUpstream(clone, repo, "main")).toEqual({ commit: head });
+});
+
+test("auto: a tag exactly 365 days older than the branch head still stands", async () => {
+  const { repo } = await datedRepo("year-old-tag", TAGGED_AT + 365 * DAY);
+  const clone = await ensureClone(repo);
+
+  expect(await resolveRevision(clone, repo)).toEqual({
+    commit: await tagCommit(repo, "v1.0.0"),
+    branch: "main",
+    track: "auto",
+    tag: "v1.0.0",
+  });
+});
+
+test("auto: the tag stands when the recorded branch is gone upstream", async () => {
+  const { repo } = await datedRepo("renamed-branch", TAGGED_AT + 2 * 365 * DAY);
+  const clone = await ensureClone(repo);
+
+  expect(await resolveUpstream(clone, repo, "master")).toEqual({
+    commit: await tagCommit(repo, "v1.0.0"),
+    tag: "v1.0.0",
+  });
+});
+
+test("auto: a fix tagged on an older release line doesn't take a skill off the branch", async () => {
+  const { repo, head } = await datedRepo("hotfix-tag", TAGGED_AT + 400 * DAY);
+  await $`git -C ${repo} switch -q -c rel-1 v1.0.0`.quiet();
+  await writeFile(join(repo, "SKILL.md"), "hotfix\n");
+  const hotfix = await commitAt(repo, "hotfix", TAGGED_AT + 401 * DAY);
+  await tagHead(repo, "v1.0.1");
+  await $`git -C ${repo} switch -q main`.quiet();
+  const clone = await ensureClone(repo);
+
+  expect(await resolveUpstream(clone, repo, "main", { track: "auto", commit: head })).toEqual({
+    commit: head,
+  });
+  const atTag = { track: "auto" as const, commit: await tagCommit(repo, "v1.0.0"), tag: "v1.0.0" };
+  expect(await resolveUpstream(clone, repo, "main", atTag)).toEqual({
+    commit: hotfix,
+    tag: "v1.0.1",
+  });
+});
+
+test("auto: a skill on the branch stays there when upstream no longer has its commit", async () => {
+  const { repo, head } = await datedRepo("rewritten-history", TAGGED_AT + 400 * DAY);
+  await $`git -C ${repo} switch -q -c rel-1 v1.0.0`.quiet();
+  await writeFile(join(repo, "SKILL.md"), "hotfix\n");
+  await commitAt(repo, "hotfix", TAGGED_AT + 399 * DAY);
+  await tagHead(repo, "v1.0.1");
+  await $`git -C ${repo} switch -q main`.quiet();
+  const clone = await ensureClone(repo);
+  const dropped = { track: "auto" as const, commit: "f".repeat(40) };
+
+  expect(await resolveUpstream(clone, repo, "main", dropped)).toEqual({ commit: head });
+});
+
+test("pin: a named update still moves to the latest tag, however old", async () => {
+  const { repo } = await datedRepo("abandoned-tag-pin", TAGGED_AT + 2 * 365 * DAY);
+  const clone = await ensureClone(repo);
+
+  expect(await resolveUpstream(clone, repo, "main", { track: "pin" })).toEqual({
+    commit: await tagCommit(repo, "v1.0.0"),
+    tag: "v1.0.0",
+  });
 });
 
 test("pin to a tag: pinnedAs records the symbolic ref", async () => {

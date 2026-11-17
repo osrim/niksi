@@ -16,6 +16,7 @@ import { pathToFileURL } from "node:url";
 import {
   cliRunner,
   commitAll,
+  FIXTURE_COMMIT_TIME,
   initRepo,
   makeSkill,
   tagHead,
@@ -684,6 +685,49 @@ test("--all --yes keeps a skill whose new release is inside the cooldown, and th
   const report = await readFile(join(fixture.project, "update.md"), "utf8");
   expect(report).toContain("- `fresh`: `v2.0.0` (");
   expect(report).toContain(") available, 1 day old, waits for cooldown");
+});
+
+test("a tag more than 365 days older than the branch head gives way to the head in update and add", async () => {
+  const fixture = await setupUpdate("abandoned-tag", ["kept"], []);
+  await makeSkill(fixture.repo, "kept", "version two\n");
+  const head = await commitAll(fixture.repo, "version two", FIXTURE_COMMIT_TIME + 366 * DAY);
+
+  const result = await runCli(fixture.project, "update", "--all", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  const { tag: _tag, ...untagged } = fixture.before.kept!;
+  expect((await readSkills(fixture.lockPath)).kept).toEqual({
+    ...untagged,
+    commit: head,
+    integrity: expect.any(String),
+  });
+  await expectInstalled(fixture, "kept", "version two");
+
+  const project = join(tmp, "abandoned-tag-added");
+  await mkdir(join(project, ".git"), { recursive: true });
+  const source = pathToFileURL(fixture.repo).href;
+  const added = await runCli(project, "add", source, "kept", ...PATH_COPY, "--yes");
+  expect(added.exitCode).toBe(0);
+  const { kept } = await readSkills(join(project, "niksi-lock.json"));
+  expect(kept).toMatchObject({ commit: head, track: "auto" });
+  expect(kept).not.toHaveProperty("tag");
+});
+
+test("naming a pinned skill moves it to the latest tag even when the branch head is more than 365 days newer", async () => {
+  const fixture = await setupUpdate("abandoned-tag-pin", ["kept"], ["kept"], PATH_COPY, "@v1.0.0");
+  await makeSkill(fixture.repo, "kept", "version three\n");
+  await commitAll(fixture.repo, "version three", FIXTURE_COMMIT_TIME + 366 * DAY);
+
+  const result = await runCli(fixture.project, "update", "kept", "--yes");
+
+  expect(result.exitCode).toBe(0);
+  expect((await readSkills(fixture.lockPath)).kept).toMatchObject({
+    commit: fixture.upstreamCommit,
+    track: "pin",
+    pinnedAs: "v1.1.0",
+    tag: "v1.1.0",
+  });
+  await expectInstalled(fixture, "kept", "version two");
 });
 
 test("--all --yes takes a moved skill inside the cooldown and keeps the outdated one waiting", async () => {

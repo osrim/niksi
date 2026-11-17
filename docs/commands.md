@@ -53,7 +53,7 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
   The lockfile records this discovery root as `root`.
 - Named skills must exist in the source and have distinct names.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
-- Without `@ref`, `add` installs the upstream revision even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
+- Without `@ref`, `add` installs the upstream revision, a tag or the head of a branch (see [Tag or branch](#tag-or-branch)), even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
 - `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).
 - In project scope, `add` checks the source against the policy in `niksi.json` before it fetches anything, so it asks for the scope first. When the policy doesn't allow the source, `add` names it, adds nothing, and exits `1`. See [Project configuration](configuration.md#project-configuration).
 - When `niksi.json` sets `policy.denyWarn`, a warn finding needs approval like a critical one, and `--yes` doesn't accept it. See [security-scan.md](security-scan.md#severities).
@@ -72,6 +72,18 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
 - A path cannot contain `..` or escape the project root through a symlinked ancestor.
 - A matching lockfile entry manages an existing path-copy destination. `niksi` skips other existing directories and continues the batch.
 - `add` holds a disabled skill from the same source. It names `nik enable` and does not offer to extend the skill to more agents.
+
+### Tag or branch
+
+A skill that you add without `@ref` follows its source. `add` installs the latest stable tag, such as `v1.2.0`, and `update` moves the skill to each newer one. When the source has no stable tag, the skill follows the head of the default branch instead.
+
+Some sources tag one release and keep committing without tagging again. When the head of the default branch was committed more than 365 days after the latest stable tag, the skill follows the head of the branch, as if the source had no tag. Both dates are Git committer dates, so the choice changes only when the source gets a new commit or tag, never because time passes.
+
+- `add`, `update`, and `update --check` follow the same rule.
+- A skill installed at a tag moves to the head of the branch on the next `nik update` once the branch passes 365 days, with the usual review and [cooldown](#cooldown).
+- A skill that follows the branch moves back to a tag only when the tagged commit contains the installed commit. A fix tagged on an older release line, such as `v1.0.1` after the branch moved on from `v1.0.0`, doesn't take back the branch's changes.
+- A pinned skill that you name in `nik update` moves to the latest stable tag, however old it is.
+- When the lockfile names a branch that the source no longer has, for example after the source renamed `master` to `main`, the skill follows the latest stable tag.
 
 ## `adopt`
 
@@ -117,8 +129,8 @@ unknown host key. An SSH source works when your key and the host's key are
 already set up.
 
 `adopt` compares the files with the source. A Git source is checked at the
-latest release, the head of the default branch, and the last 100 commits that
-changed the skill. A pinned ref from `gh skill` or `npx skills` is checked at
+revision `nik add` would install (see [Tag or branch](#tag-or-branch)), the
+head of the default branch, and the last 100 commits that changed the skill. A pinned ref from `gh skill` or `npx skills` is checked at
 that ref only.
 
 - When the files match, the entry records that source and the commit that
@@ -223,7 +235,7 @@ nik update --check [-g|-p] [--json]
 
 ### Cooldown
 
-An upstream revision that changes a skill's files waits 3 days before `update` takes it on its own, so a tag pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch when the source has no tag. A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits). When a source has no tag and its branch gets a commit at least every few days, a changed skill from it can keep waiting under `--all`, because each new commit is young. Run `nik update <skill>` to update it.
+An upstream revision that changes a skill's files waits 3 days before `update` takes it on its own, so a tag pushed from a hijacked maintainer account doesn't reach every `nik update --all --yes` the same day. The age is the Git committer date of the revision `update` would move to: the commit of the latest stable tag, or the head of the branch (see [Tag or branch](#tag-or-branch)). A commit dated in the past passes at once; see [security-scan.md](security-scan.md#limits). When a skill follows the branch and the branch gets a commit at least every few days, a changed skill from it can keep waiting under `--all`, because each new commit is young. Run `nik update <skill>` to update it.
 
 - `--all` and `--source` leave a waiting skill at its recorded revision and print why:
 
@@ -267,7 +279,7 @@ nik update --check [-g|-p] [--json]
 
 With `--check`, `update` checks every enabled skill against its source and shows which skills have an update. It doesn't install, update, or record anything. It never asks: ssh fails instead of asking for a host key or a passphrase. It runs the same with or without a terminal. Run `nik update` to choose which updates to install.
 
-- It checks the same upstream revision as `update`: the latest stable tag, or the head of the branch when the source has no tag. A pinned skill shows the revision that `nik update <skill>` would move it to.
+- It checks the same upstream revision as `update`: the latest stable tag, or the head of the branch (see [Tag or branch](#tag-or-branch)). A pinned skill shows the revision that `nik update <skill>` would move it to.
 - It ignores the [cooldown](#cooldown). A skill with a young upstream revision still counts as outdated.
 - It doesn't check disabled skills. It names them in one info line.
 - In project scope, it doesn't check a skill whose source the policy in `niksi.json` doesn't allow. It names each such skill and its source. See [Project configuration](configuration.md#project-configuration).

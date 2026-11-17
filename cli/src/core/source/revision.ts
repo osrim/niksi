@@ -1,5 +1,13 @@
 import { integrityHex } from "../skill/integrity.ts";
-import { defaultBranch, headCommit, isBranch, listTags, resolveRef } from "./git.ts";
+import {
+  commitTime,
+  defaultBranch,
+  headCommit,
+  isAncestor,
+  isBranch,
+  listTags,
+  resolveRef,
+} from "./git.ts";
 import { pickLatestTag } from "./semver.ts";
 import { repoName } from "./coordinate.ts";
 
@@ -29,15 +37,48 @@ export interface Labelled {
 export const displayLabel = (entry: Labelled): string =>
   entry.pinnedAs ?? entry.tag ?? shortId(entry);
 
+// A source that keeps committing to its branch long after its latest stable tag no longer releases.
+const ABANDONED_TAG_SECONDS = 365 * 86_400;
+
+const isAbandoned = async (clone: string, taggedCommit: string, head: string): Promise<boolean> => {
+  const [taggedAt, headAt] = await Promise.all([
+    commitTime(clone, taggedCommit),
+    commitTime(clone, head),
+  ]);
+  return headAt - taggedAt > ABANDONED_TAG_SECONDS;
+};
+
+type Installed = Pick<Revision, "track" | "commit" | "tag">;
+
+// A skill on the branch goes back to tags only at a tag known to contain its commit, so a fix tagged
+// on an older release line can't take back the branch's changes, even after upstream rewrites
+// history and drops the installed commit.
+const leavesBranch = async (
+  clone: string,
+  installed: Installed,
+  taggedCommit: string,
+): Promise<boolean> =>
+  installed.commit !== undefined &&
+  installed.tag === undefined &&
+  !(await isAncestor(clone, installed.commit, taggedCommit));
+
 export const resolveUpstream = async (
   clone: string,
   repo: string,
   branch: string,
+  installed: Installed = { track: "auto" },
 ): Promise<{ commit: string; tag?: string }> => {
   const latest = pickLatestTag(await listTags(clone), repoName(repo));
-  return latest
-    ? { commit: latest.commit, tag: latest.name }
-    : { commit: await headCommit(clone, branch) };
+  if (!latest) return { commit: await headCommit(clone, branch) };
+  const tagged = { commit: latest.commit, tag: latest.name };
+  if (installed.track === "pin") return tagged;
+  // A recorded branch that upstream renamed leaves nothing to compare the tag with.
+  const head = await headCommit(clone, branch).catch(() => null);
+  if (head === null) return tagged;
+  const followsHead =
+    (await isAbandoned(clone, latest.commit, head)) ||
+    (await leavesBranch(clone, installed, latest.commit));
+  return followsHead ? { commit: head } : tagged;
 };
 
 export const resolveRevision = async (

@@ -17,6 +17,7 @@ import { pathToFileURL } from "node:url";
 import {
   cliRunner,
   commitAll,
+  FIXTURE_COMMIT_TIME,
   initRepo,
   makeSkill,
   recordedLock,
@@ -159,6 +160,34 @@ test("update --check exits 0 when every checked skill is up to date and names di
     output.skills.map(({ name, verdict }: { name: string; verdict: string }) => [name, verdict]),
   ).toEqual([["kept", "up-to-date"]]);
   expect(output.disabled).toEqual(["off"]);
+});
+
+test("update --check --json checks the branch head when it was committed more than 365 days after the latest tag", async () => {
+  const dormant = join(tmp, "dormant-source");
+  await makeSkill(dormant, "kept", "version one\n");
+  await initRepo(dormant);
+  const tagged = await commitAll(dormant, "version one");
+  await tagHead(dormant, "v1.0.0");
+  const dormantProject = join(tmp, "dormant-project");
+  await mkdir(join(dormantProject, ".git"), { recursive: true });
+  await add(dormantProject, pathToFileURL(dormant).href, "kept");
+  await makeSkill(dormant, "kept", "version two\n");
+  const head = await commitAll(dormant, "version two", FIXTURE_COMMIT_TIME + 366 * 86_400);
+
+  const result = await runCli(dormantProject, ...CHECK, "--json");
+
+  expect(result.exitCode).toBe(1);
+  expect(JSON.parse(result.stdout).skills).toEqual([
+    {
+      name: "kept",
+      source: pathToFileURL(dormant).href,
+      path: "kept",
+      track: "auto",
+      verdict: "outdated",
+      recorded: { commit: tagged, tag: "v1.0.0" },
+      upstream: { commit: head },
+    },
+  ]);
 });
 
 test("update --check --json reports an unreachable source with its error and exits 1", async () => {

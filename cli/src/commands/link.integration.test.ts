@@ -362,6 +362,16 @@ test("add --all installs the skills in skills/ and in plugins/*/skills/ together
   expect(skills["demo"]).toMatchObject({ path: "collection/skills/demo" });
   expect(skills["helper"]).toMatchObject({ path: "collection/plugins/tool/skills/helper" });
   expect(existsSync(join(root, ".claude", "skills", "helper", "SKILL.md"))).toBe(true);
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toEqual([
+    expect.objectContaining({ name: "demo", path: "collection/skills/demo", state: "installed" }),
+    expect.objectContaining({
+      name: "helper",
+      path: "collection/plugins/tool/skills/helper",
+      state: "installed",
+    }),
+  ]);
 });
 
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {

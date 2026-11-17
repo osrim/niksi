@@ -198,16 +198,13 @@ export const headCommit = async (clone: string, branch: string): Promise<string>
   return result.out;
 };
 
-// null when Git can't tell, as for a commit that upstream no longer has.
+// false also when Git can't tell, as for a commit that upstream no longer has.
 export const isAncestor = async (
   clone: string,
   ancestor: string,
   descendant: string,
-): Promise<boolean | null> => {
-  const result = await git(["merge-base", "--is-ancestor", ancestor, descendant], clone);
-  if (result.code === 0) return true;
-  return result.code === 1 ? false : null;
-};
+): Promise<boolean> =>
+  (await git(["merge-base", "--is-ancestor", ancestor, descendant], clone)).code === 0;
 
 export const commitTime = async (clone: string, commit: string): Promise<number> => {
   // log.showSignature in the user's config prints the signature check before the date.

@@ -50,8 +50,9 @@ const isAbandoned = async (clone: string, taggedCommit: string, head: string): P
 
 type Installed = Pick<Revision, "track" | "commit" | "tag">;
 
-// A skill on the branch goes back to tags only at a tag that contains its commit, so a fix tagged
-// on an older release line can't take back the branch's changes.
+// A skill on the branch goes back to tags only at a tag known to contain its commit, so a fix tagged
+// on an older release line can't take back the branch's changes, even after upstream rewrites
+// history and drops the installed commit.
 const leavesBranch = async (
   clone: string,
   installed: Installed,
@@ -59,7 +60,7 @@ const leavesBranch = async (
 ): Promise<boolean> =>
   installed.commit !== undefined &&
   installed.tag === undefined &&
-  (await isAncestor(clone, installed.commit, taggedCommit)) === false;
+  !(await isAncestor(clone, installed.commit, taggedCommit));
 
 export const resolveUpstream = async (
   clone: string,

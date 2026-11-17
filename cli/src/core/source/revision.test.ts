@@ -140,6 +140,19 @@ test("auto: a fix tagged on an older release line doesn't take a skill off the b
   });
 });
 
+test("auto: a skill on the branch stays there when upstream no longer has its commit", async () => {
+  const { repo, head } = await datedRepo("rewritten-history", TAGGED_AT + 400 * DAY);
+  await $`git -C ${repo} switch -q -c rel-1 v1.0.0`.quiet();
+  await writeFile(join(repo, "SKILL.md"), "hotfix\n");
+  await commitAt(repo, "hotfix", TAGGED_AT + 399 * DAY);
+  await tagHead(repo, "v1.0.1");
+  await $`git -C ${repo} switch -q main`.quiet();
+  const clone = await ensureClone(repo);
+  const dropped = { track: "auto" as const, commit: "f".repeat(40) };
+
+  expect(await resolveUpstream(clone, repo, "main", dropped)).toEqual({ commit: head });
+});
+
 test("pin: a named update still moves to the latest tag, however old", async () => {
   const { repo } = await datedRepo("abandoned-tag-pin", TAGGED_AT + 2 * 365 * DAY);
   const clone = await ensureClone(repo);

@@ -83,6 +83,7 @@ Some sources tag one release and keep committing without tagging again. When the
 - A skill installed at a tag moves to the head of the branch on the next `nik update` once the branch passes 365 days, with the usual review and [cooldown](#cooldown).
 - A skill that follows the branch moves back to a tag only when the tagged commit contains the installed commit. A fix tagged on an older release line, such as `v1.0.1` after the branch moved on from `v1.0.0`, doesn't take back the branch's changes.
 - A pinned skill that you name in `nik update` moves to the latest stable tag, however old it is.
+- When the lockfile names a branch that the source no longer has, for example after the source renamed `master` to `main`, the skill follows the latest stable tag.
 
 ## `adopt`
 

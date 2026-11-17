@@ -1,5 +1,5 @@
 import { integrityHex } from "../skill/integrity.ts";
-import { defaultBranch, headCommit, isBranch, listTags, resolveRef } from "./git.ts";
+import { commitTime, defaultBranch, headCommit, isBranch, listTags, resolveRef } from "./git.ts";
 import { pickLatestTag } from "./semver.ts";
 import { repoName } from "./coordinate.ts";
 
@@ -29,15 +29,27 @@ export interface Labelled {
 export const displayLabel = (entry: Labelled): string =>
   entry.pinnedAs ?? entry.tag ?? shortId(entry);
 
+// A source that still commits to its branch long after its latest stable tag no longer releases.
+const STALE_TAG_SECONDS = 365 * 86_400;
+
+const isStale = async (clone: string, tag: string, head: string): Promise<boolean> => {
+  const [taggedAt, headAt] = await Promise.all([commitTime(clone, tag), commitTime(clone, head)]);
+  return headAt - taggedAt > STALE_TAG_SECONDS;
+};
+
 export const resolveUpstream = async (
   clone: string,
   repo: string,
   branch: string,
+  track: Revision["track"] = "auto",
 ): Promise<{ commit: string; tag?: string }> => {
   const latest = pickLatestTag(await listTags(clone), repoName(repo));
-  return latest
-    ? { commit: latest.commit, tag: latest.name }
-    : { commit: await headCommit(clone, branch) };
+  if (!latest) return { commit: await headCommit(clone, branch) };
+  const tagged = { commit: latest.commit, tag: latest.name };
+  if (track === "pin") return tagged;
+  // A recorded branch that upstream renamed leaves nothing to compare the tag with.
+  const head = await headCommit(clone, branch).catch(() => null);
+  return head !== null && (await isStale(clone, latest.commit, head)) ? { commit: head } : tagged;
 };
 
 export const resolveRevision = async (

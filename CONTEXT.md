@@ -15,7 +15,7 @@ Use these terms in code, docs, and output.
 | source kind | `git` or `local`. | type |
 | source id | String the lockfile stores in `source`: an `https://`, `ssh://`, or `file://` URL, a `user@host:path` address, or `local:` followed by a path. | repo, url |
 | revision | Resolved source state and its track. Git sources include a commit. | version, ref, pin |
-| track | `auto` follows the latest stable tag or the default branch. `pin` stays at the typed ref. | mode, tracking, strategy |
+| track | `auto` follows the latest stable tag, or the default branch when there is no such tag or the branch head was committed more than 365 days after it. `pin` stays at the typed ref. | mode, tracking, strategy |
 | commit | Full 40-character Git commit. | ref, hash, SHA |
 | short id | First 8 hex characters of a commit, or of the integrity when there is no commit. | short hash, abbreviated commit |
 | label | Human form of a revision: the pinned ref, else the tag, else the short id. | display name, version string |

@@ -63,7 +63,8 @@ export class GitSource implements Source {
     const clone = await this.clone();
     const commit = commitOf(skill);
     const branch = branchOf(skill);
-    const upstream = await resolveUpstream(clone, this.id, branch);
+    const track = skill.track;
+    const upstream = await resolveUpstream(clone, this.id, branch, track);
     const baseOid = await subtreeOid(clone, commit, skill.path);
     const headOid = await subtreeOid(clone, upstream.commit, skill.path);
     const gone = headOid === null;
@@ -78,7 +79,6 @@ export class GitSource implements Source {
       );
       ahead = counted.code === 0 ? Number.parseInt(counted.out || "0", 10) : 0;
     }
-    const track = skill.track;
     return {
       revision: {
         commit: upstream.commit,

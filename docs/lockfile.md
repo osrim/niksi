@@ -69,7 +69,7 @@ A local path that is not absolute resolves from the project root. In project sco
 
 | source | `track` | revision fields |
 | --- | --- | --- |
-| Git, followed | `auto` | `commit` and `branch`, the default branch. `tag` when `commit` is the latest stable release tag. Without such a tag, `commit` is the head of `branch`. |
+| Git, followed | `auto` | `commit` and `branch`, the default branch. `tag` when `commit` is the latest stable release tag. When the source has no such tag, or the head of `branch` was committed more than 365 days after it, `commit` is the head of `branch` and there is no `tag`. See [Tag or branch](commands.md#tag-or-branch). |
 | Git, pinned to a branch | `pin` | `commit` and `branch`, the pinned branch. |
 | Git, pinned to a full 40-character commit | `pin` | `commit` and `branch`, the default branch. |
 | Git, pinned to a tag or any other ref | `pin` | `commit`, `branch`, the default branch, and `pinnedAs`, the ref you typed. |

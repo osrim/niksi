@@ -3,6 +3,34 @@
 What each release changes for people who run `nik` or the niksi action. To add
 an entry, run `/start-release X.Y.Z`.
 
+## [0.5.0-alpha.4](https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.4) (2026-11-17)
+
+`nik update --check` and `nik install --frozen-lockfile` let a CI job check skills without a terminal, and the repository now ships a skill that teaches your agent to use `nik`.
+
+### Upgrading
+
+- In project scope, `nik audit` now exits `3` on a warn finding when `niksi.json` sets `policy.denyWarn`, so an audit job that passed before can fail. (#89)
+- `nik audit` now reads `niksi.json` in project scope and exits `2` when the file is invalid, as `nik add` and `nik install` do. (#89)
+
+### Highlights
+
+**Check for updates from a script.** `nik update --check` checks every enabled skill against its source, never asks, and installs or records nothing. `--json` prints each skill's `verdict` with its `recorded` and `upstream` revision. It exits `0` when every skill is up to date, `1` otherwise, and `3` when the project policy leaves a skill out. (#92)
+
+**Catch a missing lockfile or skill in CI.** `nik install --frozen-lockfile` exits `1` and installs nothing when there is no `niksi-lock.json`, where plain `nik install` prints `Nothing to install.` and passes. `nik list --json` gives each skill a `state`: `installed`, `modified`, `missing`, or `disabled`. (#91)
+
+**Let your agent install skills.** The niksi skill teaches your agent to install, update, and check skills with `nik`. Your agent shows you what the scan finds, and critical findings wait for you to approve them in your own terminal. `llms.txt` links agents to every doc. `nik add osrim/niksi niksi -p` installs the skill once 0.5.0 is out. (#90)
+
+### Changes
+
+- `nik audit --json` marks each warn finding that fails the audit under `policy.denyWarn` with `deniedBy: "policy.denyWarn"`. (#89)
+
+### Fixes
+
+- Two Git sources whose names differ only in punctuation, such as `acme/tools-skills` and `acme-tools/skills`, no longer share a cached clone, so `nik add` can no longer install one source's files under the other's name or past a project policy. (#95)
+- An unreachable Git source now says why, such as `cannot reach file:///srv/skills (not a Git repository)`, instead of the end of Git's advice to check your access rights. (#99)
+- `nik list` shows a skill as missing when its link or agent copy is broken or points elsewhere, and `nik install` restores it instead of failing. (#91, #93)
+- The scan no longer stalls on a file built to slow it down with long lines, unmatched backticks, or unclosed HTML comments, and no longer reports a false critical finding or crashes on words such as `constructor` and `__proto__`. (#94, #96)
+
 ## [0.5.0-alpha.3](https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.3) (2026-11-08)
 
 `nik adopt` records skills you installed without `niksi`, a committed `niksi.json` sets which sources a project's skills may come from, and `nik update` waits 3 days before it takes a new release on its own.
@@ -25,7 +53,7 @@ an entry, run `/start-release X.Y.Z`.
 - The `nik update` picker shows the age of each update. (#83)
 - `nik disable` refuses a skill that `nik adopt` recorded as its own local source, since removing its files would delete the source, and names `nik remove` instead. (#80)
 
-https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.2) (2026-11-07)
+## [0.5.0-alpha.2](https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.2) (2026-11-07)
 
 `nik audit` now tells a critical finding you approved apart from one nobody approved, and `nik install` links each skill to the agents it was added for.
 

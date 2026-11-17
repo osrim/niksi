@@ -688,7 +688,7 @@ test("--all --yes keeps a skill whose new release is inside the cooldown, and th
 });
 
 test("a tag more than 365 days older than the branch head gives way to the head in update and add", async () => {
-  const fixture = await setupUpdate("stale-tag", ["kept"], []);
+  const fixture = await setupUpdate("abandoned-tag", ["kept"], []);
   await makeSkill(fixture.repo, "kept", "version two\n");
   const head = await commitAll(fixture.repo, "version two", FIXTURE_COMMIT_TIME + 366 * DAY);
 
@@ -703,20 +703,18 @@ test("a tag more than 365 days older than the branch head gives way to the head 
   });
   await expectInstalled(fixture, "kept", "version two");
 
-  const project = join(tmp, "stale-tag-added");
+  const project = join(tmp, "abandoned-tag-added");
   await mkdir(join(project, ".git"), { recursive: true });
   const source = pathToFileURL(fixture.repo).href;
   const added = await runCli(project, "add", source, "kept", ...PATH_COPY, "--yes");
   expect(added.exitCode).toBe(0);
-  expect((await readSkills(join(project, "niksi-lock.json"))).kept).toMatchObject({
-    commit: head,
-    track: "auto",
-  });
-  expect((await readSkills(join(project, "niksi-lock.json"))).kept).not.toHaveProperty("tag");
+  const { kept } = await readSkills(join(project, "niksi-lock.json"));
+  expect(kept).toMatchObject({ commit: head, track: "auto" });
+  expect(kept).not.toHaveProperty("tag");
 });
 
 test("naming a pinned skill moves it to the latest tag even when the branch head is more than 365 days newer", async () => {
-  const fixture = await setupUpdate("stale-tag-pin", ["kept"], ["kept"], PATH_COPY, "@v1.0.0");
+  const fixture = await setupUpdate("abandoned-tag-pin", ["kept"], ["kept"], PATH_COPY, "@v1.0.0");
   await makeSkill(fixture.repo, "kept", "version three\n");
   await commitAll(fixture.repo, "version three", FIXTURE_COMMIT_TIME + 366 * DAY);
 

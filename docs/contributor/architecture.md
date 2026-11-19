@@ -54,7 +54,7 @@ The action is `action.yml` at the repository root. Its steps run the Bash script
 - `setup.sh` downloads the `nik` binary, checks it against `checksums.txt`, and puts it on `PATH`. It takes the `version` input, else the version in `cli/package.json` at the action's ref.
 - `install.sh`, `update.sh`, and `scan.sh` each run one action mode. They call `nik`, `git`, `gh`, and `jq`, and never import from `cli/`.
 
-`cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. The `action` job in `checks.yml` runs the action end to end on pull requests. The user-facing contract is in [ci.md](../ci.md).
+`cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. On pull requests, the `action` job in `checks.yml` runs install mode end to end with the released binary and smoke-tests scan mode with the binary built from the pull request. The user-facing contract is in [ci.md](../ci.md).
 
 ## Write path
 

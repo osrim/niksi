@@ -9,9 +9,10 @@ an entry, run `/start-release X.Y.Z`.
 
 - **Action required** if `nik install` reports that a Git skill's source files
   do not match a lockfile written by v0.4.2 or earlier because of a filename
-  such as `café.txt`. Run `nik add <source> <skill>` again and commit
-  `niksi-lock.json`. This lets teammates and CI restore the skill with its
-  correct filenames even when the upstream commit is unchanged.
+  such as `café.txt`. Run `nik add <source> <skill>` again with the same
+  scope, destination, and pinned ref, if any. Commit the updated project
+  `niksi-lock.json` so teammates and CI can restore the skill. `nik update`
+  leaves the old entry in place when the upstream commit is unchanged.
 - GitHub Action scan mode needs a `nik` binary from v0.5.0 or later. If your
   workflow sets `version` to an older binary, remove that override or update it.
 

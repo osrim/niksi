@@ -10,7 +10,13 @@ badge() {
 }
 
 status=0
-stats=$(nik __scan-source "$source_dir") || status=$?
+stop_marker=$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')
+{
+  # Keep the scan log and the workflow markers on the same stream.
+  printf '::stop-commands::%s\n' "$stop_marker"
+  stats=$(nik __scan-source "$source_dir" 2>&3) || status=$?
+  printf '::%s::\n' "$stop_marker"
+} 3>&1
 case "$status" in
   0) ;;
   2)

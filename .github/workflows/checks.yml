@@ -36,8 +36,6 @@ jobs:
       - run: bun run fmt:check
       - run: bun run test
 
-  # Runs the action with the nik release that cli/package.json names, not this branch's nik.
-  # Not on main: the release commit lands there before release.yml uploads its binaries.
   action:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -50,10 +48,15 @@ jobs:
           persist-credentials: false
       - run: shellcheck action/*.sh
         working-directory: .
-      - uses: ./
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          mode: scan
-          path: cli/testdata/benign-skills
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun run build
+      - run: PATH="$PWD/dist:$PATH" bash ../action/scan.sh
+        env:
+          INPUT_PATH: testdata/benign-skills
 
   pr-title:
     if: github.event_name == 'pull_request'

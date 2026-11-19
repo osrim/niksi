@@ -2,12 +2,6 @@
 set -euo pipefail
 
 source_dir=$(cd "$INPUT_PATH" && pwd)
-project="$RUNNER_TEMP/niksi-scan"
-audit="$RUNNER_TEMP/niksi-audit.json"
-
-count() {
-  jq "[.skills[].findings[] | select(.severity == \"$1\")] | length" "$audit"
-}
 
 badge() {
   local workflow="${GITHUB_WORKFLOW_REF#"$GITHUB_REPOSITORY/.github/workflows/"}"
@@ -15,30 +9,18 @@ badge() {
   echo "[![niksi scan]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/$workflow/badge.svg)](https://github.com/osrim/niksi)"
 }
 
-rm -rf "$project"
-mkdir -p "$project"
-git init -q "$project"
-cd "$project"
-
-# The copies land in a temporary project, so skipping critical approval only lets
-# audit count every finding. The add records those findings as accepted, so they
-# do not change the audit exit code, and the step fails on the critical count instead.
-nik add "$source_dir" --all --project --yes --copy --path skills --dangerous-skip-critical-approval
 status=0
-nik audit --project --json > "$audit" || status=$?
+stats=$(nik __scan-source "$source_dir") || status=$?
 case "$status" in
-  0 | 1 | 3) ;;
-  *)
-    echo "::error::nik audit exited $status. See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
-    exit "$status"
+  0) ;;
+  2)
+    echo "::error::Scan mode needs niksi 0.5.0 or later. Update the action and any version override."
+    exit 1
     ;;
+  *) exit "$status" ;;
 esac
-
-recorded=$(jq '.skills | length' niksi-lock.json)
-skills=$(jq '.skills | length' "$audit")
-critical=$(count critical)
-warn=$(count warn)
-info=$(count info)
+counts=$(jq -r '[.skills, .critical, .warn, .info] | @tsv' <<< "$stats")
+IFS=$'\t' read -r skills critical warn info <<< "$counts"
 noun=skills
 if [ "$skills" -eq 1 ]; then noun=skill; fi
 line="Scanned $skills $noun: $critical critical, $warn warn, $info info findings."
@@ -56,12 +38,7 @@ echo "badge=$(badge)" >> "$GITHUB_OUTPUT"
   echo '```'
 } >> "$GITHUB_STEP_SUMMARY"
 
-# Audit exits 1 for a warn finding or for a skill it cannot read, which it leaves out of the JSON.
-if [ "$status" -eq 1 ] && [ "$skills" -eq "$recorded" ]; then status=0; fi
 if [ "$critical" -gt 0 ]; then
-  status=3
   echo "::error::$critical critical finding(s). See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
-elif [ "$status" -ne 0 ]; then
-  echo "::error::nik audit exited $status. See https://github.com/osrim/niksi/blob/main/docs/ci.md#exit-codes"
+  exit 3
 fi
-exit "$status"

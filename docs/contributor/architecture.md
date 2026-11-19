@@ -9,7 +9,7 @@ index.ts -> commands -> ui -> core
                     \------> core
 ```
 
-- `index.ts` registers commands, renders root help, starts the update check for every run, and turns argument and top-level errors into exit codes. It answers the hidden `__complete-skills` helper before it parses arguments, so the helper never starts the update check.
+- `index.ts` registers commands, renders root help, starts the update check, and turns argument and top-level errors into exit codes. It handles `__complete-skills` and `__scan-source` before argument parsing and the update check.
 - `commands/` owns each command's policy and sequence. A prompt or spinner used by one command only may live in that command.
 - `ui/` holds terminal behavior shared by commands: prompts, the review gate, reports, styling, per-skill progress, and exit status for UI failures.
 - `core/` implements behavior with no terminal input, terminal output, or process exit.
@@ -26,7 +26,7 @@ cli/src/
   test-output.ts     output capture and fake terminal, tests only
   test-color.ts      fresh-process probe for color output, tests only
   test-timing.ts     slowdown against a same-size linear baseline, tests only
-  commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion
+  commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion, scan-source
   ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
   core/
     completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
@@ -52,9 +52,9 @@ cli/src/
 The action is `action.yml` at the repository root. Its steps run the Bash scripts in `action/`, outside the Bun workspace:
 
 - `setup.sh` downloads the `nik` binary, checks it against `checksums.txt`, and puts it on `PATH`. It takes the `version` input, else the version in `cli/package.json` at the action's ref.
-- `install.sh`, `update.sh`, and `scan.sh` each run one action mode. They call `nik`, `git`, `gh`, and `jq`, and never import from `cli/`.
+- `install.sh`, `update.sh`, and `scan.sh` each run one action mode. They call `nik`, `git`, `gh`, and `jq`, and never import from `cli/`. Scan mode uses the internal `nik __scan-source` command to scan skills in place and count findings.
 
-`cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. The `action` job in `checks.yml` runs the action end to end on pull requests. The user-facing contract is in [ci.md](../ci.md).
+`cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. On pull requests, the `action` job in `checks.yml` runs install mode end to end with the released binary and smoke-tests scan mode with the binary built from the pull request. The user-facing contract is in [ci.md](../ci.md).
 
 ## Write path
 

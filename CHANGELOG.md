@@ -2,6 +2,25 @@
 
 What each release changes for people who run `nik` or the niksi action. To add
 an entry, run `/start-release X.Y.Z`.
+Draft notes for upcoming releases go under `Unreleased`.
+
+## Unreleased
+
+### Upgrading
+
+- **Action required** if `nik install` reports that a Git skill's source files
+  do not match a lockfile written by v0.4.2 or earlier because of a filename
+  such as `café.txt`. Run `nik add <source> <skill>` again with the same
+  scope, agents, and pinned ref, if any. For a copy, pass `--copy` and reuse
+  the original `--path` if you set one. Commit the updated project
+  `niksi-lock.json` so teammates and CI can restore the skill. `nik update`
+  leaves the old entry in place when the upstream commit is unchanged.
+- GitHub Action scan mode needs a `nik` binary from v0.5.0 or later. If your
+  workflow sets `version` to an older binary, remove that override or update it.
+
+### Fixes
+
+- GitHub Action scan mode checks each skill when multiple skills share a name.
 
 ## [0.5.0-alpha.4](https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.4) (2026-11-17)
 

@@ -174,6 +174,10 @@ try {
     for (const name of await completeSkills(command, words)) console.log(name);
     process.exit(0);
   }
+  if (argv[2] === "__scan-source" && argv[3] !== undefined) {
+    await (await import("./commands/scan-source.ts")).run(argv[3]);
+    process.exit(0);
+  }
   checkReleaseAgeArgs(argv);
   const cli = buildCli();
   cli.parse(argv, { run: false });

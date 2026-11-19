@@ -14,7 +14,7 @@ The GitHub Action at a tag downloads the binaries of that tag's release. A workf
 
 The release notes are the version's entry in `CHANGELOG.md`, under the heading `## [X.Y.Z](...)`. In Claude Code, run `nik install --agent claude` once per checkout to link the skill from `niksi-lock.json`, then run `/start-release X.Y.Z` on `main` to draft the entry from the commits since the previous release. The skill leaves the entry uncommitted and replies with the remaining steps.
 
-An alpha gets its own entry. A stable version's entry covers every commit since the previous stable version, alphas included, because stable users never saw the alphas.
+An alpha gets its own entry. A stable version's entry covers every commit since the previous stable version, alphas included, because stable users never saw the alphas. Move any applicable notes from `Unreleased` into the version entry.
 
 ## Release command
 

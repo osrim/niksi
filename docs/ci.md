@@ -183,7 +183,7 @@ The `pull-request` job needs the same [permissions and repository setting](#perm
 
 ## Scan a skill repository
 
-Scan mode checks the skills you publish the way `nik add` checks them for your users. It copies every skill under `path` into a temporary project with `nik add --all --copy`, then scans the copies with `nik audit`. It fails the step on a critical finding. Warn and info findings don't fail it. The scanned repository's `niksi.json` doesn't apply in that temporary project, so `policy.denyWarn` doesn't make a warn finding fail the step.
+Scan mode uses the same scan rules as `nik add`. It reads each discovered skill under `path` directly from the checkout, including skills with the same name in different directories. It fails the step on a critical finding. Warn and info findings pass, and the checkout's `niksi.json` doesn't apply. Scan mode needs a `nik` binary from v0.5.0 or later.
 
 ```yaml
 name: skill scan
@@ -204,14 +204,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: osrim/niksi@v0.4.0
+      - uses: osrim/niksi@v0.5.0
         with:
           mode: scan
 ```
 
 The job summary shows the number of scanned skills and the findings by severity. The job log shows every finding. [security-scan.md](security-scan.md) explains each rule.
-
-`nik add` runs with `--dangerous-skip-critical-approval`, so it writes skills with critical findings into the temporary project, and `nik audit` can count them. That `nik add` records the findings as accepted in the temporary lockfile, so they do not change the `nik audit` exit code. The step counts critical findings in the `nik audit --json` output instead, and fails with exit `3` when there is one. Nothing outside the temporary project changes.
 
 ### Add the badge
 
@@ -252,7 +250,7 @@ The step exits with the code of `nik`, as listed in [commands.md](commands.md#ex
 | code | install | update | scan |
 | --- | --- | --- | --- |
 | `0` | Every enabled skill is on disk with its recorded integrity. | Every selected skill is up to date or updated. The pull request is open, updated, or closed. | No critical finding. Warn findings pass. |
-| `1` | A skill failed to restore, or a skill comes from a source that `niksi.json` doesn't allow. | A skill failed. No pull request. | `path` isn't a directory, `nik add` failed, or a skill couldn't be read. |
+| `1` | A skill failed to restore, or a skill comes from a source that `niksi.json` doesn't allow. | A skill failed. No pull request. | `path` isn't a directory, no skills were found, a skill couldn't be read, or the `nik` binary is older than v0.5.0. |
 | `2` | Invalid input, or an invalid `niksi.json`. | Invalid input. Also when `pull-request` is `true` and the workflow doesn't run on a branch, such as on `pull_request`, or when `branch` is the branch it runs on. | Invalid input. |
 | `3` | | Findings that need approval, or the policy in `niksi.json`, blocked a skill. The pull request still carries the other updates, even when another skill failed. The job summary lists that skill under **Not updated**. | A skill has a critical finding. |
 

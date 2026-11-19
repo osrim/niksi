@@ -35,8 +35,11 @@ The version scheme and alphas are in `docs/releasing.md`.
    exit code, environment variable, lockfile field, or action input) is an
    Upgrading bullet, even under a `chore:` title. If one breaks a setup and
    the version bumps only the patch, open the reply with that.
-5. Insert the entry above the newest entry in `CHANGELOG.md`, under the
-   heading `## [X.Y.Z](https://github.com/osrim/niksi/releases/tag/vX.Y.Z) (YYYY-MM-DD)`
+5. Fold applicable `## Unreleased` bullets into the new entry and remove the
+   bullets you moved. Remove the `Unreleased` section if no bullets remain.
+   Insert the entry before the newest version entry, below any remaining
+   `Unreleased` notes. Use the heading
+   `## [X.Y.Z](https://github.com/osrim/niksi/releases/tag/vX.Y.Z) (YYYY-MM-DD)`
    with today's date. Leave it uncommitted: `bun run release` commits it.
 6. Reply with the entry, the dropped commits one per line, and these steps
    with the version filled in:

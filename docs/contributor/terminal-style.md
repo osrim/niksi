@@ -6,6 +6,8 @@ For contributors. Rules for what `niksi` prints and asks. User-facing behavior o
 
 Human output goes to stdout inside a Clack frame. Runtime warnings, errors, and the update notice go to stderr. Security findings and the cooldown warning of `add` stay on stdout because they are part of the review. `list --json`, `audit --json`, and `update --check --json` write only JSON to stdout.
 
+The internal `__scan-source` command writes JSON counts to stdout and discovery warnings and findings to stderr. The GitHub Action puts stderr in the job log.
+
 ## Prompts
 
 Every prompt has a flag replacement, and the replacements do not overlap:

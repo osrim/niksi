@@ -4,23 +4,104 @@ What each release changes for people who run `nik` or the niksi action. To add
 an entry, run `/start-release X.Y.Z`.
 Draft notes for upcoming releases go under `Unreleased`.
 
-## Unreleased
+## [0.5.0](https://github.com/osrim/niksi/releases/tag/v0.5.0) (2026-11-19)
+
+You can bring skills you already installed into `niksi` and set a policy for
+which sources your project uses. CI can check for upstream updates and fail
+when a checkout is missing its lockfile.
 
 ### Upgrading
 
-- **Action required** if `nik install` reports that a Git skill's source files
-  do not match a lockfile written by v0.4.2 or earlier because of a filename
-  such as `café.txt`. Run `nik add <source> <skill>` again with the same
-  scope, agents, and pinned ref, if any. For a copy, pass `--copy` and reuse
-  the original `--path` if you set one. Commit the updated project
-  `niksi-lock.json` so teammates and CI can restore the skill. `nik update`
-  leaves the old entry in place when the upstream commit is unchanged.
-- GitHub Action scan mode needs a `nik` binary from v0.5.0 or later. If your
-  workflow sets `version` to an older binary, remove that override or update it.
+- **Action required** before sharing a lockfile written by 0.5.0, upgrade
+  `nik` on teammates' machines and in CI, including any pinned action
+  `version` input, because releases before 0.5.0-alpha.2 reject lockfile
+  version 2. (#75)
+- **Action required** if the action's scan mode pins an older binary, remove
+  the `version` input or set it to `0.5.0` or later. (#107)
+- **Action required** if `nik install` reports an integrity mismatch for a Git
+  skill recorded by 0.4.2 or earlier with a filename like `café.txt`, rerun
+  `nik add <source> <skill>` with the original scope, agents, and pinned ref,
+  if any (reuse `--copy` and `--path` where applicable), then commit the
+  updated `niksi-lock.json` if it's a project skill. (#75)
+- **Action required** if a name now matches a skill in both `skills/` and
+  `plugins/*/skills/`, pass the full path, as in
+  `nik add owner/repo plugins/<plugin>/skills/<skill>`. (#105)
+- **Action required** if you install alphas with `niksi@next`, run
+  `npm uninstall -g niksi` and `brew install osrim/tap/niksi-alpha` to keep
+  receiving alphas. (#72, #74)
+- `nik install --agent` and the action's `agent` input now apply only to link
+  entries that have no recorded agents, while `nik install` and `nik enable`
+  restore other links to the agents recorded in `niksi-lock.json`. (#75)
+- `nik update --all`, `nik update --source`, and the action's update mode
+  defer file changes until the upstream revision is at least 3 days old,
+  unless you set `"minimumReleaseAge": 0` in `niksi.json` or pass
+  `--min-release-age 0` to `nik update`. (#83, #84)
+- Unpinned skills follow the head of the default branch when it was committed
+  more than 365 days after the latest stable tag, and return to a tag only
+  when it contains the installed commit. (#106)
+- `nik audit` scans each distinct agent copy and counts a previously approved
+  critical finding as accepted without affecting the exit code while the
+  installed files match the lockfile. (#75)
+- In project scope, `nik audit` exits `3` on a warn finding when
+  `niksi.json` sets `policy.denyWarn`, and exits `2` if the file is invalid.
+  (#89)
+- A critical finding with low confidence now shows as `warn` and follows
+  the approval rules for warnings. (#68)
+
+### Highlights
+
+**Record skills you already use.** Run `nik adopt` to review, scan, and record
+skills you copied by hand or installed with `gh skill` or `npx skills`.
+It matches the files to a source revision when it can and records unmatched
+skills as local. (#80)
+
+**Set a project policy.** Commit `niksi.json` alongside `niksi-lock.json` to
+allow GitHub organizations or specific Git sources and, with
+`policy.denyWarn`, require approval for warn findings when adding, adopting,
+or updating skills. The source policy also applies when installing or enabling
+skills, including in the action's install mode. (#80, #84, #85, #89)
+
+**Check skills in CI.** Run `nik update --check --json` to see each enabled
+skill's upstream verdict without installing anything. Use
+`nik install --frozen-lockfile` to fail when `niksi-lock.json` is missing and
+`nik list --json` to read each skill's installation `state`. (#91, #92)
+
+### Changes
+
+- The scan checks inside bundled archives and flags more ways skills can
+  download and run code, expose credentials, install persistence, hide
+  instructions, or disguise executables and links. (#59, #60, #61, #63, #64,
+  #65, #66, #67, #69)
+- `nik audit --json` reports each finding's `confidence` and marks findings
+  that are accepted or denied by the project policy. (#68, #75, #89)
+- `nik add` warns about revisions inside the cooldown, and the `nik update`
+  picker shows the age of each candidate so you can choose to update it now.
+  (#83)
+- `nik completion <shell>` completes commands, flags, and recorded skill
+  names in bash, zsh, and fish, with scripts installed by Homebrew. (#58)
+- Run `nik add osrim/niksi niksi -p` to give your agent instructions for
+  installing, reviewing, and updating skills with `nik` and links to the
+  documentation. (#90)
+- The lockfile format is documented in `docs/lockfile.md`, including the
+  fields and integrity calculation tools need to read or write it. (#76)
 
 ### Fixes
 
-- GitHub Action scan mode checks each skill when multiple skills share a name.
+- GitHub Action scan mode checks each discovered skill when multiple skills
+  share a name. (#107)
+- `nik add owner/repo/<path>` can reach a skill in a hidden directory when
+  you give its exact path. (#71)
+- When only pinned skills need a missing dependency, `nik update` suggests
+  a `nik add` command pinned to the revision you reviewed. (#57)
+- `nik list` reports a broken skill link or dangling copy as missing, and
+  `nik install` can restore it. (#91, #93)
+- Git sources with similar names get separate cached clones, so `nik add`
+  uses the requested source. (#95)
+- When a Git source is unreachable, `nik update` reports Git's reason in the
+  terminal and in scripted checks and update reports. (#99)
+- The scan handles long prose lines, unmatched backticks, and unclosed HTML
+  comments faster, and ordinary words such as `constructor` no longer
+  trigger a false critical finding. (#94, #96)
 
 ## [0.5.0-alpha.4](https://github.com/osrim/niksi/releases/tag/v0.5.0-alpha.4) (2026-11-17)
 

@@ -52,7 +52,7 @@ cli/src/
 The action is `action.yml` at the repository root. Its steps run the Bash scripts in `action/`, outside the Bun workspace:
 
 - `setup.sh` downloads the `nik` binary, checks it against `checksums.txt`, and puts it on `PATH`. It takes the `version` input, else the version in `cli/package.json` at the action's ref.
-- `install.sh`, `update.sh`, and `scan.sh` each run one action mode. Scan mode uses the internal `nik __scan-source` command to scan skills in place and count findings.
+- `install.sh`, `update.sh`, and `scan.sh` each run one action mode. They call `nik`, `git`, `gh`, and `jq`, and never import from `cli/`. Scan mode uses the internal `nik __scan-source` command to scan skills in place and count findings.
 
 `cli/src/commands/github-action.integration.test.ts` runs each mode script against `nik` from source, local Git repositories, and a stub `gh`. It doesn't test `setup.sh`, because tests don't use the network. On pull requests, the `action` job in `checks.yml` runs install mode end to end with the released binary and smoke-tests scan mode with the binary built from the pull request. The user-facing contract is in [ci.md](../ci.md).
 

@@ -36,6 +36,7 @@ jobs:
       - run: bun run fmt:check
       - run: bun run test
 
+  # Install downloads the release binary, which is uploaded after the version bump lands on main.
   action:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

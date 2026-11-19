@@ -5,7 +5,7 @@
       "source": "local:.",
       "path": "skills/start-release",
       "root": "skills/start-release",
-      "integrity": "sha256-MKUjUQQbXaLqj/nQoJLMwLkHLKdxUOBcxZCB3RLUtQg=",
+      "integrity": "sha256-XNH268FB9nRPZVW9sBGHqVeMQs1yNa8KkyNWrQmTcr4=",
       "track": "auto"
     }
   }

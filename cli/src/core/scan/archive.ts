@@ -157,10 +157,24 @@ const stored = (name: string, mode: string, data: Buffer, problem?: string): Ent
   problem,
 });
 
-const tarEntry = (header: Buffer, name: string, data: Buffer): Entry | undefined => {
+// A GNU long name ("L") or long link ("K"), or a pax path ("x"), applies to the next member.
+interface LongNames {
+  name?: string | undefined;
+  link?: string | undefined;
+}
+
+const readLongName = (type: string, data: Buffer, long: LongNames): void => {
+  if (type === "K") long.link = field(data, 0, data.length);
+  else long.name = type === "L" ? field(data, 0, data.length) : paxPath(data);
+};
+
+const tarEntry = (header: Buffer, long: LongNames, data: Buffer): Entry | undefined => {
   const type = field(header, 156, 1) || "0";
   if (type === "5" || type === "g") return undefined;
-  if (type === "2") return stored(name, MODE_SYMLINK, Buffer.from(field(header, 157, 100)));
+  const name = (long.name ?? tarName(header)).replace(/^(?:\.\/)+/u, "");
+  if (type === "2") {
+    return stored(name, MODE_SYMLINK, Buffer.from(long.link ?? field(header, 157, 100)));
+  }
   const problem = type === "0" || type === "7" ? undefined : `unsupported tar entry type ${type}`;
   return stored(name, unixMode(octal(header, 100, 8)), data, problem);
 };
@@ -172,7 +186,7 @@ const tarName = (header: Buffer): string => {
 
 const tarEntries = (buf: Buffer): Entry[] => {
   const entries: Entry[] = [];
-  let longName: string | undefined;
+  let long: LongNames = {};
   for (let at = 0; at + BLOCK <= buf.length;) {
     const header = buf.subarray(at, at + BLOCK);
     if (header.every((byte) => byte === 0)) break;
@@ -182,12 +196,12 @@ const tarEntries = (buf: Buffer): Entry[] => {
     const data = buf.subarray(at + BLOCK, at + BLOCK + size);
     at += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
     const type = field(header, 156, 1);
-    if (type === "L" || type === "x") {
-      longName = type === "L" ? field(data, 0, data.length) : paxPath(data);
+    if (type === "L" || type === "K" || type === "x") {
+      readLongName(type, data, long);
       continue;
     }
-    const entry = tarEntry(header, (longName ?? tarName(header)).replace(/^(?:\.\/)+/u, ""), data);
-    longName = undefined;
+    const entry = tarEntry(header, long, data);
+    long = {};
     if (entry) entries.push(entry);
   }
   return entries;
@@ -241,12 +255,16 @@ const inflate = (
   }
 };
 
-// A tar pads each member to 512 bytes, so the ratio counts member bytes only.
-// The size budget counts the members as they are taken.
+// Each tar member may add a long name or pax header, its own header, and padding: four blocks at
+// most. The end of the archive adds up to a 10 KiB record.
+const TAR_OVERHEAD = (4 * MAX_MEMBERS + 20) * BLOCK;
+
+// The tarball may inflate to the ratio plus the tar overhead, so a bomb skips this archive only.
+// The ratio then counts member bytes, and the size budget counts the members as they are taken.
 const gzipEntries = (walk: Walk, file: SkillFile): Entry[] => {
   const tarball = inflate(walk, file.path, gunzipSync, file.content, {
     declared: 0,
-    ratioCap: Number.POSITIVE_INFINITY,
+    ratioCap: file.content.length * MAX_RATIO + TAR_OVERHEAD,
   });
   if (!tarball) return [];
   const entries = tarEntries(tarball);

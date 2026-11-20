@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { randomBytes } from "node:crypto";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK, type SkillFile } from "../skill/files.ts";
 import { readArchives } from "./archive.ts";
 import { stored, tar, tgz, zip } from "./test-archive.ts";
@@ -69,6 +70,23 @@ test("reads a tar name longer than 100 bytes from its ustar prefix or GNU long n
   const { members } = readArchives([file("gnu.tar", gnu), file("ustar.tar", ustar)]);
 
   expect(members.map((member) => member.path)).toEqual([`gnu.tar!${long}`, `ustar.tar!${long}`]);
+});
+
+test("reads a symlink target longer than 100 bytes from its GNU long link", () => {
+  const target = `../${"t".repeat(120)}/secret`;
+  const archive = tar(
+    { name: "././@LongLink", type: "K", data: `${target}\0` },
+    { name: "link", type: "2", link: target.slice(0, 100) },
+    { name: "after.md", data: "x" },
+  );
+
+  const { members, unread } = readArchives([file("gnu.tar", archive)]);
+
+  expect(shown(members)).toEqual([
+    `gnu.tar!link ${MODE_SYMLINK} ${target}`,
+    `gnu.tar!after.md ${MODE_FILE} x`,
+  ]);
+  expect(unread).toEqual([]);
 });
 
 test("reads archives nested three deep and stops at the fourth", () => {
@@ -226,13 +244,36 @@ test("stops when the members of the skill's archives pass 25 MiB in total", () =
   expect(unread).toEqual([{ file: "a.zip!two.txt", detail: SIZE_STOP }]);
 });
 
-test("stops when a tar.gz inflates past 25 MiB", () => {
+test("stops when a tar.gz inflates past what is left of 25 MiB", () => {
   const { members, unread } = readArchives([
-    file("big.tar.gz", tgz({ name: "big.txt", data: Buffer.alloc(26 * MIB) })),
+    file("a.zip", zip(stored("first.txt", Buffer.alloc(24 * MIB, "a")))),
+    file("big.tar.gz", tgz({ name: "big.txt", data: randomBytes(2 * MIB) })),
+    file("c.zip", zip({ name: "never.md", data: "x" })),
   ]);
 
-  expect(members).toEqual([]);
+  expect(members.map((member) => member.path)).toEqual(["a.zip!first.txt"]);
   expect(unread).toEqual([{ file: "big.tar.gz", detail: SIZE_STOP }]);
+});
+
+test("skips a small tar.gz that inflates past 100:1 and reads the archives after it", () => {
+  const { members, unread } = readArchives([
+    file("bomb.tar.gz", tgz({ name: "zeros.txt", data: Buffer.alloc(30 * MIB) })),
+    file("after.zip", zip({ name: "after.md", data: "x" })),
+  ]);
+
+  expect(members.map((member) => member.path)).toEqual(["after.zip!after.md"]);
+  expect(unread).toEqual([
+    { file: "bomb.tar.gz", detail: "inflates past the ratio budget of 100:1, not read" },
+  ]);
+});
+
+test("a tar.gz of many small members is not a ratio bomb", () => {
+  const members = names("m", 900).map((name) => ({ name, data: "x" }));
+
+  const { members: read, unread } = readArchives([file("many.tgz", tgz(...members))]);
+
+  expect(read).toHaveLength(900);
+  expect(unread).toEqual([]);
 });
 
 test("stops when reading has taken more than 5 seconds", () => {

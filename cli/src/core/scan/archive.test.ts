@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { MODE_EXEC, MODE_FILE, MODE_SYMLINK, type SkillFile } from "../skill/files.ts";
+import { slowdown } from "../../test-timing.ts";
 import { readArchives } from "./archive.ts";
 import { stored, tar, tgz, zip } from "./test-archive.ts";
 
@@ -87,6 +88,43 @@ test("reads a symlink target longer than 100 bytes from its GNU long link", () =
     `gnu.tar!after.md ${MODE_FILE} x`,
   ]);
   expect(unread).toEqual([]);
+});
+
+const paxRecord = (key: string, value: string): string => {
+  const body = ` ${key}=${value}\n`;
+  const length = body.length + String(body.length + 3).length;
+  return `${length}${body}`;
+};
+
+test("reads a pax path and link path for the next member", () => {
+  const archive = tar(
+    {
+      name: "PaxHeaders/link",
+      type: "x",
+      data: paxRecord("path", "docs/link") + paxRecord("linkpath", "/etc/passwd"),
+    },
+    { name: "link", type: "2", link: "a" },
+    { name: "after.md", data: "x" },
+  );
+
+  const { members } = readArchives([file("pax.tar", archive)]);
+
+  expect(shown(members)).toEqual([
+    `pax.tar!docs/link ${MODE_SYMLINK} /etc/passwd`,
+    `pax.tar!after.md ${MODE_FILE} x`,
+  ]);
+});
+
+const paxHeader = (record: string) => [
+  file("pax.tar", tar({ name: "h", type: "x", data: record.repeat(200_000) })),
+];
+
+test("a pax header of many near-miss records reads in linear time", () => {
+  const { ratio, rounds } = slowdown(
+    () => readArchives(paxHeader("9 xpath=a\n")),
+    () => readArchives(paxHeader("abcdefghi\n")),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
 });
 
 test("reads archives nested three deep and stops at the fourth", () => {

@@ -145,8 +145,8 @@ const checksumMatches = (header: Buffer): boolean => {
   return sum === octal(header, 148, 8);
 };
 
-const paxPath = (data: Buffer): string | undefined =>
-  /(?:^|\n)\d+ path=([^\n]*)\n/u.exec(data.toString("utf8"))?.[1];
+const PAX_PATH = /(?:^|\n)\d+ path=([^\n]*)\n/u;
+const PAX_LINK = /(?:^|\n)\d+ linkpath=([^\n]*)\n/u;
 
 const stored = (name: string, mode: string, data: Buffer, problem?: string): Entry => ({
   name,
@@ -157,15 +157,21 @@ const stored = (name: string, mode: string, data: Buffer, problem?: string): Ent
   problem,
 });
 
-// A GNU long name ("L") or long link ("K"), or a pax path ("x"), applies to the next member.
+// A GNU long name ("L") or long link ("K"), or a pax path and link path ("x"), applies to the next
+// member.
 interface LongNames {
   name?: string | undefined;
   link?: string | undefined;
 }
 
 const readLongName = (type: string, data: Buffer, long: LongNames): void => {
-  if (type === "K") long.link = field(data, 0, data.length);
-  else long.name = type === "L" ? field(data, 0, data.length) : paxPath(data);
+  if (type === "L") long.name = field(data, 0, data.length);
+  else if (type === "K") long.link = field(data, 0, data.length);
+  else {
+    const pax = data.toString("utf8");
+    long.name = PAX_PATH.exec(pax)?.[1];
+    long.link = PAX_LINK.exec(pax)?.[1];
+  }
 };
 
 const tarEntry = (header: Buffer, long: LongNames, data: Buffer): Entry | undefined => {

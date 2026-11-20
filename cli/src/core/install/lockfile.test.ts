@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   emptyLock,
+  filterLock,
   isApproved,
   loadLock,
   parseLock,
@@ -340,6 +341,16 @@ test("an empty lockfile records no skill named after an Object property", () => 
       expect(isApproved(lock, name, at)).toBe(false);
     }
   }
+});
+
+test("filterLock keeps the chosen entries and still records no Object property", () => {
+  const lock = parseLock(
+    JSON.stringify({ lockfileVersion: 2, skills: { tdd: entry, mine: local } }),
+    "niksi-lock.json",
+  );
+  const kept = filterLock(lock, (recorded) => recorded.source === entry.source);
+  expect(Object.keys(kept.skills)).toEqual(["tdd"]);
+  for (const name of OBJECT_PROPERTY_NAMES) expect(kept.skills[name]).toBeUndefined();
 });
 
 test("isApproved matches a local skill by its directory, whichever shape recorded it", () => {

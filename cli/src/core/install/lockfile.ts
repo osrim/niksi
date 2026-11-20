@@ -80,6 +80,14 @@ export const splitDisabled = (lock: Lockfile): { enabled: Lockfile; disabled: Lo
   return { enabled, disabled };
 };
 
+export const filterLock = (lock: Lockfile, keep: (entry: LockEntry) => boolean): Lockfile => {
+  const kept = emptyLock();
+  for (const [name, entry] of Object.entries(lock.skills)) {
+    if (keep(entry)) kept.skills[name] = entry;
+  }
+  return kept;
+};
+
 export const isApproved = (
   lock: Lockfile,
   name: string,

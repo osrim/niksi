@@ -727,8 +727,10 @@ const feedsInterpreter = (statement: Statement): boolean => {
   return commands.some((command) => runsSubstitution(commandWords(statement, command), command));
 };
 
+const URL_WORD = /^[a-z][\w+.-]*:\/\//iu;
+
 const asPath = (word: string): string | undefined => {
-  if (/^[a-z]+:\/\//iu.test(word)) {
+  if (URL_WORD.test(word)) {
     try {
       return new URL(word).pathname.split("/").at(-1) || undefined;
     } catch {
@@ -740,47 +742,45 @@ const asPath = (word: string): string | undefined => {
 };
 
 const REDIRECT = /^1?>>?(.*)$/u;
-const URL_WORD = /^[a-z][\w+.-]*:\/\//iu;
 
 interface Downloader {
-  // Short options that take a value, the one that names the saved file, and the one that saves
-  // under the last segment of the URL path.
-  values: string;
-  output: string;
-  remoteName?: string;
+  valueFlags: Set<string>;
+  outputFlag: string;
+  remoteNameFlag?: string;
   long: Map<string, "output" | "remote-name">;
   // Saves under the URL's name unless an output option says otherwise.
   savesByDefault: boolean;
 }
 
+// Windows PowerShell aliases curl and wget to Invoke-WebRequest, whose `-OutFile` takes one dash.
+const OUT_FILE = ["-outfile", "output"] as const;
+
 const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
   curl: {
-    values: "AbcCdDeEFHKmoPQrtTuUwxXyYz",
-    output: "o",
-    remoteName: "O",
+    valueFlags: new Set("AbcCdDeEFHKmoPQrtTuUwxXyYz"),
+    outputFlag: "o",
+    remoteNameFlag: "O",
     long: new Map([
       ["--output", "output"],
       ["--remote-name", "remote-name"],
       ["--remote-name-all", "remote-name"],
+      OUT_FILE,
     ]),
     savesByDefault: false,
   },
   wget: {
-    values: "aABDeiIloOPQRtTUwX",
-    output: "O",
-    long: new Map([["--output-document", "output"]]),
+    valueFlags: new Set("aABDeiIloOPQRtTUwX"),
+    outputFlag: "O",
+    long: new Map([["--output-document", "output"], OUT_FILE]),
     savesByDefault: true,
   },
 };
 
-// fetch(1) and the PowerShell cmdlets, whose `-OutFile` takes one dash.
+// fetch(1) and the PowerShell cmdlets.
 const OTHER_DOWNLOADER: Downloader = {
-  values: "o",
-  output: "o",
-  long: new Map([
-    ["--output", "output"],
-    ["-outfile", "output"],
-  ]),
+  valueFlags: new Set("o"),
+  outputFlag: "o",
+  long: new Map([["--output", "output"], OUT_FILE]),
   savesByDefault: false,
 };
 
@@ -797,6 +797,8 @@ const save = (saved: Saved, value: string | undefined): void => {
   if (path) saved.files.push(path);
 };
 
+const longKey = (word: string): string => word.split("=", 1)[0]!.toLowerCase();
+
 // Each reader returns how many of the following words it consumed.
 const readLong = (
   tool: Downloader,
@@ -804,10 +806,10 @@ const readLong = (
   next: string | undefined,
   saved: Saved,
 ): number => {
-  const eq = word.indexOf("=");
-  const kind = tool.long.get((eq === -1 ? word : word.slice(0, eq)).toLowerCase());
+  const kind = tool.long.get(longKey(word));
   if (kind === "remote-name") saved.remoteName = true;
   if (kind !== "output") return 0;
+  const eq = word.indexOf("=");
   save(saved, eq === -1 ? next : word.slice(eq + 1));
   return eq === -1 ? 1 : 0;
 };
@@ -821,10 +823,10 @@ const readShort = (
 ): number => {
   for (let at = 1; at < word.length; at++) {
     const flag = word[at]!;
-    if (flag === tool.remoteName) saved.remoteName = true;
-    if (!tool.values.includes(flag)) continue;
+    if (flag === tool.remoteNameFlag) saved.remoteName = true;
+    if (!tool.valueFlags.has(flag)) continue;
     const attached = word.slice(at + 1);
-    if (flag === tool.output) save(saved, attached || next);
+    if (flag === tool.outputFlag) save(saved, attached || next);
     return attached ? 0 : 1;
   }
   return 0;
@@ -846,7 +848,7 @@ const readWord = (
   if (redirect) return readRedirect(redirect[1]!, next, saved);
   if (URL_WORD.test(word)) saved.urls.push(word);
   if (!word.startsWith("-") || word === "-") return 0;
-  const long = word.startsWith("--") || tool.long.has(word.split("=", 1)[0]!.toLowerCase());
+  const long = word.startsWith("--") || tool.long.has(longKey(word));
   return long ? readLong(tool, word, next, saved) : readShort(tool, word, next, saved);
 };
 

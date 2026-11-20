@@ -13,12 +13,26 @@ export interface Found {
 
 export type Finder = (text: string) => Found[];
 
+// A token keeps its last answer, which holds for any later offset up to the match it found, so a
+// token that is absent from the rest of a line is read to the end once. That keeps a chain linear
+// when each token instance sits in one place: shared by two chains, it is asked at offsets that
+// go back and forth, and rereads.
 export const token = (pattern: RegExp): Token => {
   const search = new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`);
+  let last: { line: string; from: number; span: Span | undefined } | undefined;
   return (line, from) => {
-    search.lastIndex = from;
-    const match = search.exec(line);
-    return match ? { start: match.index, end: match.index + match[0].length } : undefined;
+    const known =
+      last !== undefined &&
+      last.line === line &&
+      last.from <= from &&
+      (last.span === undefined || last.span.start >= from);
+    if (!known) {
+      search.lastIndex = from;
+      const match = search.exec(line);
+      const span = match ? { start: match.index, end: match.index + match[0].length } : undefined;
+      last = { line, from, span };
+    }
+    return last!.span;
   };
 };
 
@@ -30,9 +44,9 @@ export const anyOf =
       return span && (first === undefined || span.start < first.start) ? span : first;
     }, undefined);
 
-// Each token is searched once, from where the one before it ended, so a line is read once
-// however often the first token repeats. That finds what `first[^\n]*?second` finds as long as
-// a token that starts later never ends earlier: then if the first start fails, every later one fails.
+// Each token is searched from where the one before it ended. That finds what
+// `first[^\n]*?second` finds as long as a token that starts later never ends earlier: then if
+// the first start fails, every later one fails.
 export const lazyChain =
   (...tokens: Token[]): Token =>
   (line, from) => {
@@ -48,13 +62,13 @@ export const lazyChain =
     return { start: head.start, end };
   };
 
-// As `first[^\n]*last`: the match runs on to the last match of `last`, read once to the end.
-export const greedyChain = (tokens: Token[], last: RegExp): Token => {
-  const final = token(last);
-  const lazy = lazyChain(...tokens, final);
+// As `first[^\n]*last`: the match runs on to the last match of the last token.
+export const greedyChain = (...tokens: Token[]): Token => {
+  const lazy = lazyChain(...tokens);
+  const final = tokens.at(-1);
   return (line, from) => {
     const found = lazy(line, from);
-    if (found === undefined) return undefined;
+    if (found === undefined || final === undefined) return found;
     let end = found.end;
     for (let span = final(line, end); span !== undefined; span = final(line, span.end)) {
       end = span.end;
@@ -65,14 +79,23 @@ export const greedyChain = (tokens: Token[], last: RegExp): Token => {
 
 const LINE = /[^\n]+/gu;
 
-// The first match of `find` within each segment. A segment is a line unless `segment` stops it sooner.
-export const perLine =
+const matchesIn = (find: Token, part: string, index: number): Found[] => {
+  const found: Found[] = [];
+  for (let span = find(part, 0); span !== undefined;) {
+    found.push({ index: index + span.start, text: part.slice(span.start, span.end) });
+    span = find(part, Math.max(span.end, span.start + 1));
+  }
+  return found;
+};
+
+// Each match of `find` in each segment, searched again from where the last one ended, as
+// `matchAll` does. A segment is a line unless `segment` stops it sooner.
+export const perSegment =
   (find: Token, segment: RegExp = LINE): Finder =>
   (text) =>
-    Array.from(text.matchAll(segment)).flatMap(({ 0: part, index }) => {
-      const span = find(part, 0);
-      return span ? [{ index: index + span.start, text: part.slice(span.start, span.end) }] : [];
-    });
+    Array.from(text.matchAll(segment)).flatMap(({ 0: part, index }) =>
+      matchesIn(find, part, index),
+    );
 
 export const everyMatch =
   (pattern: RegExp): Finder =>

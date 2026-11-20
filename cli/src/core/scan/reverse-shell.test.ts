@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { slowdown } from "../../test-timing.ts";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { reverseShell } from "./reverse-shell.ts";
 import { shellStatements } from "./shell.ts";
 
@@ -67,18 +67,18 @@ test("a match quotes from the command to the last shell it reaches on the line",
   );
 });
 
-// One long line of a pattern's first word, against the same text with one word per line.
-const LONG = 5_000;
-const longLine = (word: string) => `${word} `.repeat(LONG);
-const shortLines = (word: string) => `${word}\n`.repeat(LONG);
-
-test.each(["python -c socket", "socat", "mkfifo a", "php -r", "nc", "pwsh"])(
-  "a long line of %p scans in linear time",
-  (word) => {
-    const { ratio, rounds } = slowdown(
-      () => inScript(longLine(word)),
-      () => inScript(shortLines(word)),
-    );
-    expect(ratio, rounds).toBeLessThan(3);
-  },
-);
+test.each([
+  "python -c socket",
+  "socat",
+  "mkfifo a",
+  "php -r",
+  "nc",
+  "pwsh",
+  "pwsh -e AAAAAAAAAAAAAAAAAAAAAAAA",
+])("a long line of %p scans in linear time", (word) => {
+  const { ratio, rounds } = slowdown(
+    () => inScript(lineShapes(word).oneLine),
+    () => inScript(lineShapes(word).ownLines),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});

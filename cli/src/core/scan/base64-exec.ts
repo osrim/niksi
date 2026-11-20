@@ -16,15 +16,25 @@ import {
   type LineMatch,
 } from "./line-match.ts";
 import { shellStatements, type Command, type Statement } from "./shell.ts";
-import { anyOf, everyMatch, lazyChain, perLine, token, type Finder } from "./token-chain.ts";
+import {
+  anyOf,
+  everyMatch,
+  lazyChain,
+  perSegment,
+  token,
+  type Finder,
+  type Token,
+} from "./token-chain.ts";
 
 const DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|base64[ \t]+(?:-d|-D|--decode)\b|codecs\.decode\s*\(|bytes\.fromhex\s*\(|zlib\.decompress\s*\(|marshal\.loads\s*\(|(?<![.\w])compile\s*\(|["']{2}\.join\(\s*(?:map\(\s*chr\b|\[?\s*chr\s*\()|String\.fromCharCode\s*\(`;
 const SINK = String.raw`${EXEC_SINK}|\bnew[ \t]+Function\s*\(|(?<![.\w])eval[ \t]+["'$\x60]|\|[ \t]*(?:ba|z|da)?sh\b`;
 
-const DECODES = token(new RegExp(DECODER, "u"));
+// Each chain gets its own tokens, which stay linear only when asked at rising offsets.
+const decodesInline = (): Token => token(new RegExp(DECODER, "u"));
 // Buffer.from decodes only with a "base64" argument, which may come after any other argument.
-const BUFFER_DECODES = lazyChain(token(/Buffer\.from\(/u), token(/["']base64["']/u));
-const RUNS = token(new RegExp(SINK, "u"));
+// A decoder inside its parentheses ends first, so it starts a chain of its own.
+const decodesBuffer = (): Token => lazyChain(token(/Buffer\.from\(/u), token(/["']base64["']/u));
+const runsCode = (): Token => token(new RegExp(SINK, "u"));
 
 const CONCATENATED_GETATTR = lazyChain(token(/\bgetattr\s*\(/u), token(/["']\s*\+\s*["']/u));
 const CALL = /\s*\(/uy;
@@ -41,11 +51,11 @@ const calledGetattr: Finder = (text) =>
   });
 
 const PATTERNS: Finder[] = [
-  perLine(
+  perSegment(
     anyOf(
-      lazyChain(DECODES, RUNS),
-      lazyChain(BUFFER_DECODES, RUNS),
-      lazyChain(RUNS, anyOf(DECODES, BUFFER_DECODES)),
+      lazyChain(decodesInline(), runsCode()),
+      lazyChain(decodesBuffer(), runsCode()),
+      lazyChain(runsCode(), anyOf(decodesInline(), decodesBuffer())),
     ),
   ),
   calledGetattr,

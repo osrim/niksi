@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { slowdown } from "../../test-timing.ts";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { installHook } from "./install-hook.ts";
 
 const scripts = (hooks: Record<string, unknown>): string =>
@@ -129,8 +129,8 @@ test("a pyproject.toml hook line is found under its own table", () => {
 
 test("a long hook line of curl scans in linear time", () => {
   const { ratio, rounds } = slowdown(
-    () => hook("curl ".repeat(5_000)),
-    () => hook("curl\n".repeat(5_000)),
+    () => hook(lineShapes("curl").oneLine),
+    () => hook(lineShapes("curl").ownLines),
   );
   expect(ratio, rounds).toBeLessThan(3);
 });

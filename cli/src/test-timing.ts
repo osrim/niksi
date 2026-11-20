@@ -32,3 +32,10 @@ export const slowdown = (
     rounds: `hostile ms by round: ${milliseconds(hostileTimes)}; baseline ms by round: ${milliseconds(baselineTimes)}; baseline runs first in odd rounds`,
   };
 };
+
+// One long line of `word`, and the same text with `word` on lines of its own. A scan that rereads
+// a line from every match is slow on the long line only.
+export const lineShapes = (word: string, count = 5_000): { oneLine: string; ownLines: string } => ({
+  oneLine: `${word} `.repeat(count),
+  ownLines: `${word}\n`.repeat(count),
+});

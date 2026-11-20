@@ -285,21 +285,34 @@ const VersionSchema = z.object({
   }),
 });
 
-const lockfileSchema = <T extends z.ZodType>(entry: T) =>
-  z.object({ skills: z.record(z.string().regex(SKILL_NAME), entry).default({}) });
+const SkillsSchema = z.object({ skills: z.record(z.string(), z.unknown()).default({}) });
 
 const EntrySchemas = { 1: EntryV1Schema, 2: EntrySchema };
-const LockfileSchemas = { 1: lockfileSchema(EntryV1Schema), 2: lockfileSchema(EntrySchema) };
 
-const parseError = (file: string, error: z.ZodError): Error => {
+const parseError = (file: string, error: z.ZodError, skill?: string): Error => {
   const issue = error.issues[0]!;
-  if (issue.code === "invalid_key") {
-    const name = JSON.stringify(issue.path[1]);
-    return new Error(`${file}: ${name}: invalid skill name`, { cause: error });
-  }
-  const where = issue.path[0] === "skills" ? `${String(issue.path[1])}: ` : "";
+  let where = "";
+  if (skill !== undefined) where = `${skill}: `;
+  else if (issue.path[0] === "skills") where = `${String(issue.path[1])}: `;
   return new Error(`${file}: ${where}${issue.message}`, { cause: error });
 };
+
+const lockEntry = (entry: z.infer<typeof EntrySchema>): LockEntry => ({
+  source: entry.source,
+  ...(entry.branch === undefined ? {} : { branch: entry.branch }),
+  path: entry.path,
+  ...(entry.root === undefined ? {} : { root: entry.root }),
+  ...(entry.commit === undefined ? {} : { commit: entry.commit }),
+  integrity: entry.integrity,
+  track: entry.track,
+  ...(entry.pinnedAs === undefined ? {} : { pinnedAs: entry.pinnedAs }),
+  ...(entry.tag === undefined ? {} : { tag: entry.tag }),
+  ...(entry.copy === undefined ? {} : { copy: entry.copy }),
+  ...(entry.agents === undefined ? {} : { agents: entry.agents }),
+  ...(entry.copyPath === undefined ? {} : { copyPath: entry.copyPath }),
+  ...(entry.review === undefined ? {} : { review: serializeReview(entry.review) }),
+  ...(entry.disabled === undefined ? {} : { disabled: entry.disabled }),
+});
 
 export const parseLock = (text: string, file: string): Lockfile => {
   if (!text.trim()) return emptyLock();
@@ -311,32 +324,20 @@ export const parseLock = (text: string, file: string): Lockfile => {
   }
   const version = VersionSchema.safeParse(raw);
   if (!version.success) throw parseError(file, version.error);
-  const parsed = LockfileSchemas[version.data.lockfileVersion].safeParse(raw);
-  if (!parsed.success) throw parseError(file, parsed.error);
-  // Zod builds a record on a plain object, which drops a skill named `__proto__`, so each
-  // entry is read again from the parsed JSON.
+  const shape = SkillsSchema.safeParse(raw);
+  if (!shape.success) throw parseError(file, shape.error);
   const entrySchema: z.ZodType<z.infer<typeof EntrySchema>> =
     EntrySchemas[version.data.lockfileVersion];
+  // Zod builds a record on a plain object, which drops a skill named `__proto__`, so the names
+  // come from the parsed JSON.
   const rawSkills = (raw as { skills?: Record<string, unknown> }).skills ?? {};
   const skills = skillTable<LockEntry>();
   for (const [name, value] of Object.entries(rawSkills)) {
-    const entry = entrySchema.parse(value);
-    skills[name] = {
-      source: entry.source,
-      ...(entry.branch === undefined ? {} : { branch: entry.branch }),
-      path: entry.path,
-      ...(entry.root === undefined ? {} : { root: entry.root }),
-      ...(entry.commit === undefined ? {} : { commit: entry.commit }),
-      integrity: entry.integrity,
-      track: entry.track,
-      ...(entry.pinnedAs === undefined ? {} : { pinnedAs: entry.pinnedAs }),
-      ...(entry.tag === undefined ? {} : { tag: entry.tag }),
-      ...(entry.copy === undefined ? {} : { copy: entry.copy }),
-      ...(entry.agents === undefined ? {} : { agents: entry.agents }),
-      ...(entry.copyPath === undefined ? {} : { copyPath: entry.copyPath }),
-      ...(entry.review === undefined ? {} : { review: serializeReview(entry.review) }),
-      ...(entry.disabled === undefined ? {} : { disabled: entry.disabled }),
-    };
+    if (!isLockfileName(name))
+      throw new Error(`${file}: ${JSON.stringify(name)}: invalid skill name`);
+    const entry = entrySchema.safeParse(value);
+    if (!entry.success) throw parseError(file, entry.error, name);
+    skills[name] = lockEntry(entry.data);
   }
   return { lockfileVersion: 2, skills };
 };

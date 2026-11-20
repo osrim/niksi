@@ -3,9 +3,9 @@ import type { Finding, Severity } from "./index.ts";
 import { isMap, keyIndex, keyLine, readJson } from "./manifest.ts";
 import { matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
-import { lazyChain, perLine, token } from "./token-chain.ts";
+import { lazyChain, perSegment, token } from "./token-chain.ts";
 
-const DOWNLOADS = perLine(
+const DOWNLOADS = perSegment(
   lazyChain(token(/(?<![\w-])(?:curl|wget)(?![\w-])/iu), token(/https?:\/\//iu)),
 );
 // Flags that come before the one that takes inline code, as in `node --no-warnings -e`.

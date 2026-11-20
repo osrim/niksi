@@ -333,6 +333,13 @@ test("skills named after Object properties survive parse, split, and serializati
   expect(Object.keys(written.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
 });
 
+test("an invalid entry named after an Object property names the file and the skill", () => {
+  const text = `{"lockfileVersion":2,"skills":{"__proto__":${JSON.stringify({ ...entry, track: "x" })}}}`;
+  expect(() => parseLock(text, "niksi-lock.json")).toThrow(
+    'niksi-lock.json: __proto__: unknown track "x"',
+  );
+});
+
 test("an empty lockfile records no skill named after an Object property", () => {
   const at = { source: entry.source, path: entry.path, integrity };
   for (const lock of [emptyLock(), parseLock("", "niksi-lock.json")]) {

@@ -51,7 +51,7 @@ import { reverseShell } from "./reverse-shell.ts";
 import { silentExec } from "./silent-exec.ts";
 import { suppressionComments } from "./suppression.ts";
 import { gated, lower, lowerConfidence, stronger, strongest } from "./severity.ts";
-import { anyOf, lazyChain, perLine, token } from "./token-chain.ts";
+import { anyOf, lazyChain, perSegment, token, type Token } from "./token-chain.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 import { whitespacePadding } from "./whitespace-padding.ts";
@@ -663,15 +663,15 @@ const suspiciousPatterns: Scanner = ({ files }) =>
 const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;
 const DOWNLOADS = new RegExp(String.raw`(?<![\w-])(?:${DOWNLOADERS})(?![\w-])`, "iu");
 const DOWNLOADER = new RegExp(`^(?:${DOWNLOADERS})$`, "iu");
-const DOWNLOADSTRING = token(/\.downloadstring\s*\(/iu);
-const EVAL_OF_DOWNLOAD = perLine(
+const downloadString = (): Token => token(/\.downloadstring\s*\(/iu);
+const EVAL_OF_DOWNLOAD = perSegment(
   anyOf(
     lazyChain(
       token(new RegExp(String.raw`${EXEC_SINK}|\bnew\s+Function\s*\(`, "iu")),
       token(/(?:\burlopen|\brequests\.get|(?<![.\w])fetch)\s*\(/iu),
     ),
-    lazyChain(token(new RegExp(String.raw`\b(?:${EVALUATORS})\b`, "iu")), DOWNLOADSTRING),
-    lazyChain(DOWNLOADSTRING, token(new RegExp(String.raw`\|\s*(?:${EVALUATORS})\b`, "iu"))),
+    lazyChain(token(new RegExp(String.raw`\b(?:${EVALUATORS})\b`, "iu")), downloadString()),
+    lazyChain(downloadString(), token(new RegExp(String.raw`\|\s*(?:${EVALUATORS})\b`, "iu"))),
   ),
 );
 const URLRETRIEVE = /\burlretrieve\s*\(/u;

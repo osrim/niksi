@@ -44,6 +44,15 @@ const MANAGES = new Set([
   "export",
 ]);
 
+const COMMAND_WORD = new RegExp(
+  [
+    READS.source,
+    String.raw`(?<![\w-])(?:${[...MANAGES].join("|")})(?![\w-])`,
+    KEY_SETUP.source,
+  ].join("|"),
+  "u",
+);
+
 const WRITES_TO = /(?:>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?$/u;
 
 // A substitution inside a URL still reads the file, as in `?d=$(<~/.ssh/id_rsa)`.
@@ -86,14 +95,22 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
   });
 };
 
+// Prose names the command after other words, as in "Do not run cat ~/.ssh/id_rsa". A prohibition
+// counts where the command starts, as it does before a code span.
+const commandIndex = (statement: Statement): number => {
+  if (statement.kind !== "prose") return statement.index;
+  return statement.index + (COMMAND_WORD.exec(statement.text)?.index ?? 0);
+};
+
 export const credentialPaths = (
   statements: Statement[],
   { afterProhibition, demoted }: ProseJudge,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
-    const prohibited = prose && afterProhibition(statement.index);
-    const lowered = prose && demoted(statement.index);
+    const at = commandIndex(statement);
+    const prohibited = prose && afterProhibition(at);
+    const lowered = prose && demoted(at);
     const judge = (severity: Severity): Severity => {
       if (prohibited) return "info";
       return lowered ? lower(severity) : severity;

@@ -1,4 +1,5 @@
 import MarkdownIt from "markdown-it";
+import { frontmatterBlock } from "./frontmatter.ts";
 import { lineOf, lineStarts } from "./text.ts";
 
 // text.ts parses without HTML. Here raw HTML must end a fence, as it does when rendered.
@@ -272,13 +273,11 @@ const definition = (t: Tagger, line: number, claimed: Set<number>): void => {
   }
 };
 
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---[^\n]*/u;
-
 const markFrontmatter = (t: Tagger): number => {
-  const match = FRONTMATTER.exec(t.text);
-  if (!match) return 0;
-  mark(t, 0, match[0].length, "frontmatter");
-  return lineOf(t.starts, match[0].length) + 1;
+  const block = frontmatterBlock(t.text);
+  if (!block) return 0;
+  mark(t, 0, block.end, "frontmatter");
+  return lineOf(t.starts, block.end) + 1;
 };
 
 const codeBlock = (t: Tagger, token: Token, [a, b]: [number, number]): CodeBlock | undefined => {

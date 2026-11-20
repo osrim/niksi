@@ -187,6 +187,27 @@ test("each position knows its nearest heading", () => {
   expect(map.headingAt(text.indexOf("curl"))).toBe("Anti-patterns");
 });
 
+test("frontmatter may follow a byte order mark, be empty, and close only on a whole --- line", () => {
+  const bom = doc("\uFEFF---", "name: probe", "---", "body");
+  expect(contextOf(bom, "name: probe")).toBe("frontmatter");
+  expect(contextOf(bom, "body")).toBe("prose");
+  const empty = doc("---", "---", "# Heading", "body");
+  expect(contextOf(empty, "---")).toBe("frontmatter");
+  expect(mapMarkdown(empty).headingAt(empty.indexOf("body"))).toBe("Heading");
+  const dashes = doc("---", "a: 1", "---not a close", "b: 2", "---", "body");
+  expect(contextOf(dashes, "b: 2")).toBe("frontmatter");
+  expect(contextOf(dashes, "body")).toBe("prose");
+});
+
+test("frontmatter that never closes is read in linear time", () => {
+  const lines = "---x\n".repeat(20_000);
+  const { ratio, rounds } = slowdown(
+    () => mapMarkdown(`---\n${lines}`),
+    () => mapMarkdown(`---\n---\n${lines}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
 test("frontmatter keeps its lines out of the Markdown parse", () => {
   const text = doc("---", "title: x", "---", "# Real heading", "body");
   const map = mapMarkdown(text);

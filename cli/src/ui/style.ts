@@ -1,6 +1,7 @@
 import { Ansis } from "ansis";
 import cliTruncate from "cli-truncate";
 import { createSupportsColor } from "supports-color";
+import { codeOf } from "../core/scan/invisible.ts";
 export { tildify } from "../core/paths.ts";
 
 // supports-color handles piped output and TERM=dumb. NO_COLOR needs an explicit check.
@@ -25,7 +26,18 @@ export const blue: Paint = ansi.blue;
 export const bold: Paint = ansi.bold;
 export const dim: Paint = ansi.dim;
 
-export const skillName: Paint = ansi.cyan;
+const CONTROL = /(?![\t\n])[\p{Cc}\p{Cf}]/gu;
+
+const marker = (char: string): string => {
+  const code = char.codePointAt(0)!;
+  return code < 0x20 || code === 0x7f
+    ? `^${String.fromCharCode(code ^ 0x40)}`
+    : `<${codeOf(code)}>`;
+};
+
+export const escapeControl = (text: string): string => text.replace(CONTROL, marker);
+
+export const skillName: Paint = (text) => ansi.cyan(escapeControl(text));
 
 export const unstruck: Paint = (text) => `${ansi.strikethrough.close}${text}`;
 

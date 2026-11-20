@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import prettyBytes from "pretty-bytes";
 import { isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Finding, Severity } from "../core/scan/index.ts";
-import { blue, bold, dim, orange, pad, red, skillName } from "./style.ts";
+import { blue, bold, dim, escapeControl, orange, pad, red, skillName } from "./style.ts";
 
 const headline =
   (paint: (text: string) => string) =>
@@ -21,16 +21,6 @@ export const logSkillError = (name: string, cause: unknown): void =>
   logError(`${skillName(name)}: ${(cause as Error).message}`);
 
 export const warn = (message: string): void => p.log.warn(headline(orange)(message));
-
-const CONTROL = /(?![\t\n])[\p{Cc}\p{Cf}]/gu;
-
-const marker = (char: string): string => {
-  const code = char.codePointAt(0)!;
-  if (code < 0x20 || code === 0x7f) return `^${String.fromCharCode(code ^ 0x40)}`;
-  return `<U+${code.toString(16).toUpperCase().padStart(4, "0")}>`;
-};
-
-export const escapeControl = (text: string): string => text.replace(CONTROL, marker);
 
 export const fileLabel = (file: SkillFile): string =>
   `${escapeControl(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
@@ -65,7 +55,8 @@ const detailOf = (finding: Finding): string => {
     ...(finding.confidence === "low" ? ["low confidence"] : []),
     ...(finding.accepted ? ["accepted"] : []),
   ];
-  return marks.length > 0 ? `${finding.detail}${dim(` (${marks.join(", ")})`)}` : finding.detail;
+  const detail = escapeControl(finding.detail);
+  return marks.length > 0 ? `${detail}${dim(` (${marks.join(", ")})`)}` : detail;
 };
 
 const locationOf = (finding: Finding): string => {

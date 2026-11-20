@@ -56,14 +56,7 @@ import { migrateIfLegacy } from "../ui/migrate.ts";
 import { colorStat } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
-import {
-  escapeControl,
-  logError,
-  logSkillError,
-  logSourceCaution,
-  logWarn,
-  warn,
-} from "../ui/report.ts";
+import { logError, logSkillError, logSourceCaution, logWarn, warn } from "../ui/report.ts";
 import {
   describeUpdate,
   emptyScopeMessage,
@@ -74,7 +67,7 @@ import {
   reportWaiting,
   revisionRange,
 } from "../ui/status.ts";
-import { dim, skillName } from "../ui/style.ts";
+import { dim, escapeControl, skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:

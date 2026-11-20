@@ -12,8 +12,8 @@ import {
 import { ask, clackDecisions, type Decisions } from "./decisions.ts";
 import type { PagedSkill } from "./pager.ts";
 import { isInteractive, requireTTY } from "./prompt.ts";
-import { escapeControl, logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
-import { skillName } from "./style.ts";
+import { logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
+import { escapeControl, skillName } from "./style.ts";
 
 type GateOutcome = "pass" | "declined" | "blocked";
 
@@ -66,7 +66,7 @@ export const reviewSkills = async <T extends Reviewable>(
   for (const entry of selection) {
     const { name, files } = entry;
     p.note(renderNote(files), `${skillName(name)}: ${files.length} file(s)`);
-    for (const warning of entry.warnings ?? []) logWarn(warning);
+    for (const warning of entry.warnings ?? []) logWarn(escapeControl(warning));
     const findings = runScanners({ name, files });
     result.findings.set(name, findings);
     const outcome = await reviewSkill(entry, findings, options, decisions);

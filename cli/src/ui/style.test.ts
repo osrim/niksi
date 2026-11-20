@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { probe, probeTerminal } from "../test-color.ts";
+import { escapeControl, skillName } from "./style.ts";
 
 const ESC = "\u001B";
 
@@ -63,4 +64,25 @@ describe("enforceColorPolicy", () => {
   test("a second call does not stack another wrapper", async () => {
     expect((await probe({ NO_COLOR: "1" }, TWICE)).join("")).toBe("same");
   });
+});
+
+describe("escapeControl", () => {
+  test("shows ESC, other C0 characters, and DEL as caret markers", () => {
+    expect(escapeControl(`a${ESC}[31mb\u0000c\u0007d\rE\u007F`)).toBe("a^[[31mb^@c^Gd^ME^?");
+  });
+
+  test("keeps tab and newline", () => {
+    expect(escapeControl("a\tb\nc")).toBe("a\tb\nc");
+  });
+
+  test("shows C1 controls and format characters as code points", () => {
+    expect(escapeControl("a\u009B31mb\u0085c")).toBe("a<U+009B>31mb<U+0085>c");
+    expect(escapeControl("evil\u202Etxt.sh\u200B\u{E0041}")).toBe(
+      "evil<U+202E>txt.sh<U+200B><U+E0041>",
+    );
+  });
+});
+
+test("skillName escapes control characters in the name", () => {
+  expect(Bun.stripANSI(skillName(`evil${ESC}[2J\u202Eab`))).toBe("evil^[[2J<U+202E>ab");
 });

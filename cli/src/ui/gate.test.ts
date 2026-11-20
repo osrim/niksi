@@ -213,6 +213,31 @@ describe("reviewSkills", () => {
     }
   });
 
+  test("escapes control characters in a skill name and its warnings", async () => {
+    const output = captureOutput();
+    const restoreTty = setInteractive(false);
+    try {
+      const name = "evil\u001B[2J\u202Eab";
+      await reviewSkills(
+        [
+          {
+            name,
+            files: [skillMd("---\ndescription: hi\n---\n")],
+            warnings: [`${name}: invalid skill name.`],
+          },
+        ],
+        { yes: true },
+      );
+
+      expect(output.raw()).not.toContain("\u001B[2J");
+      expect(output.raw()).not.toContain("\u202E");
+      expect(output.text()).toContain("evil^[[2J<U+202E>ab: invalid skill name.");
+    } finally {
+      restoreTty();
+      output.restore();
+    }
+  });
+
   test.each([
     [true, "approved"],
     [false, "declined"],

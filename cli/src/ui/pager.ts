@@ -3,8 +3,8 @@ import prettyBytes from "pretty-bytes";
 import { onPath } from "../core/install/agents.ts";
 import { byPath, decodeText, isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Changes } from "../core/source/index.ts";
-import { escapeControl, fileLabel } from "./report.ts";
-import { blue, bold, colorOn, dim, green, red } from "./style.ts";
+import { fileLabel } from "./report.ts";
+import { blue, bold, colorOn, dim, escapeControl, green, red } from "./style.ts";
 
 export interface PagedSkill {
   name: string;

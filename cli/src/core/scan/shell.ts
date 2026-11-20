@@ -16,6 +16,8 @@ export interface Substitution {
 }
 
 export interface Command {
+  // Offset of the command in the scanned text. Exact for prose, the first line for code.
+  index: number;
   text: string;
   // Unquoted, with wrappers and leading assignments skipped and home spellings mapped.
   words: string[];
@@ -117,6 +119,7 @@ const endCommand = (s: Splitter, end: number): void => {
   if (s.commandStart >= 0) {
     const { words, wrappers } = skipWrappers(s.words);
     s.commands.push({
+      index: s.commandStart,
       text: s.text.slice(s.commandStart, end).trim(),
       words: words.map(mapHome),
       wrappers,
@@ -273,7 +276,10 @@ const segmentStatements = (segment: Segment, shell: boolean, kind: StatementKind
     line: segment.line,
     index: segment.index + draft.start,
     text: draft.text,
-    commands: draft.commands,
+    commands: draft.commands.map((command) => ({
+      ...command,
+      index: segment.index + command.index,
+    })),
     background: draft.background,
   }));
   if (commentAt === undefined) return statements;

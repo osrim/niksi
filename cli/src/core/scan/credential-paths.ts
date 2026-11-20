@@ -44,13 +44,13 @@ const MANAGES = new Set([
   "export",
 ]);
 
-const COMMAND_WORD = new RegExp(
+const COMMAND_WORDS = new RegExp(
   [
     READS.source,
     String.raw`(?<![\w-])(?:${[...MANAGES].join("|")})(?![\w-])`,
     KEY_SETUP.source,
   ].join("|"),
-  "u",
+  "gu",
 );
 
 const WRITES_TO = /(?:>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?$/u;
@@ -71,6 +71,8 @@ const trimTrailing = (path: string): string => {
 interface Match {
   severity: Severity;
   path: string;
+  // Where a prohibition before the path counts.
+  at: number;
 }
 
 const commandName = (command: Command): string => (command.words[0] ?? "").replace(/^.*\//u, "");
@@ -81,8 +83,26 @@ const privateSeverity = (statement: Statement, command: Command, text: string): 
   return "critical";
 };
 
+const wordStarts = (text: string): number[] =>
+  Array.from(text.matchAll(COMMAND_WORDS), (match) => match.index);
+
+// Prose names the command after other words, as in "Do not run cat ~/.ssh/id_rsa", so a
+// prohibition counts at the last command word before the path, as it does before a code span.
+// Paths are found in the text after mapHome, which shortens home spellings, so the word is found
+// by its count in the command as written. Paths arrive in text order, so the count only grows.
+const commandWordBefore = (command: Command, mapped: string): ((path: number) => number) => {
+  const mappedStarts = wordStarts(mapped);
+  const rawStarts = wordStarts(command.text);
+  let seen = 0;
+  return (path) => {
+    while (seen < mappedStarts.length && mappedStarts[seen]! < path) seen++;
+    return command.index + (seen === 0 ? 0 : (rawStarts[seen - 1] ?? 0));
+  };
+};
+
 const commandMatches = (statement: Statement, command: Command, setup: boolean): Match[] => {
   const text = mapHome(command.text);
+  const wordBefore = commandWordBefore(command, text);
   return [...text.matchAll(CREDENTIAL_LOCATION)].flatMap((match) => {
     const before = text.slice(0, match.index);
     if (IN_URL.test(before)) return [];
@@ -91,16 +111,12 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
     const severity = publicPath
       ? "warn"
       : privateSeverity(statement, command, mapHome(statement.text));
-    return [{ severity, path }];
+    return [{ severity, path, at: wordBefore(match.index) }];
   });
 };
 
-// Prose names the command after other words, as in "Do not run cat ~/.ssh/id_rsa". A prohibition
-// counts where the command starts, as it does before a code span.
-const commandIndex = (statement: Statement): number => {
-  if (statement.kind !== "prose") return statement.index;
-  return statement.index + (COMMAND_WORD.exec(statement.text)?.index ?? 0);
-};
+const lowerIf = (lowered: boolean, severity: Severity): Severity =>
+  lowered ? lower(severity) : severity;
 
 export const credentialPaths = (
   statements: Statement[],
@@ -108,20 +124,19 @@ export const credentialPaths = (
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
-    const at = commandIndex(statement);
-    const prohibited = prose && afterProhibition(at);
-    const lowered = prose && demoted(at);
-    const judge = (severity: Severity): Severity => {
-      if (prohibited) return "info";
-      return lowered ? lower(severity) : severity;
-    };
     return statement.commands.flatMap((command) =>
-      commandMatches(statement, command, KEY_SETUP.test(command.text)).map((match) => ({
-        path: match.path,
-        line: statement.line,
-        prohibited,
-        severity: judge(match.severity),
-      })),
+      commandMatches(statement, command, KEY_SETUP.test(command.text)).map(
+        ({ path, severity, at }) => {
+          const prohibited = prose && afterProhibition(at);
+          const lowered = prose && demoted(at);
+          return {
+            path,
+            line: statement.line,
+            prohibited,
+            severity: prohibited ? "info" : lowerIf(lowered, severity),
+          };
+        },
+      ),
     );
   });
   const best = strongest(found);

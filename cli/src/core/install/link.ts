@@ -1,6 +1,6 @@
 import { mkdir, rm, symlink, lstat, readlink, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
 import type { SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
@@ -16,16 +16,34 @@ const isSymlinkPath = async (path: string): Promise<boolean> => {
   }
 };
 
-const resolveDir = async (path: string): Promise<string> => {
-  if (!(await isSymlinkPath(path)) || existsSync(path)) return realpathOrNearest(path);
-  const parent = await realpathOrNearest(dirname(path));
-  return realpathOrNearest(resolve(parent, await readlink(path)));
+const linkTarget = async (path: string): Promise<string> =>
+  resolve(await realpathOrNearest(dirname(path)), await readlink(path));
+
+const followDanglingLink = async (path: string): Promise<string> =>
+  (await isSymlinkPath(path)) && !existsSync(path)
+    ? realpathOrNearest(await linkTarget(path))
+    : realpathOrNearest(path);
+
+const containmentError = async (dest: string, label: string, resolved: string): Promise<Error> => {
+  const agentDir = dirname(dest);
+  const unlinked = join(
+    await realpathOrNearest(dirname(agentDir)),
+    basename(agentDir),
+    basename(dest),
+  );
+  if (resolved === unlinked) {
+    return new Error(`${dest} is inside ${label} (${resolved}).\nRun from a project outside it.`);
+  }
+  const link = (await isSymlinkPath(agentDir)) ? agentDir : dest;
+  return new Error(
+    `${dest} points into ${label} (${resolved}) through the symlink ${link}.\nRemove ${link} and re-run.`,
+  );
 };
 
 export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise<string> => {
   const dest = skillsDir(scope, agent);
   const canonical = canonicalDir(scope);
-  const resolved = await resolveDir(dest);
+  const resolved = await followDanglingLink(dest);
   if (resolved === (await realpathOrNearest(canonical))) {
     throw new Error(
       `${dest} and ${canonical} are the same directory.\nski keeps skill copies in ${canonical} and links agents to them. Remove the symlink and re-run.`,
@@ -38,9 +56,7 @@ export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise
   }
   for (const { label, root } of forbidden) {
     if (isInside(resolved, await realpathOrNearest(root))) {
-      throw new Error(
-        `${dest} points into ${label} (${resolved}) through a symlink.\nRemove the symlink and re-run.`,
-      );
+      throw await containmentError(dest, label, resolved);
     }
   }
   return dest;
@@ -55,8 +71,7 @@ export const canonicalPath = (name: string, scope: Scope): string =>
 export const isManagedLink = async (path: string, scope: Scope): Promise<boolean> => {
   if (!(await isSymlinkPath(path))) return false;
   try {
-    const resolved = resolve(await realpathOrNearest(dirname(path)), await readlink(path));
-    return isInside(resolved, await realpathOrNearest(canonicalDir(scope)));
+    return isInside(await linkTarget(path), await realpathOrNearest(canonicalDir(scope)));
   } catch {
     return false;
   }

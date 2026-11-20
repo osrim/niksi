@@ -12,7 +12,7 @@ import {
   rename,
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { integrityOf } from "../skill/integrity.ts";
 import { entryMatches, IntegrityError, materialize, storeEntryPath } from "./store.ts";
@@ -340,8 +340,9 @@ test("assertSkillsDirSafe rejects a project skills dir symlinked into a global a
     await symlink(relative(join(dir, ".claude"), claudeGlobal), join(dir, ".claude", "skills"));
     await symlink(join(opencodeGlobal, "nested"), join(dir, ".opencode", "skills"));
     await symlink(elsewhere, join(dir, ".agents", "skills"));
+    const claudeLink = skillsDir("project", "claude");
     await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
-      `points into a global skills directory (${await realpath(claudeGlobal)}) through a symlink.\nRemove the symlink and re-run.`,
+      `${claudeLink} points into a global skills directory (${await realpath(claudeGlobal)}) through the symlink ${claudeLink}.\nRemove ${claudeLink} and re-run.`,
     );
     await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
       "points into a global skills directory",
@@ -367,17 +368,35 @@ test("assertSkillsDirSafe rejects a project skills dir under a symlinked agent d
   const prev = process.cwd();
   process.chdir(dir);
   try {
+    const claudeLink = dirname(skillsDir("project", "claude"));
     await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
-      `points into a global skills directory (${await realpath(claudeGlobal)}) through a symlink.\nRemove the symlink and re-run.`,
+      `${skillsDir("project", "claude")} points into a global skills directory (${await realpath(claudeGlobal)}) through the symlink ${claudeLink}.\nRemove ${claudeLink} and re-run.`,
     );
     await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
-      "points into the store",
+      `points into the store (${await realpath(storeDir())}/linked-agent/skills) through the symlink ${dirname(skillsDir("project", "opencode"))}.`,
     );
     expect(await assertSkillsDirSafe("project", "universal")).toBe(
       skillsDir("project", "universal"),
     );
   } finally {
     process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe rejects a project skills dir inside a global one without a symlink", async () => {
+  const claudeGlobal = skillsDir("global", "claude");
+  const dir = join(claudeGlobal, "nested-project");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const dest = skillsDir("project", "claude");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `${dest} is inside a global skills directory (${await realpath(dir)}/.claude/skills).\nRun from a project outside it.`,
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
   }
 });
 

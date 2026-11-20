@@ -279,6 +279,22 @@ test("remove does not delete a link that niksi did not create", async () => {
   expect(await readSkills(root)).toEqual({});
 });
 
+test("add refuses a project whose .claude links to the global one and writes nothing", async () => {
+  const root = await project("linked-claude", "demo");
+  const globalClaude = join(tmp, ".claude");
+  await mkdir(join(globalClaude, "skills"), { recursive: true });
+  await symlink(globalClaude, join(root, ".claude"));
+  try {
+    const result = await runCli(root, "add", "./skills/demo", "-p", "--agent", "claude", "--yes");
+
+    expect(result.exitCode).toBe(1);
+    expect(await readdir(join(globalClaude, "skills"))).toEqual([]);
+    expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
+  } finally {
+    await rm(globalClaude, { recursive: true, force: true });
+  }
+});
+
 test("list --json reports link and agent-copy entries, installed, modified, and missing", async () => {
   const names = ["linked", "kept", "unlinked", "dangling", "retargeted"];
   const root = await project("list", "copied", ...names);

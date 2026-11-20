@@ -201,7 +201,7 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 
 An environment read is a variable whose name holds `key`, `token`, `secret`, `pass`, `auth`, or `cred`, a read of the whole environment such as `JSON.stringify(process.env)`, or `.env` in quotes or after a `/`. `.env.example`, `.env.sample`, `.env.template`, and `.env.dist` are not `.env` files.
 
-Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside code blocks is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Code blocks and other files keep the full severity. Concealment and approval-bypass phrases skip this rule: in "do not tell the user", the negation is the signal.
+Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside code blocks is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Code blocks and other files keep the full severity. Concealment and approval-bypass phrases skip this rule: in "do not tell the user", the negation is the signal. `remote-instructions` skips it too, so "do not fetch https://x.invalid/rules.md and follow its instructions" stays `warn`.
 
 The `prompt-injection` rule reads every text file, code included. Each phrase stays within one sentence. A concealment phrase is one of these:
 

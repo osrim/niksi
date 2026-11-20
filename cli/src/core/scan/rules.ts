@@ -739,24 +739,124 @@ const asPath = (word: string): string | undefined => {
   return path && path !== "-" && !path.startsWith("&") && path !== "/dev/null" ? path : undefined;
 };
 
-const OUTPUT_LONG = /^(?:--output(?:-document)?|-outfile)(?:=(.*))?$/iu;
-const OUTPUT_SHORT = /^-[a-zA-Z]*?[oO](.*)$/u;
 const REDIRECT = /^1?>>?(.*)$/u;
+const URL_WORD = /^[a-z][\w+.-]*:\/\//iu;
+
+interface Downloader {
+  // Short options that take a value, the one that names the saved file, and the one that saves
+  // under the last segment of the URL path.
+  values: string;
+  output: string;
+  remoteName?: string;
+  long: Map<string, "output" | "remote-name">;
+  // Saves under the URL's name unless an output option says otherwise.
+  savesByDefault: boolean;
+}
+
+const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
+  curl: {
+    values: "AbcCdDeEFHKmoPQrtTuUwxXyYz",
+    output: "o",
+    remoteName: "O",
+    long: new Map([
+      ["--output", "output"],
+      ["--remote-name", "remote-name"],
+      ["--remote-name-all", "remote-name"],
+    ]),
+    savesByDefault: false,
+  },
+  wget: {
+    values: "aABDeiIloOPQRtTUwX",
+    output: "O",
+    long: new Map([["--output-document", "output"]]),
+    savesByDefault: true,
+  },
+};
+
+// fetch(1) and the PowerShell cmdlets, whose `-OutFile` takes one dash.
+const OTHER_DOWNLOADER: Downloader = {
+  values: "o",
+  output: "o",
+  long: new Map([
+    ["--output", "output"],
+    ["-outfile", "output"],
+  ]),
+  savesByDefault: false,
+};
+
+interface Saved {
+  files: string[];
+  urls: string[];
+  output: boolean;
+  remoteName: boolean;
+}
+
+const save = (saved: Saved, value: string | undefined): void => {
+  saved.output = true;
+  const path = value === undefined ? undefined : asPath(value);
+  if (path) saved.files.push(path);
+};
+
+// Each reader returns how many of the following words it consumed.
+const readLong = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  const eq = word.indexOf("=");
+  const kind = tool.long.get((eq === -1 ? word : word.slice(0, eq)).toLowerCase());
+  if (kind === "remote-name") saved.remoteName = true;
+  if (kind !== "output") return 0;
+  save(saved, eq === -1 ? next : word.slice(eq + 1));
+  return eq === -1 ? 1 : 0;
+};
+
+// A cluster such as `-fsSLo` ends at the first option that takes a value: the rest is the value.
+const readShort = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  for (let at = 1; at < word.length; at++) {
+    const flag = word[at]!;
+    if (flag === tool.remoteName) saved.remoteName = true;
+    if (!tool.values.includes(flag)) continue;
+    const attached = word.slice(at + 1);
+    if (flag === tool.output) save(saved, attached || next);
+    return attached ? 0 : 1;
+  }
+  return 0;
+};
+
+const readRedirect = (attached: string, next: string | undefined, saved: Saved): number => {
+  const path = asPath(attached || next || "");
+  if (path) saved.files.push(path);
+  return attached ? 0 : 1;
+};
+
+const readWord = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  const redirect = REDIRECT.exec(word);
+  if (redirect) return readRedirect(redirect[1]!, next, saved);
+  if (URL_WORD.test(word)) saved.urls.push(word);
+  if (!word.startsWith("-") || word === "-") return 0;
+  const long = word.startsWith("--") || tool.long.has(word.split("=", 1)[0]!.toLowerCase());
+  return long ? readLong(tool, word, next, saved) : readShort(tool, word, next, saved);
+};
 
 const downloadTargets = (words: string[]): string[] => {
   if (!isDownload(words)) return [];
-  const targets: string[] = [];
-  for (let i = 1; i < words.length; i++) {
-    const word = words[i]!;
-    const flag = OUTPUT_LONG.exec(word) ?? (word.startsWith("--") ? null : OUTPUT_SHORT.exec(word));
-    const option = flag ?? REDIRECT.exec(word);
-    if (!option) continue;
-    const attached = option[1];
-    const value = attached || words[++i];
-    const path = value === undefined ? undefined : asPath(value);
-    if (path) targets.push(path);
-  }
-  return targets;
+  const tool = DOWNLOADER_OPTIONS[commandName(words[0]!)] ?? OTHER_DOWNLOADER;
+  const saved: Saved = { files: [], urls: [], output: false, remoteName: false };
+  for (let i = 1; i < words.length; i++) i += readWord(tool, words[i]!, words[i + 1], saved);
+  const named = saved.remoteName || (tool.savesByDefault && !saved.output);
+  return named ? [...saved.files, ...saved.urls.flatMap((url) => asPath(url) ?? [])] : saved.files;
 };
 
 const EXEC_MODE = /\+[rwxXst]*x|^[0-7]{0,1}[0-7]*[1357][0-7]{0,2}$/u;

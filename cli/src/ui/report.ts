@@ -22,8 +22,18 @@ export const logSkillError = (name: string, cause: unknown): void =>
 
 export const warn = (message: string): void => p.log.warn(headline(orange)(message));
 
+const CONTROL = /(?![\t\n])[\p{Cc}\p{Cf}]/gu;
+
+const marker = (char: string): string => {
+  const code = char.codePointAt(0)!;
+  if (code < 0x20 || code === 0x7f) return `^${String.fromCharCode(code ^ 0x40)}`;
+  return `<U+${code.toString(16).toUpperCase().padStart(4, "0")}>`;
+};
+
+export const escapeControl = (text: string): string => text.replace(CONTROL, marker);
+
 export const fileLabel = (file: SkillFile): string =>
-  `${file.path} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
+  `${escapeControl(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
 
 export const renderFiles = (files: SkillFile[]): string => files.map(fileLabel).join("\n");
 
@@ -58,8 +68,11 @@ const detailOf = (finding: Finding): string => {
   return marks.length > 0 ? `${finding.detail}${dim(` (${marks.join(", ")})`)}` : finding.detail;
 };
 
-const locationOf = (finding: Finding): string =>
-  finding.file ? (finding.line ? `${finding.file}:${finding.line}` : finding.file) : "";
+const locationOf = (finding: Finding): string => {
+  if (!finding.file) return "";
+  const file = escapeControl(finding.file);
+  return finding.line ? `${file}:${finding.line}` : file;
+};
 
 export const renderFindings = (name: string, findings: Finding[]): string => {
   if (findings.length === 0) {

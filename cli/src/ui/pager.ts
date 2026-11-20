@@ -3,7 +3,7 @@ import prettyBytes from "pretty-bytes";
 import { onPath } from "../core/install/agents.ts";
 import { byPath, decodeText, isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Changes } from "../core/source/index.ts";
-import { fileLabel } from "./report.ts";
+import { escapeControl, fileLabel } from "./report.ts";
 import { blue, bold, colorOn, dim, green, red } from "./style.ts";
 
 export interface PagedSkill {
@@ -13,12 +13,6 @@ export interface PagedSkill {
 }
 
 export type Highlight = (path: string, text: string) => string;
-
-// oxlint-disable-next-line no-control-regex -- this regex exists to find control characters.
-const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F]/gu;
-
-export const escapeControl = (text: string): string =>
-  text.replace(CONTROL, (char) => `^${String.fromCharCode(char.charCodeAt(0) ^ 0x40)}`);
 
 export const numberLines: Highlight = (_path, text) =>
   text === ""
@@ -49,7 +43,7 @@ export const colorStat = (stat: string): string =>
 
 const renderFile = (file: SkillFile, highlight: Highlight): string => {
   const path = escapeControl(file.path);
-  const header = bold(escapeControl(fileLabel(file)));
+  const header = bold(fileLabel(file));
   const text = decodeText(file)?.text;
   const body = isSymlink(file.mode)
     ? dim(`→ ${escapeControl(file.content.toString("utf8"))}`)

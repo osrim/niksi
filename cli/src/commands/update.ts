@@ -53,10 +53,17 @@ import { land } from "../ui/flow.ts";
 import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
-import { colorStat, escapeControl } from "../ui/pager.ts";
+import { colorStat } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
-import { logError, logSkillError, logSourceCaution, logWarn, warn } from "../ui/report.ts";
+import {
+  escapeControl,
+  logError,
+  logSkillError,
+  logSourceCaution,
+  logWarn,
+  warn,
+} from "../ui/report.ts";
 import {
   describeUpdate,
   emptyScopeMessage,

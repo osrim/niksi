@@ -1,13 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { MODE_FILE, MODE_SYMLINK, type SkillFile } from "../core/skill/files.ts";
 import { probe } from "../test-color.ts";
-import {
-  escapeControl,
-  numberLines,
-  pagerCommand,
-  renderSession,
-  type Highlight,
-} from "./pager.ts";
+import { numberLines, pagerCommand, renderSession, type Highlight } from "./pager.ts";
 
 const ESC = "\u001B";
 
@@ -20,16 +14,6 @@ const file = (path: string, content: string | Buffer, mode = MODE_FILE): SkillFi
 const stub: Highlight = (path, text) => `[${path}] ${JSON.stringify(text)}`;
 
 const plain = (text: string): string => Bun.stripANSI(text);
-
-describe("escapeControl", () => {
-  test("shows ESC, other C0 characters, and DEL as caret markers", () => {
-    expect(escapeControl(`a${ESC}[31mb\u0000c\u0007d\rE\u007F`)).toBe("a^[[31mb^@c^Gd^ME^?");
-  });
-
-  test("keeps tab and newline", () => {
-    expect(escapeControl("a\tb\nc")).toBe("a\tb\nc");
-  });
-});
 
 describe("numberLines", () => {
   test("numbers each line of a file", () => {

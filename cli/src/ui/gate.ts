@@ -10,9 +10,9 @@ import {
   type Severity,
 } from "../core/scan/index.ts";
 import { ask, clackDecisions, type Decisions } from "./decisions.ts";
-import { escapeControl, type PagedSkill } from "./pager.ts";
+import type { PagedSkill } from "./pager.ts";
 import { isInteractive, requireTTY } from "./prompt.ts";
-import { logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
+import { escapeControl, logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
 import { skillName } from "./style.ts";
 
 type GateOutcome = "pass" | "declined" | "blocked";

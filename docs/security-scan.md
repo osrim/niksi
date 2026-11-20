@@ -330,14 +330,14 @@ A command counts at the start of a statement or after a pipe, so "Edit the cront
 
 ### Dependency sources
 
-The `dependency-source` rule looks for installs from a source the skill picks. It reads commands the way [persistence](#persistence) does: wrappers such as `sudo` are skipped, and a command counts at the start of a statement or after a pipe. Flags may come before the subcommand, as in `npm --registry URL install`. It also reads the dependencies of a bundled `package.json`.
+The `dependency-source` rule looks for installs from a source the skill picks. It reads commands the way [persistence](#persistence) does: wrappers such as `sudo` are skipped, and a command counts at the start of a statement or after a pipe. Flags may come before the subcommand, as in `npm --registry URL install` or `pip --cache-dir /tmp install --index-url URL`. It also reads the dependencies of a bundled `package.json`.
 
 | finding | severity |
 | --- | --- |
 | An index or registry on a host other than the default, or on any `http://` URL: `--index-url`, `-i`, or `--extra-index-url` after `pip install`, `--registry` after `npm`, `pnpm`, `yarn`, or `bun` `install`, `i`, `add`, or `ci`, `npm config set registry`, and `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `UV_INDEX_URL`, or `NPM_CONFIG_REGISTRY` in any case set with `=` | `critical` |
 | An index or registry value that is not an `https://` or `http://` URL, such as `$INDEX` or a `file://` path | `warn` |
 | `--trusted-host`, `--find-links`, or `-f` after `pip install` | `warn` |
-| A pip install of `git+…` or a URL, including `-r` with a URL, an npm install of a URL, `git+…`, `git://`, `github:`, `gitlab:`, or `bitbucket:`, and a bundled `package.json` dependency with the same value | `warn` |
+| A pip install of `git+…` or a URL, including a requirements file at a URL after `-r` or `--requirement`, as in `-rURL` or `--requirement=URL`, an npm install of a URL, `git+…`, `git://`, `github:`, `gitlab:`, or `bitbucket:`, and a bundled `package.json` dependency with the same value | `warn` |
 | `curl -k` or `--insecure`, also inside a flag group such as `-fsSLk`, and `wget --no-check-certificate` | `warn` |
 | A Git or URL install pinned to a 40-character commit hash: the ref after `@` or `#`, or the name after `/archive/` | `info` |
 

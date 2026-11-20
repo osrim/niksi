@@ -19,8 +19,9 @@ const DEPENDENCY_FIELDS = [
   "peerDependencies",
 ];
 
-// `value` flags take a value that says nothing about the source.
-type FlagKind = "index" | "trusted" | "links" | "value";
+// `source` flags take a package source, such as a requirements file. `value` flags take a value
+// that says nothing about the source.
+type FlagKind = "index" | "trusted" | "links" | "source" | "value";
 
 interface Ecosystem {
   hosts: Set<string>;
@@ -29,6 +30,23 @@ interface Ecosystem {
   source: RegExp;
   configKey: RegExp;
 }
+
+// pip's general options that take a value, which may come before the subcommand.
+const PIP_GLOBAL_VALUES = [
+  "--python",
+  "--log",
+  "--keyring-provider",
+  "--proxy",
+  "--retries",
+  "--timeout",
+  "--exists-action",
+  "--cert",
+  "--client-cert",
+  "--cache-dir",
+  "--use-feature",
+  "--use-deprecated",
+  "--resume-retries",
+];
 
 const PIP: Ecosystem = {
   hosts: PYPI_HOSTS,
@@ -39,7 +57,9 @@ const PIP: Ecosystem = {
     ["--trusted-host", "trusted"],
     ["--find-links", "links"],
     ["-f", "links"],
-    ["--log", "value"],
+    ["--requirement", "source"],
+    ["-r", "source"],
+    ...PIP_GLOBAL_VALUES.map((flag) => [flag, "value"] as const),
   ]),
   installs: /^install$/u,
   source: /(?:^|@\s*)(?:git\+|https?:\/\/)/iu,
@@ -80,8 +100,12 @@ interface Option {
   value: string;
 }
 
-const optionSeverity = ({ kind, value }: Option, hosts: Set<string>): Severity | undefined => {
+const optionSeverity = (
+  { kind, value }: Option,
+  { hosts, source }: Ecosystem,
+): Severity | undefined => {
   if (kind === "index") return indexSeverity(value, hosts);
+  if (kind === "source") return source.test(value) ? sourceSeverity(value) : undefined;
   return kind === "value" ? undefined : "warn";
 };
 
@@ -135,7 +159,7 @@ const packageSeverities = (ecosystem: Ecosystem, args: string[]): (Severity | un
   const [subcommand = "", ...packages] = operands;
   if (!ecosystem.installs.test(subcommand)) return configSeverity(operands, ecosystem);
   return [
-    ...options.map((option) => optionSeverity(option, ecosystem.hosts)),
+    ...options.map((option) => optionSeverity(option, ecosystem)),
     ...packages.filter((arg) => ecosystem.source.test(arg)).map(sourceSeverity),
   ];
 };

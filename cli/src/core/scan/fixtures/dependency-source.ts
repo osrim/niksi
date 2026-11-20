@@ -93,6 +93,37 @@ export default [
     fire: [{ severity: "warn", line: 6 }],
   },
   {
+    name: "a remote requirements file with an equals sign",
+    path: "SKILL.md",
+    content: fence("pip install --requirement=https://x.invalid/requirements.txt"),
+    fire: [{ severity: "warn", line: 6 }],
+  },
+  {
+    name: "a remote requirements file attached to -r",
+    path: "SKILL.md",
+    content: fence("pip install -rhttps://x.invalid/requirements.txt"),
+    fire: [{ severity: "warn", line: 6 }],
+  },
+  {
+    name: "a remote requirements file after -r",
+    path: "SKILL.md",
+    content: fence("pip install -r https://x.invalid/requirements.txt"),
+    fire: [{ severity: "warn", line: 6 }],
+  },
+  {
+    name: "a pip index after a global option that takes a value",
+    path: "SKILL.md",
+    content: fence("pip --cache-dir /tmp install --index-url https://pkgs.x.invalid/simple foo"),
+    fire: [{ severity: "critical", line: 6 }],
+  },
+  {
+    name: "a pip index after several global options",
+    path: "scripts/setup.sh",
+    content:
+      "python3 -m pip --timeout 30 --retries=2 -q install -i https://pkgs.x.invalid/simple foo\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
     name: "a direct URL reference",
     path: "SKILL.md",
     content: fence('pip install "tool @ https://x.invalid/tool-1.0.tar.gz"'),
@@ -174,6 +205,16 @@ export default [
     name: "a requirements file and a local package",
     path: "SKILL.md",
     content: fence("pip install -r requirements.txt", "npm install ./tools/helper"),
+    silent: "none",
+  },
+  {
+    name: "local requirements files in every flag form",
+    path: "SKILL.md",
+    content: fence(
+      "pip install --requirement=requirements.txt",
+      "pip install -rrequirements-dev.txt",
+      "pip --cache-dir /tmp install --requirement requirements.txt",
+    ),
     silent: "none",
   },
   {

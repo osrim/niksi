@@ -1,5 +1,4 @@
 import { isAbsolute, normalize, join, dirname, extname } from "node:path";
-import { LinkifyIt } from "linkify-it";
 import {
   decodeText,
   isSymlink,
@@ -30,6 +29,7 @@ import { invisibleCharacters } from "./invisible.ts";
 import type { Confidence, Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
 import { installHook } from "./install-hook.ts";
 import { linkMismatch } from "./link-mismatch.ts";
+import { newLinkify } from "./linkify.ts";
 import { isMap } from "./manifest.ts";
 import { moneyMovement, moneyPhrases } from "./money-movement.ts";
 import { persistence, persistenceMatches } from "./persistence.ts";
@@ -1273,8 +1273,7 @@ const textScan: Scanner = (skill) => {
   return [...textFindings(skill, insideHidden), ...hidden];
 };
 
-// Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
+const linkify = newLinkify();
 
 const LOCK_FILES = new Set([
   "package-lock.json",

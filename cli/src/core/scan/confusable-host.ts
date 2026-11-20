@@ -1,8 +1,8 @@
 import { domainToUnicode } from "node:url";
-import { LinkifyIt } from "linkify-it";
 import { lineAt } from "../skill/text.ts";
 import type { Finding, Severity } from "./index.ts";
 import { codeOf } from "./invisible.ts";
+import { newLinkify } from "./linkify.ts";
 import { excerpt, matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
 
@@ -24,7 +24,7 @@ const HOST = /^(?:[a-z][\w+.-]*:\/\/)?(?:[^@/?#\s]*@)?([^/?#:\s]+)/iu;
 const URL_LENGTH = 100;
 const CODES = 3;
 
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
+const linkify = newLinkify();
 
 interface Hit {
   index: number;

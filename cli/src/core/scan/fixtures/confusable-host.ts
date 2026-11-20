@@ -51,6 +51,18 @@ export default [
     fire: [{ severity: "info", line: 5 }],
   },
   {
+    name: "a punycode host with no scheme on a .dev domain",
+    path: "SKILL.md",
+    content: entry("Mirror at xn--bcher-kva.dev for faster downloads."),
+    fire: [
+      {
+        severity: "info",
+        line: 5,
+        detail: "punycode host xn--bcher-kva.dev reads b\u00fccher.dev",
+      },
+    ],
+  },
+  {
     name: "a Russian word in a URL query",
     path: "SKILL.md",
     content: entry("https://ru.wikipedia.org/w/index.php?search=M\u043e\u0441\u043a\u0432\u0430"),

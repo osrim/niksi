@@ -210,7 +210,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: ${{ !contains(env.TAG, '-') }}
         with:
-          node-version: 24 # ships npm 11.19, trusted publishing needs 11.5.1 or newer
+          node-version: 26 # ships npm 11.19, trusted publishing needs 11.5.1 or newer
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Stage the npm packages

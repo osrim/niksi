@@ -18,7 +18,7 @@ test("parseFrontmatter reads frontmatter after a byte order mark, and empty fron
   expect(parseFrontmatter("---\r\nname: x\r\n---\r\nbody")).toEqual({ name: "x" });
 });
 
-test("only a whole --- line closes the frontmatter", () => {
+test("--- alone or before a space closes the frontmatter, --- before other text does not", () => {
   const text = "---\na: 1\n---x\nb: 2\n--- \nbody\n";
   expect(frontmatterBlock(text)).toEqual({
     yaml: "a: 1\n---x\nb: 2\n",
@@ -26,6 +26,10 @@ test("only a whole --- line closes the frontmatter", () => {
   });
   expect(frontmatterBlock("---\na: 1\n---x\n")).toBeUndefined();
   expect(frontmatterBlock("---\n---")).toEqual({ yaml: "", end: 7 });
+  expect(frontmatterBlock("---\na: 1\n--- # end\nbody")).toEqual({ yaml: "a: 1\n", end: 18 });
+  expect(parseFrontmatter("---\nallowed-tools: Bash\n--- # end\nbody")).toEqual({
+    "allowed-tools": "Bash",
+  });
   expect(frontmatterBlock("--- x\na: 1\n---\n")).toBeUndefined();
   expect(frontmatterBlock("body\n---\na: 1\n---\n")).toBeUndefined();
 });

@@ -150,7 +150,7 @@ The scan skips a line with a test cue: `test`, `spec`, `expect`, `assert`, or `f
 
 Only `SKILL.md` grants permissions when an agent loads the skill. Non-standard frontmatter fields in other Markdown files are listed as `info`.
 
-Frontmatter starts with a `---` line at the top of the file, after an optional byte order mark, and ends at the next line that holds only `---`. It may be empty.
+Frontmatter starts with a `---` line at the top of the file, after an optional byte order mark, and ends at the next line that is `---` alone or followed by a space, as in `--- # end`. It may be empty. A line such as `---text` does not end it.
 
 | finding | severity |
 | --- | --- |

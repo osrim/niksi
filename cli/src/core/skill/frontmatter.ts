@@ -1,7 +1,7 @@
 import { parse } from "yaml";
 
 const OPEN = /^\uFEFF?---[ \t]*\r?\n/u;
-const CLOSE = /^---[ \t]*\r?$/u;
+const CLOSE = /^---(?:[ \t][^\n]*)?\r?$/u;
 
 // `end` is the offset just past the closing `---` line, before its line break.
 export interface FrontmatterBlock {
@@ -10,7 +10,7 @@ export interface FrontmatterBlock {
 }
 
 // The first line is `---`, after an optional byte order mark. The block ends at the next line that
-// is `---` and nothing else, so it may be empty.
+// is `---` alone or before a space, as in `--- # end`, so it may be empty. `---text` does not end it.
 export const frontmatterBlock = (text: string): FrontmatterBlock | undefined => {
   const open = OPEN.exec(text);
   if (!open) return undefined;

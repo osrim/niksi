@@ -317,7 +317,7 @@ test("assertSkillsDirSafe rejects a skills dir symlinked into the store", async 
   process.chdir(dir);
   try {
     await symlink(storeDir(), join(dir, ".claude", "skills"));
-    expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow("symlink into the store");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow("points into the store");
   } finally {
     process.chdir(prev);
   }
@@ -341,10 +341,37 @@ test("assertSkillsDirSafe rejects a project skills dir symlinked into a global a
     await symlink(join(opencodeGlobal, "nested"), join(dir, ".opencode", "skills"));
     await symlink(elsewhere, join(dir, ".agents", "skills"));
     await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
-      `is a symlink into a global skills directory (${await realpath(claudeGlobal)}).\nRemove it and re-run.`,
+      `points into a global skills directory (${await realpath(claudeGlobal)}) through a symlink.\nRemove the symlink and re-run.`,
     );
     await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
-      "symlink into a global skills directory",
+      "points into a global skills directory",
+    );
+    expect(await assertSkillsDirSafe("project", "universal")).toBe(
+      skillsDir("project", "universal"),
+    );
+  } finally {
+    process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe rejects a project skills dir under a symlinked agent dir", async () => {
+  const dir = join(tmp, "proj-parent-link");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const claudeGlobal = skillsDir("global", "claude");
+  await mkdir(claudeGlobal, { recursive: true });
+  await mkdir(join(storeDir(), "linked-agent"), { recursive: true });
+  await mkdir(join(tmp, "dotfiles-agents"), { recursive: true });
+  await symlink(join(tmp, "claude-home"), join(dir, ".claude"));
+  await symlink(join(storeDir(), "linked-agent"), join(dir, ".opencode"));
+  await symlink(join(tmp, "dotfiles-agents"), join(dir, ".agents"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `points into a global skills directory (${await realpath(claudeGlobal)}) through a symlink.\nRemove the symlink and re-run.`,
+    );
+    await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
+      "points into the store",
     );
     expect(await assertSkillsDirSafe("project", "universal")).toBe(
       skillsDir("project", "universal"),

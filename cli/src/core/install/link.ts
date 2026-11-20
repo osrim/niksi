@@ -16,16 +16,21 @@ const isSymlinkPath = async (path: string): Promise<boolean> => {
   }
 };
 
+const resolveDir = async (path: string): Promise<string> => {
+  if (!(await isSymlinkPath(path)) || existsSync(path)) return realpathOrNearest(path);
+  const parent = await realpathOrNearest(dirname(path));
+  return realpathOrNearest(resolve(parent, await readlink(path)));
+};
+
 export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise<string> => {
   const dest = skillsDir(scope, agent);
   const canonical = canonicalDir(scope);
-  if ((await realpathOrNearest(dest)) === (await realpathOrNearest(canonical))) {
+  const resolved = await resolveDir(dest);
+  if (resolved === (await realpathOrNearest(canonical))) {
     throw new Error(
       `${dest} and ${canonical} are the same directory.\nski keeps skill copies in ${canonical} and links agents to them. Remove the symlink and re-run.`,
     );
   }
-  if (!(await isSymlinkPath(dest))) return dest;
-  const resolved = await realpathOrNearest(resolve(dirname(dest), await readlink(dest)));
   const forbidden = [{ label: "the store", root: dataDir() }];
   if (scope === "project") {
     for (const def of SKILLS_DIRS)
@@ -33,7 +38,9 @@ export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise
   }
   for (const { label, root } of forbidden) {
     if (isInside(resolved, await realpathOrNearest(root))) {
-      throw new Error(`${dest} is a symlink into ${label} (${resolved}).\nRemove it and re-run.`);
+      throw new Error(
+        `${dest} points into ${label} (${resolved}) through a symlink.\nRemove the symlink and re-run.`,
+      );
     }
   }
   return dest;

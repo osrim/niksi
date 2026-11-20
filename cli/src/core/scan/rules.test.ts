@@ -743,3 +743,14 @@ test("# nosec above curl | sh keeps the critical and adds an info suppression fi
   );
   expect(found).toEqual(["critical curl-pipe-shell 2", "info suppression-comment 1"]);
 });
+
+test.each(["exec(", "new Function(", ".downloadstring("])(
+  "a long script line of %p scans in linear time",
+  (word) => {
+    const { ratio, rounds } = slowdown(
+      () => scan(file("install.sh", `${word} `.repeat(5_000))),
+      () => scan(file("install.sh", `${word}\n`.repeat(5_000))),
+    );
+    expect(ratio, rounds).toBeLessThan(3);
+  },
+);

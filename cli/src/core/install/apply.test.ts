@@ -697,3 +697,19 @@ test("a link entry records its recorded, linked, and new agents in agent order",
   await applySkill(plan, { kind: "link", scope: "global", agents: ["kiro"], lock });
   expect(lock.skills["linked"]!.agents).toEqual(["universal", "claude", "opencode", "kiro"]);
 });
+
+test("applySkill records a skill named after an Object property", async () => {
+  const lock = emptyLock();
+  await applySkill(
+    {
+      name: "__proto__",
+      source: "https://github.com/o/r",
+      path: "skills/p",
+      revision,
+      files: lazy,
+    },
+    { kind: "link", scope: "global", agents: ["claude"], lock },
+  );
+  expect(Object.keys(lock.skills)).toEqual(["__proto__"]);
+  expect(lock.skills["__proto__"]?.integrity).toBe(integrity);
+});

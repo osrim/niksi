@@ -58,7 +58,7 @@ const SET_ID = /^[ugoa]*[+=][rwxXt]*s|^[246][0-7]{3}$/u;
 const loosens = (mode: string): boolean =>
   OPEN_MODE.test(mode) || mode.split(",").some((clause) => SET_ID.test(clause));
 const rootSeverity = (name: string, operands: string[]): Severity | undefined => {
-  const severity = AS_ROOT[name];
+  const severity = Object.hasOwn(AS_ROOT, name) ? AS_ROOT[name] : undefined;
   const [mode = ""] = operands;
   const loosened = name === "chmod" && loosens(mode);
   const accountFile = operands.some((path) => ACCOUNT_FILE.test(bare(path)));
@@ -98,7 +98,7 @@ const commandSeverity = (
   const operands = operandsOf(args, prose);
   const escalated = wrappers.some((wrapper) => ESCALATES.has(wrapper));
   const asRoot = escalated && operands.length > 0 ? rootSeverity(name, operands) : undefined;
-  const own = CHECKS[name]?.(args, operands);
+  const own = Object.hasOwn(CHECKS, name) ? CHECKS[name]!(args, operands) : undefined;
   return strongest([asRoot, own].flatMap((severity) => (severity ? [{ severity }] : [])))?.severity;
 };
 

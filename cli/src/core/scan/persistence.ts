@@ -95,7 +95,8 @@ const COMMANDS: Record<string, (use: Use) => Severity | undefined> = {
 
 const commandSeverity = (words: string[], piped: boolean, code: boolean): Severity | undefined => {
   const [command = "", ...args] = words;
-  return COMMANDS[name(command).toLowerCase()]?.({ args, piped, code });
+  const key = name(command).toLowerCase();
+  return Object.hasOwn(COMMANDS, key) ? COMMANDS[key]!({ args, piped, code }) : undefined;
 };
 
 const writeSeverity = ({ path, append }: Write, statement: Statement): Severity | undefined => {

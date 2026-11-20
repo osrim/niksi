@@ -66,7 +66,10 @@ export const recordLinkAgents = (entry: LockEntry, agents: AgentId[]): void => {
   }
 };
 
-export const emptyLock = (): Lockfile => ({ lockfileVersion: 2, skills: {} });
+// Skill names such as `__proto__` and `constructor` are valid, so tables keyed by them have no prototype.
+const skillTable = <T>(): Record<string, T> => Object.create(null) as Record<string, T>;
+
+export const emptyLock = (): Lockfile => ({ lockfileVersion: 2, skills: skillTable() });
 
 export const splitDisabled = (lock: Lockfile): { enabled: Lockfile; disabled: Lockfile } => {
   const enabled = emptyLock();
@@ -124,7 +127,7 @@ const serializeReview = ({
 });
 
 export const serializeLock = (lock: Lockfile): string => {
-  const skills: Record<string, SerializedEntry> = {};
+  const skills = skillTable<SerializedEntry>();
   for (const name of Object.keys(lock.skills).toSorted()) {
     const entry = lock.skills[name]!;
     skills[name] = {
@@ -277,6 +280,7 @@ const VersionSchema = z.object({
 const lockfileSchema = <T extends z.ZodType>(entry: T) =>
   z.object({ skills: z.record(z.string().regex(SKILL_NAME), entry).default({}) });
 
+const EntrySchemas = { 1: EntryV1Schema, 2: EntrySchema };
 const LockfileSchemas = { 1: lockfileSchema(EntryV1Schema), 2: lockfileSchema(EntrySchema) };
 
 const parseError = (file: string, error: z.ZodError): Error => {
@@ -299,11 +303,16 @@ export const parseLock = (text: string, file: string): Lockfile => {
   }
   const version = VersionSchema.safeParse(raw);
   if (!version.success) throw parseError(file, version.error);
-  const parsed: z.ZodSafeParseResult<{ skills: Record<string, z.infer<typeof EntrySchema>> }> =
-    LockfileSchemas[version.data.lockfileVersion].safeParse(raw);
+  const parsed = LockfileSchemas[version.data.lockfileVersion].safeParse(raw);
   if (!parsed.success) throw parseError(file, parsed.error);
-  const skills: Record<string, LockEntry> = {};
-  for (const [name, entry] of Object.entries(parsed.data.skills)) {
+  // Zod builds a record on a plain object, which drops a skill named `__proto__`, so each
+  // entry is read again from the parsed JSON.
+  const entrySchema: z.ZodType<z.infer<typeof EntrySchema>> =
+    EntrySchemas[version.data.lockfileVersion];
+  const rawSkills = (raw as { skills?: Record<string, unknown> }).skills ?? {};
+  const skills = skillTable<LockEntry>();
+  for (const [name, value] of Object.entries(rawSkills)) {
+    const entry = entrySchema.parse(value);
     skills[name] = {
       source: entry.source,
       ...(entry.branch === undefined ? {} : { branch: entry.branch }),

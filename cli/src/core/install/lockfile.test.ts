@@ -318,6 +318,30 @@ test("isApproved matches only the exact (source, path, integrity) entry; the com
   expect(isApproved(moved, "tdd", at)).toBe(true);
 });
 
+const OBJECT_PROPERTY_NAMES = ["__proto__", "constructor", "toString", "valueOf"];
+
+test("skills named after Object properties survive parse, split, and serialization", () => {
+  const skills = OBJECT_PROPERTY_NAMES.map((name) => `"${name}":${JSON.stringify(entry)}`);
+  const text = `{"lockfileVersion":2,"skills":{${skills.join(",")}}}`;
+  const lock = parseLock(text, "niksi-lock.json");
+  expect(Object.keys(lock.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+  expect(lock.skills["__proto__"]).toEqual(entry);
+  const { enabled } = splitDisabled(lock);
+  expect(Object.keys(enabled.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+  const written = parseLock(serializeLock(enabled), "niksi-lock.json");
+  expect(Object.keys(written.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+});
+
+test("an empty lockfile records no skill named after an Object property", () => {
+  const at = { source: entry.source, path: entry.path, integrity };
+  for (const lock of [emptyLock(), parseLock("", "niksi-lock.json")]) {
+    for (const name of OBJECT_PROPERTY_NAMES) {
+      expect(lock.skills[name]).toBeUndefined();
+      expect(isApproved(lock, name, at)).toBe(false);
+    }
+  }
+});
+
 test("isApproved matches a local skill by its directory, whichever shape recorded it", () => {
   const prev = process.cwd();
   process.chdir(tmp);

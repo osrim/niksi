@@ -104,3 +104,12 @@ test("adoptSkill refuses a copy that changed since the scan, and a recorded name
   };
   await expect(adoptSkill(plan([dir]), lock)).rejects.toThrow("already recorded");
 });
+
+test("adoptSkill records a skill named after an Object property", async () => {
+  const dir = join(tmp, "object-property", "constructor");
+  await writeCopy(dir, LOCAL);
+  const lock = emptyLock();
+  await adoptSkill({ ...plan([dir]), name: "constructor" }, lock);
+  expect(Object.keys(lock.skills)).toEqual(["constructor"]);
+  expect(lock.skills["constructor"]?.integrity).toBe(integrityOf(LOCAL));
+});

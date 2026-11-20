@@ -51,6 +51,7 @@ import { reverseShell } from "./reverse-shell.ts";
 import { silentExec } from "./silent-exec.ts";
 import { suppressionComments } from "./suppression.ts";
 import { gated, lower, lowerConfidence, stronger, strongest } from "./severity.ts";
+import { anyOf, lazyChain, perLine, token } from "./token-chain.ts";
 import { urlCredentials } from "./url-credentials.ts";
 import { mapHome, shellStatements, type Command, type Statement } from "./shell.ts";
 import { whitespacePadding } from "./whitespace-padding.ts";
@@ -285,7 +286,9 @@ const HANDLER_PAYLOAD: Record<string, string[]> = {
 const handlerSummary = (handler: unknown): string => {
   if (!isMap(handler)) return asText(handler);
   const type = asText(handler["type"]).trim();
-  const keys = HANDLER_PAYLOAD[type] ?? [...new Set(Object.values(HANDLER_PAYLOAD).flat())];
+  const keys = Object.hasOwn(HANDLER_PAYLOAD, type)
+    ? HANDLER_PAYLOAD[type]!
+    : [...new Set(Object.values(HANDLER_PAYLOAD).flat())];
   const payload = keys
     .filter((key) => handler[key] !== undefined)
     .map((key) => asText(handler[key]).trim())
@@ -660,9 +663,16 @@ const suspiciousPatterns: Scanner = ({ files }) =>
 const DOWNLOADERS = String.raw`curl|wget|fetch|iwr|irm|invoke-webrequest|invoke-restmethod`;
 const DOWNLOADS = new RegExp(String.raw`(?<![\w-])(?:${DOWNLOADERS})(?![\w-])`, "iu");
 const DOWNLOADER = new RegExp(`^(?:${DOWNLOADERS})$`, "iu");
-const EVAL_OF_DOWNLOAD = new RegExp(
-  String.raw`(?:${EXEC_SINK}|\bnew\s+Function\s*\()[^\n]*?(?:\burlopen|\brequests\.get|(?<![.\w])fetch)\s*\(|\b(?:${EVALUATORS})\b[^\n]*?\.downloadstring\s*\(|\.downloadstring\s*\([^\n]*?\|\s*(?:${EVALUATORS})\b`,
-  "iu",
+const DOWNLOADSTRING = token(/\.downloadstring\s*\(/iu);
+const EVAL_OF_DOWNLOAD = perLine(
+  anyOf(
+    lazyChain(
+      token(new RegExp(String.raw`${EXEC_SINK}|\bnew\s+Function\s*\(`, "iu")),
+      token(/(?:\burlopen|\brequests\.get|(?<![.\w])fetch)\s*\(/iu),
+    ),
+    lazyChain(token(new RegExp(String.raw`\b(?:${EVALUATORS})\b`, "iu")), DOWNLOADSTRING),
+    lazyChain(DOWNLOADSTRING, token(new RegExp(String.raw`\|\s*(?:${EVALUATORS})\b`, "iu"))),
+  ),
 );
 const URLRETRIEVE = /\burlretrieve\s*\(/u;
 const RUNS_PYTHON = new RegExp(String.raw`\bsubprocess\.|${EXEC_SINK}`, "u");
@@ -687,8 +697,8 @@ const commandWords = (statement: Statement, command: Command): string[] => {
 
 const commandText = (statement: Statement): string => {
   if (statement.kind === "code") return statement.text;
-  const start = [...statement.text.matchAll(/\S+/gu)].find(([token]) =>
-    isCommandWord(mapHome(token)),
+  const start = [...statement.text.matchAll(/\S+/gu)].find(([word]) =>
+    isCommandWord(mapHome(word)),
   )?.index;
   return statement.text.slice(start ?? 0);
 };
@@ -707,7 +717,7 @@ const runsSubstitution = (words: string[], command: Command): boolean => {
 };
 
 const feedsInterpreter = (statement: Statement): boolean => {
-  if (EVAL_OF_DOWNLOAD.test(statement.text)) return true;
+  if (EVAL_OF_DOWNLOAD(statement.text).length > 0) return true;
   const { commands } = statement;
   const prose = statement.kind === "prose";
   const download = commands.findIndex((command) => isDownload(commandWords(statement, command)));

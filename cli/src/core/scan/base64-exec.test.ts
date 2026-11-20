@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { slowdown } from "../../test-timing.ts";
 import { base64Exec } from "./base64-exec.ts";
 import { shellStatements } from "./shell.ts";
 
@@ -87,3 +88,27 @@ test("a long prose line scans in linear time", () => {
     expect(performance.now() - start).toBeLessThan(1000);
   }
 });
+
+test("a match quotes from the first decoder or sink to the first partner after it", () => {
+  expect(inScript("Buffer.from(atob(eval(x)), 'base64')")?.detail).toBe("atob(eval(");
+  expect(inScript("x = 1; exec(b64decode(a)) and b64decode(b)")?.detail).toBe("exec(b64decode");
+  expect(inScript("getattr(a)(b); getattr(o, 'sy' + 'stem') (cmd)")?.detail).toBe(
+    "getattr(o, 'sy' + 'stem') (",
+  );
+});
+
+// One long line of a pattern's first word, against the same text with one word per line.
+const LONG = 5_000;
+const longLine = (word: string) => `${word} `.repeat(LONG);
+const shortLines = (word: string) => `${word}\n`.repeat(LONG);
+
+test.each(["b64decode", "eval(", "Buffer.from(", "getattr('"])(
+  "a long line of %p scans in linear time",
+  (word) => {
+    const { ratio, rounds } = slowdown(
+      () => inScript(longLine(word)),
+      () => inScript(shortLines(word)),
+    );
+    expect(ratio, rounds).toBeLessThan(3);
+  },
+);

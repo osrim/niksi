@@ -31,14 +31,18 @@ interface Ecosystem {
   configKey: RegExp;
 }
 
-// pip's general options that take a value, which may come before the subcommand.
+// pip's general options that take a value, with their aliases, which may come before the
+// subcommand.
 const PIP_GLOBAL_VALUES = [
   "--python",
   "--log",
+  "--log-file",
+  "--local-log",
   "--keyring-provider",
   "--proxy",
   "--retries",
   "--timeout",
+  "--default-timeout",
   "--exists-action",
   "--cert",
   "--client-cert",

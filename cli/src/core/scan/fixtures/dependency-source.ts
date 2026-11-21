@@ -117,6 +117,13 @@ export default [
     fire: [{ severity: "critical", line: 6 }],
   },
   {
+    name: "a pip index after global option aliases with separate values",
+    path: "scripts/setup.sh",
+    content:
+      "pip --log-file /tmp/a --local-log /tmp/b --default-timeout 30 install -i https://pkgs.x.invalid/simple foo\n",
+    fire: [{ severity: "critical", line: 1 }],
+  },
+  {
     name: "a pip index after several global options",
     path: "scripts/setup.sh",
     content:

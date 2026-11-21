@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { slowdown } from "../../test-timing.ts";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { anyOf, everyMatch, greedyChain, lazyChain, perSegment, token } from "./token-chain.ts";
 
 const a = token(/\ba\b/u);
@@ -57,8 +57,8 @@ test("everyMatch reports each match of a pattern", () => {
 test("a long line of matches next to a token that never appears scans in linear time", () => {
   const chain = perSegment(anyOf(lazyChain(a, b), lazyChain(token(/\bz\b/u), b)));
   const { ratio, rounds } = slowdown(
-    () => chain("a b ".repeat(50_000)),
-    () => chain("a b\n".repeat(50_000)),
+    () => chain(lineShapes("a b", 50_000).oneLine),
+    () => chain(lineShapes("a b", 50_000).ownLines),
   );
   expect(ratio, rounds).toBeLessThan(3);
 });
@@ -66,8 +66,8 @@ test("a long line of matches next to a token that never appears scans in linear 
 test("a long line of first tokens with no last token scans in linear time", () => {
   const chain = perSegment(greedyChain(a, b, c));
   const { ratio, rounds } = slowdown(
-    () => chain("a b ".repeat(50_000)),
-    () => chain("a b\n".repeat(50_000)),
+    () => chain(lineShapes("a b", 50_000).oneLine),
+    () => chain(lineShapes("a b", 50_000).ownLines),
   );
   expect(ratio, rounds).toBeLessThan(3);
 });

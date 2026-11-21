@@ -33,9 +33,15 @@ export const slowdown = (
   };
 };
 
+let calls = 0;
+
 // One long line of `word`, and the same text with `word` on lines of its own. A scan that rereads
-// a line from every match is slow on the long line only.
-export const lineShapes = (word: string, count = 5_000): { oneLine: string; ownLines: string } => ({
-  oneLine: `${word} `.repeat(count),
-  ownLines: `${word}\n`.repeat(count),
-});
+// a line from every match is slow on the long line only. A scan token keeps its answer for the
+// last line it read, so a number at the end makes each call's text new.
+export const lineShapes = (word: string, count = 5_000): { oneLine: string; ownLines: string } => {
+  const call = String(calls++).padStart(8, "0");
+  return {
+    oneLine: `${word} `.repeat(count) + call,
+    ownLines: `${word}\n`.repeat(count) + call,
+  };
+};

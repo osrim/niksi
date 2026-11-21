@@ -157,7 +157,7 @@ mv "$data_home/niksi/niksi-lock.json" "$config_home/niksi/niksi-lock.json"
 
 Do not copy the file. Leaving both paths populated makes the legacy file inactive and lets the two files drift. `NIKSI_HOME` users do not need to migrate because both paths resolve to `$NIKSI_HOME/niksi-lock.json`.
 
-Path variables take absolute paths, and `~` is not expanded. A relative `HOME`, `NIKSI_HOME`, or `CLAUDE_HOME` stops the command with an error. A relative XDG variable or `CODEX_HOME` counts as unset, so its default applies, as the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/latest/) requires.
+Path variables take absolute paths, and `~` is not expanded. A relative `HOME`, `NIKSI_HOME`, or `CLAUDE_HOME` stops the command with an error. A relative XDG variable counts as unset, so its default applies, as the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/latest/) requires. `niksi` treats a relative `CODEX_HOME` the same way and uses `~/.codex`.
 
 The store is a download cache. A lockfile entry installs without the network when the store holds its content, and installed skills do not depend on it. `nik prune` deletes unrecorded store entries. It keeps every entry that the global lockfile or the current project's lockfile records. See [commands.md](commands.md#prune).
 

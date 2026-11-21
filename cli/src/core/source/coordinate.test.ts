@@ -105,6 +105,7 @@ test("repoName strips .git and trailing slashes", () => {
   expect(repoName("/tmp/upstream/")).toBe("upstream");
   expect(repoName("git@host.example:repo.git")).toBe("repo");
   expect(repoName("deploy@host.example:team/repo.git")).toBe("repo");
+  expect(repoName("git@[::1]:repo.git")).toBe("repo");
 });
 
 test("a GitHub tree URL yields the repo and an unsplit remainder", () => {

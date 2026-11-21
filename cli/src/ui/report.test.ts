@@ -121,6 +121,20 @@ test("renderFindings escapes control characters in file paths and aligns the esc
   ]);
 });
 
+test("renderFindings hides only a repeated location, not one that escapes to the same text", () => {
+  const rendered = renderFindings("fixture", [
+    executableAt(`a${ESC}b`, "first"),
+    executableAt("a^[b", "second"),
+    executableAt("a^[b", "third"),
+  ]);
+
+  expect(Bun.stripANSI(rendered).split("\n").slice(-3)).toEqual([
+    "    a^[b  first",
+    "    a^[b  second",
+    "          third",
+  ]);
+});
+
 test("renderFindings escapes control characters in the skill name and the detail", () => {
   const rendered = renderFindings(`evil${ESC}[2J`, [
     {

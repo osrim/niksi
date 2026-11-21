@@ -80,11 +80,12 @@ export const renderFindings = (name: string, findings: Finding[]): string => {
     for (const [rule, group] of Map.groupBy(bucket, (finding) => finding.rule)) {
       lines.push(`  ${bold(rule)}${dim(`: ${group[0]!.help}`)}`);
       const width = Math.max(...group.map((finding) => Bun.stringWidth(locationOf(finding))));
-      let previous = "";
+      let previous: Finding | undefined;
       for (const finding of group) {
         const where = locationOf(finding);
-        const shown = where === previous ? "" : where;
-        previous = where;
+        const repeated = finding.file === previous?.file && finding.line === previous?.line;
+        const shown = repeated ? "" : where;
+        previous = finding;
         const detail = detailOf(finding);
         lines.push(where ? `    ${pad(shown, width)}  ${detail}` : `    ${detail}`);
       }

@@ -32,7 +32,7 @@ import { captureEnv } from "../test-env.ts";
 let tmp: string;
 let runCli: RunCli;
 let runTerminal: RunTerminal;
-const restoreEnv = captureEnv("HOME", "NIKSI_HOME", "PATH");
+const restoreEnv = captureEnv("HOME", "NIKSI_HOME");
 
 beforeAll(async () => {
   tmp = await realpath(await mkdtemp(join(tmpdir(), "niksi-link-cli-test-")));
@@ -179,7 +179,7 @@ test("the agent picker opens without a no-agent warning when nothing is detected
   const bin = join(tmp, "git-only-bin");
   await mkdir(bin, { recursive: true });
   await symlink(Bun.which("git")!, join(bin, "git"));
-  const path = process.env.PATH;
+  const restorePath = captureEnv("PATH");
   process.env.PATH = bin;
   try {
     const result = await runTerminal(
@@ -197,7 +197,7 @@ test("the agent picker opens without a no-agent warning when nothing is detected
     expect(result.stdout).not.toContain("No agent detected");
     expect(await isLink(join(root, ".claude", "skills", "demo"))).toBe(true);
   } finally {
-    process.env.PATH = path;
+    restorePath();
   }
 });
 

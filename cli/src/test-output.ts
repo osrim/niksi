@@ -2,21 +2,28 @@ import { spyOn } from "bun:test";
 
 export interface CapturedOutput {
   text: () => string;
+  stderr: () => string;
   raw: () => string;
   restore: () => void;
 }
 
 export const captureOutput = (): CapturedOutput => {
-  const chunks: string[] = [];
+  const chunks: { stream: NodeJS.WriteStream; text: string }[] = [];
   const spies = [process.stdout, process.stderr].map((stream) =>
     spyOn(stream, "write").mockImplementation(((chunk: unknown) => {
-      chunks.push(String(chunk));
+      chunks.push({ stream, text: String(chunk) });
       return true;
     }) as typeof stream.write),
   );
+  const joined = (stream?: NodeJS.WriteStream): string =>
+    chunks
+      .filter((chunk) => stream === undefined || chunk.stream === stream)
+      .map((chunk) => chunk.text)
+      .join("");
   return {
-    text: () => Bun.stripANSI(chunks.join("")),
-    raw: () => chunks.join(""),
+    text: () => Bun.stripANSI(joined()),
+    stderr: () => Bun.stripANSI(joined(process.stderr)),
+    raw: () => joined(),
     restore: () => {
       for (const spy of spies) spy.mockRestore();
     },

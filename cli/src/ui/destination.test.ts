@@ -1,10 +1,14 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DetectedAgent } from "../core/install/agents.ts";
+import { USAGE_ERROR } from "../core/usage.ts";
 import { captureEnv } from "../test-env.ts";
+import { captureOutput } from "../test-output.ts";
 import {
   agentRows,
+  checkAgentFlag,
   needsAgents,
   preferredAgents,
+  restoreAgents,
   shadowNote,
   type AgentRow,
 } from "./destination.ts";
@@ -132,17 +136,45 @@ test("the note names the install that loses, per agent's own rule", () => {
   expect(shadowNote("global", "cline")).toBe("Cline loads this one and ignores that one.");
 });
 
+const skill = {
+  name: "demo",
+  source: "https://github.com/o/r",
+  path: "",
+  integrity: "sha256-//////////////////////////////////////////8=",
+  track: "auto" as const,
+};
+
 test("only a link entry without recorded agents needs agents chosen", () => {
-  const skill = {
-    name: "demo",
-    source: "https://github.com/o/r",
-    path: "",
-    integrity: "sha256-//////////////////////////////////////////8=",
-    track: "auto" as const,
-  };
   expect(needsAgents([skill])).toBe(true);
   expect(needsAgents([{ ...skill, agents: ["claude"] }])).toBe(false);
   expect(needsAgents([{ ...skill, copy: true, agents: ["claude"] }])).toBe(false);
   expect(needsAgents([{ ...skill, copy: true, copyPath: "skills" }])).toBe(false);
   expect(needsAgents([])).toBe(false);
+});
+
+test("an unknown --agent is a usage error, and a known one parses to its ids", () => {
+  expect(checkAgentFlag(undefined)).toBeNull();
+  expect(checkAgentFlag(["claude", "Claude"])).toEqual(["claude"]);
+  expect(() => checkAgentFlag("nope")).toThrow("Unknown agent(s): nope");
+  try {
+    checkAgentFlag("nope");
+  } catch (e) {
+    expect((e as Error).name).toBe(USAGE_ERROR);
+  }
+});
+
+test("restoring entries that record their agents ignores --agent with a warning on stderr", async () => {
+  const recorded = [{ ...skill, agents: ["claude" as const] }];
+  const output = captureOutput();
+  try {
+    expect(await restoreAgents(recorded, { agent: "opencode" }, "project")).toEqual([]);
+    expect(await restoreAgents(recorded, {}, "project")).toEqual([]);
+  } finally {
+    output.restore();
+  }
+  expect(output.text()).toBe(output.stderr());
+  expect(output.stderr().match(/Ignoring --agent/gu)).toEqual(["Ignoring --agent"]);
+  expect(output.stderr()).toContain(
+    "Ignoring --agent. Every lockfile entry records its destination.",
+  );
 });

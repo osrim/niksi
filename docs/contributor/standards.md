@@ -35,7 +35,7 @@ Integration tests (`bun run test:integration`) spawn the CLI from `commands/<top
 - Add unit tests for changed `core/` and `ui/` behavior. Network modules require tests.
 - Add an integration case for a changed command flow, flag, or non-interactive error.
 - Every exit code in [commands.md](../commands.md#exit-codes) except `130` has an integration case.
-- Integration tests assert the exit code, files on disk, the lockfile, and the `list --json` shape. Match stderr only for exit `2`.
+- Integration tests assert the exit code, files on disk, the lockfile, and the `list --json` shape. Match stderr only for exit `2`, or to check that a warning goes to stderr as [terminal-style.md](terminal-style.md#streams) requires.
 - Assert against literals, worked examples, fixtures, or documented contracts. Do not copy implementation logic into assertions.
 - Use temporary directories. Restore environment changes with `test-env.ts`. Capture output and fake a terminal with `test-output.ts`.
 - A timing test compares a hostile input against a same-size input that takes the linear path, with `slowdown` from `test-timing.ts`, or allows several times its usual CI time. A CI runner can take 3 times as long as a laptop, so a tight fixed number of milliseconds fails there.

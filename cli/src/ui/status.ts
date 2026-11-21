@@ -3,7 +3,6 @@ import { readLock } from "../core/install/lockfile.ts";
 import type { Scope } from "../core/paths.ts";
 import type { PolicyViolation } from "../core/policy.ts";
 import { PROJECT_CONFIG_NAME } from "../core/project-config.ts";
-import { CRITICAL_EXIT } from "../core/scan/index.ts";
 import { describeAge, describeWaiting } from "../core/source/release-age.ts";
 import { displayLabel, shortId } from "../core/source/revision.ts";
 import { otherScope, scopeFlag } from "../core/install/scope.ts";
@@ -14,7 +13,7 @@ import {
   type UpdatableVerdict,
   type UpdateVerdict,
 } from "../core/source/upstream.ts";
-import { fail } from "./prompt.ts";
+import { fail, markFailed } from "./prompt.ts";
 import { logError, logWarn } from "./report.ts";
 import { bold, dim, skillName, tildify } from "./style.ts";
 
@@ -90,9 +89,7 @@ export const reportVerdicts = (
     const { skill } = verdict;
     const failed = (message: string): void => {
       logError(message);
-      if (requested.includes(skill.name)) {
-        process.exitCode = process.exitCode === CRITICAL_EXIT ? CRITICAL_EXIT : 1;
-      }
+      if (requested.includes(skill.name)) markFailed();
     };
     switch (verdict.kind) {
       case "unreachable":

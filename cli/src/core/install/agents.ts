@@ -1,6 +1,14 @@
 import { existsSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { projectRoot, claudeDir, envPath, tildify, userHome, type Scope } from "../paths.ts";
+import {
+  projectRoot,
+  claudeDir,
+  envPath,
+  tildify,
+  userHome,
+  xdgRoot,
+  type Scope,
+} from "../paths.ts";
 
 export type AgentId = "universal" | "claude" | "opencode" | "kiro" | "cline" | "qwen";
 
@@ -14,8 +22,7 @@ interface SkillsDirDef {
 
 const userPath = (...segments: string[]): string => join(userHome(), ...segments);
 
-const xdgConfigDir = (name: string): string =>
-  join(envPath("XDG_CONFIG_HOME", false) ?? userPath(".config"), name);
+const xdgConfigDir = (name: string): string => join(xdgRoot("XDG_CONFIG_HOME", ".config"), name);
 
 export const onPath = (binary: string): boolean =>
   (process.env.PATH ?? "")

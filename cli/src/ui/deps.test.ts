@@ -18,6 +18,7 @@ import { emptyLock, serializeLock, type Lockfile } from "../core/install/lockfil
 import { skillsDir, type AgentId } from "../core/install/agents.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
 import { materialize, storeEntryPath } from "../core/install/store.ts";
+import type { DiscoveryLocation } from "../core/source/index.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
@@ -103,15 +104,23 @@ const linked = async (...agents: AgentId[]): Promise<Lockfile> => {
   return recorded("helper");
 };
 
-test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
+const expectNoAddCommand = (location: DiscoveryLocation): void => {
   reportNotInstalled(
     [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
-    { source: "https://github.com/o/r", root: "plugins/x" },
+    location,
     "project",
   );
   expect(printed()).toContain("primary mentions helper at SKILL.md:5. not installed.");
-  expect(printed()).toContain("Cannot generate a rooted add command without a source revision.");
+  expect(printed()).toContain("Cannot suggest an add command for this source.");
   expect(printed()).not.toContain("Add them:");
+};
+
+test("missing dependencies without a recorded revision warn without a broad add command", () => {
+  expectNoAddCommand({ source: "https://github.com/o/r", root: "plugins/x" });
+});
+
+test("missing dependencies under a rooted SSH source warn without a broad add command", () => {
+  expectNoAddCommand({ source: "git@github.com:o/r", root: "plugins/x", branch: "main" });
 });
 
 test("a dependency warning escapes control characters in the file path", () => {

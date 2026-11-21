@@ -59,7 +59,7 @@ export const reportNotInstalled = (
   warnMentions(missing, "not installed");
   const coordinate = discoveryCoordinate(discovered);
   if (coordinate === undefined) {
-    warn("Cannot generate a rooted add command without a source revision.");
+    warn("Cannot suggest an add command for this source.");
     return;
   }
   const selectors = missing.map((dep) =>

@@ -156,7 +156,8 @@ export const discoveryCoordinate = (skill: DiscoveryLocation): string | undefine
   const coordinate = coordinateFor(skill.source);
   if (!skill.root) return coordinate;
   if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);
-  const ref = skill.branch || skill.pinnedAs || skill.tag || skill.commit;
+  if (!coordinate.startsWith("https://")) return undefined;
+  const ref = skill.pinnedAs || skill.tag || skill.branch || skill.commit;
   if (!ref) return undefined;
   const segments = [...ref.split("/"), ...skill.root.split("/")];
   return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;

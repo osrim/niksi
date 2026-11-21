@@ -61,7 +61,8 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
 - When `niksi.json` sets `policy.denyWarn`, a warn finding needs approval like a critical one, and `--yes` doesn't accept it. See [security-scan.md](security-scan.md#severities).
 - `add` offers to review missing dependencies mentioned by approved skills. With
   `--yes` or without a terminal, it prints a `nik add` command instead. This
-  command uses the same discovery root.
+  command uses the same discovery root. A discovery root in an SSH or `file://`
+  source has no forge URL, so `add` prints a warning instead of the command.
 - `add` skips a mentioned skill that the current scope records. An enabled skill
   in the other scope counts only when a link or agent copy is present in every
   selected agent directory. When it counts, `add` names that scope. Path copies

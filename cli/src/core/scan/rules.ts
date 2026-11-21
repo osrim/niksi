@@ -747,7 +747,7 @@ interface Downloader {
   valueFlags: Set<string>;
   outputFlag: string;
   remoteNameFlag?: string;
-  long: Map<string, "output" | "remote-name">;
+  long: Map<string, "output" | "remote-name" | "remote-name-all">;
   // Saves under the URL's name unless an output option says otherwise.
   savesByDefault: boolean;
 }
@@ -763,7 +763,7 @@ const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
     long: new Map([
       ["--output", "output"],
       ["--remote-name", "remote-name"],
-      ["--remote-name-all", "remote-name"],
+      ["--remote-name-all", "remote-name-all"],
       OUT_FILE,
     ]),
     savesByDefault: false,
@@ -784,15 +784,17 @@ const OTHER_DOWNLOADER: Downloader = {
   savesByDefault: false,
 };
 
+// curl gives the first output option to the first URL, the second to the second, and so on.
+// `outputs` keeps that order: "file" for a named output, "remote" for the URL's own name.
 interface Saved {
   files: string[];
   urls: string[];
-  output: boolean;
-  remoteName: boolean;
+  outputs: ("file" | "remote")[];
+  remoteNameAll: boolean;
 }
 
 const save = (saved: Saved, value: string | undefined): void => {
-  saved.output = true;
+  saved.outputs.push("file");
   const path = value === undefined ? undefined : asPath(value);
   if (path) saved.files.push(path);
 };
@@ -807,7 +809,8 @@ const readLong = (
   saved: Saved,
 ): number => {
   const kind = tool.long.get(longKey(word));
-  if (kind === "remote-name") saved.remoteName = true;
+  if (kind === "remote-name") saved.outputs.push("remote");
+  if (kind === "remote-name-all") saved.remoteNameAll = true;
   if (kind !== "output") return 0;
   const eq = word.indexOf("=");
   save(saved, eq === -1 ? next : word.slice(eq + 1));
@@ -823,7 +826,7 @@ const readShort = (
 ): number => {
   for (let at = 1; at < word.length; at++) {
     const flag = word[at]!;
-    if (flag === tool.remoteNameFlag) saved.remoteName = true;
+    if (flag === tool.remoteNameFlag) saved.outputs.push("remote");
     if (!tool.valueFlags.has(flag)) continue;
     const attached = word.slice(at + 1);
     if (flag === tool.outputFlag) save(saved, attached || next);
@@ -855,10 +858,15 @@ const readWord = (
 const downloadTargets = (words: string[]): string[] => {
   if (!isDownload(words)) return [];
   const tool = DOWNLOADER_OPTIONS[commandName(words[0]!)] ?? OTHER_DOWNLOADER;
-  const saved: Saved = { files: [], urls: [], output: false, remoteName: false };
+  const saved: Saved = { files: [], urls: [], outputs: [], remoteNameAll: false };
   for (let i = 1; i < words.length; i++) i += readWord(tool, words[i]!, words[i + 1], saved);
-  const named = saved.remoteName || (tool.savesByDefault && !saved.output);
-  return named ? [...saved.files, ...saved.urls.flatMap((url) => asPath(url) ?? [])] : saved.files;
+  // A URL past the last output option keeps the default. wget -O writes every URL to one file.
+  const byDefault = saved.remoteNameAll || (tool.savesByDefault && saved.outputs.length === 0);
+  const named = saved.urls.filter((_, i) => {
+    const output = saved.outputs[i];
+    return output === undefined ? byDefault : output === "remote";
+  });
+  return [...saved.files, ...named.flatMap((url) => asPath(url) ?? [])];
 };
 
 const EXEC_MODE = /\+[rwxXst]*x|^[0-7]{0,1}[0-7]*[1357][0-7]{0,2}$/u;

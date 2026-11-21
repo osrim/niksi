@@ -22,6 +22,15 @@ export default [
     fire: [{ severity: "info", line: 5, detail: "files.net/payload" }],
   },
   {
+    name: "links without a scheme on .dev and .app hosts",
+    path: "SKILL.md",
+    content: entry("Then see tools.acme.dev/payload.", "Or get.acme.app/install."),
+    fire: [
+      { severity: "info", line: 5, detail: "tools.acme.dev/payload" },
+      { severity: "info", line: 6, detail: "get.acme.app/install" },
+    ],
+  },
+  {
     name: "F12 a bot token in a URL is redacted",
     path: "SKILL.md",
     content: entry("See https://api.telegram.org/bot123456789:fake-token/getMe"),

@@ -1,6 +1,6 @@
-import { LinkifyIt } from "linkify-it";
 import MarkdownIt from "markdown-it";
 import type { Finding, Severity } from "./index.ts";
+import { newLinkify } from "./linkify.ts";
 import { matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
 
@@ -8,8 +8,7 @@ const markdown = new MarkdownIt();
 
 type Token = ReturnType<typeof markdown.parse>[number];
 
-// linkify-it knows only the older generic domains, so `docs.acme.dev` needs `dev` added.
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false }).tlds(["dev", "app"], true);
+const linkify = newLinkify();
 
 // Without a scheme or a path, these name a file that shares its extension with a country domain.
 const FILE_NAME = /^[^/]+\.(?:md|sh|py|pl|pm|rs|ps|mk|ml|tf|so|cc|in)$/iu;

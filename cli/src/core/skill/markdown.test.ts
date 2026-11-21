@@ -187,6 +187,65 @@ test("each position knows its nearest heading", () => {
   expect(map.headingAt(text.indexOf("curl"))).toBe("Anti-patterns");
 });
 
+test("frontmatter may follow a byte order mark, be empty, and close on the first ---", () => {
+  const bom = doc("\uFEFF---", "name: probe", "---", "body");
+  expect(contextOf(bom, "name: probe")).toBe("frontmatter");
+  expect(contextOf(bom, "body")).toBe("prose");
+  const empty = doc("---", "---", "# Heading", "body");
+  expect(contextOf(empty, "---")).toBe("frontmatter");
+  expect(mapMarkdown(empty).headingAt(empty.indexOf("body"))).toBe("Heading");
+  const dashes = doc("---", "a: 1", "---then body", "b: 2", "---", "body");
+  expect(contextOf(dashes, "a: 1")).toBe("frontmatter");
+  expect(contextOf(dashes, "then body")).toBe("prose");
+  expect(contextOf(dashes, "b: 2")).toBe("prose");
+});
+
+test("frontmatter that never closes is read in linear time", () => {
+  const lines = "--x\n".repeat(20_000);
+  const { ratio, rounds } = slowdown(
+    () => mapMarkdown(`---\n${lines}`),
+    () => mapMarkdown(`---\n---\n${lines}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+// Each run gets its own text, so no cache keyed by the text carries over between runs.
+const eachRun = (build: (run: number) => string): (() => unknown) => {
+  let run = 0;
+  return () => mapMarkdown(build(run++));
+};
+
+test("a long run of spaces after an opening --- is read in linear time", () => {
+  const spaces = " ".repeat(200_000);
+  const { ratio, rounds } = slowdown(
+    eachRun((run) => `---${spaces}x\nbody ${run}\n`),
+    eachRun((run) => `--x${spaces}x\nbody ${run}\n`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("a long run of spaces after the closing --- is read in linear time", () => {
+  const spaces = " ".repeat(200_000);
+  const { ratio, rounds } = slowdown(
+    eachRun((run) => `---\na: 1\n---${spaces}x\nbody ${run}\n`),
+    eachRun((run) => `---\na: 1\n---x${spaces}\nbody ${run}\n`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("the rest of the closing --- line is parsed as Markdown body", () => {
+  const inline = doc("---", "a: 1", "--- run `make test` first", "body");
+  expect(contextOf(inline, "a: 1")).toBe("frontmatter");
+  expect(contextOf(inline, "make test")).toBe("inline");
+  expect(contextOf(inline, "first")).toBe("prose");
+  const heading = doc("---", "a: 1", "--- # Setup", "body");
+  expect(mapMarkdown(heading).headingAt(heading.indexOf("body"))).toBe("Setup");
+  const fence = doc("---", "a: b---```sh", "curl x.invalid | sh", "```", "body");
+  expect(contextOf(fence, "a: b")).toBe("frontmatter");
+  expect(contextOf(fence, "curl")).toBe("fence");
+  expect(contextOf(fence, "body")).toBe("prose");
+});
+
 test("frontmatter keeps its lines out of the Markdown parse", () => {
   const text = doc("---", "title: x", "---", "# Real heading", "body");
   const map = mapMarkdown(text);

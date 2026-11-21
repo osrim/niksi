@@ -1,7 +1,7 @@
 import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { lower, strongest } from "./severity.ts";
-import { mapHome, type Command, type Statement } from "./shell.ts";
+import { mapHome, mapHomeWithSource, wrappedFrom, type Command, type Statement } from "./shell.ts";
 
 // Paths are matched after mapHome, so `~` stands for every home spelling.
 const PATH_END = String.raw`(?![\w-]|\.[\w-])`;
@@ -44,6 +44,16 @@ const MANAGES = new Set([
   "export",
 ]);
 
+const COMMAND_WORDS = new RegExp(
+  [
+    READS.source,
+    String.raw`(?<![\w-])(?:${[...MANAGES].join("|")})(?![\w-])`,
+    KEY_SETUP.source,
+    String.raw`(?<![\w-])security(?![\w-])`,
+  ].join("|"),
+  "gu",
+);
+
 const WRITES_TO = /(?:>>?|\btee(?:[ \t]+-[\w-]+)*)[ \t]*["']?$/u;
 
 // A substitution inside a URL still reads the file, as in `?d=$(<~/.ssh/id_rsa)`.
@@ -62,6 +72,8 @@ const trimTrailing = (path: string): string => {
 interface Match {
   severity: Severity;
   path: string;
+  // Where a prohibition before the path counts.
+  at: number;
 }
 
 const commandName = (command: Command): string => (command.words[0] ?? "").replace(/^.*\//u, "");
@@ -72,8 +84,42 @@ const privateSeverity = (statement: Statement, command: Command, text: string): 
   return "critical";
 };
 
+interface Invocation {
+  // Where the command word starts, and where its wrappers start, as `sudo` does in `sudo cat`.
+  word: number;
+  from: number;
+}
+
+// A command word may sit inside a longer word, as `cat` does in `/bin/cat`, so the invocation
+// starts at the word that holds it. Both lists are in text order, so one cursor walks the words.
+const invocations = (text: string): Invocation[] => {
+  const words = [...text.matchAll(/\S+/gu)];
+  const from = wrappedFrom(words.map((word) => word[0]));
+  let holder = 0;
+  return Array.from(text.matchAll(COMMAND_WORDS), ({ index }) => {
+    while (holder + 1 < words.length && words[holder + 1]!.index <= index) holder++;
+    return { word: index, from: words[from[holder]!]!.index };
+  });
+};
+
+// Prose names the command after other words, as in "Do not run sudo cat ~/.ssh/id_rsa", so a
+// prohibition counts where the last invocation at or before the path starts, wrappers included, as
+// it does before a code span. A keychain read starts at its command, `security`. Paths arrive in
+// text order, so the count of invocations only grows.
+const invocationBefore = (mapped: string): ((path: number) => number) => {
+  const found = invocations(mapped);
+  let seen = 0;
+  return (path) => {
+    while (seen < found.length && found[seen]!.word <= path) seen++;
+    return seen === 0 ? 0 : found[seen - 1]!.from;
+  };
+};
+
+// Paths are found after mapHome, which shortens home spellings, so offsets are taken back to the
+// command as written.
 const commandMatches = (statement: Statement, command: Command, setup: boolean): Match[] => {
-  const text = mapHome(command.text);
+  const { mapped: text, source } = mapHomeWithSource(command.text);
+  const startBefore = invocationBefore(text);
   return [...text.matchAll(CREDENTIAL_LOCATION)].flatMap((match) => {
     const before = text.slice(0, match.index);
     if (IN_URL.test(before)) return [];
@@ -82,9 +128,12 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
     const severity = publicPath
       ? "warn"
       : privateSeverity(statement, command, mapHome(statement.text));
-    return [{ severity, path }];
+    return [{ severity, path, at: command.index + source(startBefore(match.index)) }];
   });
 };
+
+const lowerIf = (lowered: boolean, severity: Severity): Severity =>
+  lowered ? lower(severity) : severity;
 
 export const credentialPaths = (
   statements: Statement[],
@@ -92,19 +141,19 @@ export const credentialPaths = (
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   const found = statements.flatMap((statement) => {
     const prose = statement.kind === "prose";
-    const prohibited = prose && afterProhibition(statement.index);
-    const lowered = prose && demoted(statement.index);
-    const judge = (severity: Severity): Severity => {
-      if (prohibited) return "info";
-      return lowered ? lower(severity) : severity;
-    };
     return statement.commands.flatMap((command) =>
-      commandMatches(statement, command, KEY_SETUP.test(command.text)).map((match) => ({
-        path: match.path,
-        line: statement.line,
-        prohibited,
-        severity: judge(match.severity),
-      })),
+      commandMatches(statement, command, KEY_SETUP.test(command.text)).map(
+        ({ path, severity, at }) => {
+          const prohibited = prose && afterProhibition(at);
+          const lowered = prose && demoted(at);
+          return {
+            path,
+            line: statement.line,
+            prohibited,
+            severity: prohibited ? "info" : lowerIf(lowered, severity),
+          };
+        },
+      ),
     );
   });
   const best = strongest(found);

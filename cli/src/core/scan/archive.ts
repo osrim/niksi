@@ -145,8 +145,8 @@ const checksumMatches = (header: Buffer): boolean => {
   return sum === octal(header, 148, 8);
 };
 
-const paxPath = (data: Buffer): string | undefined =>
-  /(?:^|\n)\d+ path=([^\n]*)\n/u.exec(data.toString("utf8"))?.[1];
+const PAX_PATH = /(?:^|\n)\d+ path=([^\n]*)\n/u;
+const PAX_LINK = /(?:^|\n)\d+ linkpath=([^\n]*)\n/u;
 
 const stored = (name: string, mode: string, data: Buffer, problem?: string): Entry => ({
   name,
@@ -157,10 +157,34 @@ const stored = (name: string, mode: string, data: Buffer, problem?: string): Ent
   problem,
 });
 
-const tarEntry = (header: Buffer, name: string, data: Buffer): Entry | undefined => {
-  const type = field(header, 156, 1) || "0";
+// A GNU long name ("L") or long link ("K"), or a pax path and link path ("x"), applies to the next
+// member.
+interface LongNames {
+  name?: string | undefined;
+  link?: string | undefined;
+}
+
+const readLongName = (type: string, data: Buffer, long: LongNames): void => {
+  if (type === "L") long.name = field(data, 0, data.length);
+  else if (type === "K") long.link = field(data, 0, data.length);
+  else {
+    const pax = data.toString("utf8");
+    long.name = PAX_PATH.exec(pax)?.[1];
+    long.link = PAX_LINK.exec(pax)?.[1];
+  }
+};
+
+const tarEntry = (
+  header: Buffer,
+  type: string,
+  long: LongNames,
+  data: Buffer,
+): Entry | undefined => {
   if (type === "5" || type === "g") return undefined;
-  if (type === "2") return stored(name, MODE_SYMLINK, Buffer.from(field(header, 157, 100)));
+  const name = (long.name ?? tarName(header)).replace(/^(?:\.\/)+/u, "");
+  if (type === "2") {
+    return stored(name, MODE_SYMLINK, Buffer.from(long.link ?? field(header, 157, 100)));
+  }
   const problem = type === "0" || type === "7" ? undefined : `unsupported tar entry type ${type}`;
   return stored(name, unixMode(octal(header, 100, 8)), data, problem);
 };
@@ -172,7 +196,7 @@ const tarName = (header: Buffer): string => {
 
 const tarEntries = (buf: Buffer): Entry[] => {
   const entries: Entry[] = [];
-  let longName: string | undefined;
+  let long: LongNames = {};
   for (let at = 0; at + BLOCK <= buf.length;) {
     const header = buf.subarray(at, at + BLOCK);
     if (header.every((byte) => byte === 0)) break;
@@ -181,13 +205,13 @@ const tarEntries = (buf: Buffer): Entry[] => {
     if (at + BLOCK + size > buf.length) throw new Error("truncated tar member");
     const data = buf.subarray(at + BLOCK, at + BLOCK + size);
     at += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
-    const type = field(header, 156, 1);
-    if (type === "L" || type === "x") {
-      longName = type === "L" ? field(data, 0, data.length) : paxPath(data);
+    const type = field(header, 156, 1) || "0";
+    if (type === "L" || type === "K" || type === "x") {
+      readLongName(type, data, long);
       continue;
     }
-    const entry = tarEntry(header, (longName ?? tarName(header)).replace(/^(?:\.\/)+/u, ""), data);
-    longName = undefined;
+    const entry = tarEntry(header, type, long, data);
+    long = {};
     if (entry) entries.push(entry);
   }
   return entries;
@@ -222,15 +246,15 @@ const stop = (walk: Walk, file: string, budget: string): undefined => {
 const isTooLarge = (error: unknown): boolean =>
   error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE";
 
-// The output cap stops a bomb while it inflates, whatever size its headers declare.
+// The output cap stops a bomb while it inflates, whatever size its headers declare. `left` is the
+// room in the size budget.
 const inflate = (
   walk: Walk,
   path: string,
   unzip: typeof inflateRawSync,
   data: Buffer,
-  { declared, ratioCap }: { declared: number; ratioCap: number },
+  { declared, ratioCap, left }: { declared: number; ratioCap: number; left: number },
 ): Buffer | undefined => {
-  const left = MAX_BYTES - walk.bytes;
   if (declared > ratioCap) return skip(walk, path, RATIO_BUDGET);
   if (declared > left) return stop(walk, path, SIZE_BUDGET);
   try {
@@ -241,12 +265,19 @@ const inflate = (
   }
 };
 
-// A tar pads each member to 512 bytes, so the ratio counts member bytes only.
-// The size budget counts the members as they are taken.
+// Each tar member may add a long name or pax header, its own header, and padding: four blocks at
+// most. The end of the archive adds up to a 10 KiB record.
+const TAR_OVERHEAD = (4 * MAX_MEMBERS + 20) * BLOCK;
+
+// The tarball may inflate to the ratio plus the tar overhead, so a bomb skips this archive only.
+// Its room is the whole size budget, whatever earlier archives took, so a bomb never stops the
+// archives after it. The ratio then counts member bytes, and the size budget counts the members as
+// they are taken.
 const gzipEntries = (walk: Walk, file: SkillFile): Entry[] => {
   const tarball = inflate(walk, file.path, gunzipSync, file.content, {
     declared: 0,
-    ratioCap: Number.POSITIVE_INFINITY,
+    ratioCap: file.content.length * MAX_RATIO + TAR_OVERHEAD,
+    left: MAX_BYTES + TAR_OVERHEAD,
   });
   if (!tarball) return [];
   const entries = tarEntries(tarball);
@@ -275,6 +306,7 @@ const memberContent = (walk: Walk, path: string, entry: Entry): Buffer | undefin
     return inflate(walk, path, inflateRawSync, entry.data, {
       declared: entry.inflatedSize,
       ratioCap: entry.data.length * MAX_RATIO,
+      left: MAX_BYTES - walk.bytes,
     });
   } catch (error) {
     return skip(walk, path, `member could not be read: ${(error as Error).message}`);

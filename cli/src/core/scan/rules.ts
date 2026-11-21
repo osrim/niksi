@@ -1,5 +1,4 @@
 import { isAbsolute, normalize, join, dirname, extname } from "node:path";
-import { LinkifyIt } from "linkify-it";
 import {
   decodeText,
   isSymlink,
@@ -12,8 +11,9 @@ import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type Context, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
-import { fileName, namedPaths, pathParts } from "./archive.ts";
+import { fileName, pathParts } from "./archive.ts";
 import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
+import { bundledPaths, bundledReference } from "./bundled-reference.ts";
 import { combine, nearest } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
@@ -30,6 +30,7 @@ import { invisibleCharacters } from "./invisible.ts";
 import type { Confidence, Finding, ScannedSkill, Scanner, Severity } from "./index.ts";
 import { installHook } from "./install-hook.ts";
 import { linkMismatch } from "./link-mismatch.ts";
+import { newLinkify } from "./linkify.ts";
 import { isMap } from "./manifest.ts";
 import { moneyMovement, moneyPhrases } from "./money-movement.ts";
 import { persistence, persistenceMatches } from "./persistence.ts";
@@ -727,8 +728,10 @@ const feedsInterpreter = (statement: Statement): boolean => {
   return commands.some((command) => runsSubstitution(commandWords(statement, command), command));
 };
 
+const URL_WORD = /^[a-z][\w+.-]*:\/\//iu;
+
 const asPath = (word: string): string | undefined => {
-  if (/^[a-z]+:\/\//iu.test(word)) {
+  if (URL_WORD.test(word)) {
     try {
       return new URL(word).pathname.split("/").at(-1) || undefined;
     } catch {
@@ -739,24 +742,158 @@ const asPath = (word: string): string | undefined => {
   return path && path !== "-" && !path.startsWith("&") && path !== "/dev/null" ? path : undefined;
 };
 
-const OUTPUT_LONG = /^(?:--output(?:-document)?|-outfile)(?:=(.*))?$/iu;
-const OUTPUT_SHORT = /^-[a-zA-Z]*?[oO](.*)$/u;
 const REDIRECT = /^1?>>?(.*)$/u;
+
+interface Downloader {
+  valueFlags: Set<string>;
+  outputFlag: string;
+  remoteNameFlag?: string;
+  long: Map<string, "output" | "remote-name" | "remote-name-all" | "value">;
+  // Saves under the URL's name unless an output option says otherwise.
+  savesByDefault: boolean;
+}
+
+// Windows PowerShell aliases curl and wget to Invoke-WebRequest, whose `-OutFile` takes one dash.
+const OUT_FILE = ["-outfile", "output"] as const;
+
+// Long options whose value is not a transfer, such as the URL after `--referer`.
+const takesValue = (names: string) =>
+  names
+    .trim()
+    .split(/\s+/u)
+    .map((name) => [`--${name}`, "value"] as const);
+
+const CURL_VALUES = takesValue(
+  `
+    user-agent cookie cookie-jar continue-at data dump-header referer cert form header config
+    max-time ftp-port quote range telnet-option upload-file user proxy-user write-out proxy
+    request speed-time speed-limit time-cond data-raw data-binary data-ascii data-urlencode
+    form-string json url-query preproxy doh-url proxy1.0 socks4 socks4a socks5 socks5-hostname
+    proxy-header connect-to resolve cacert capath key output-dir retry connect-timeout max-redirs
+  `,
+);
+
+const WGET_VALUES = takesValue(
+  `
+    append-output accept base domains execute input-file output-file directory-prefix quota
+    reject tries timeout user-agent wait referer header post-data post-file body-data body-file
+    method user password load-cookies save-cookies ca-certificate certificate
+  `,
+);
+
+const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
+  curl: {
+    valueFlags: new Set("AbcCdDeEFHKmoPQrtTuUwxXyYz"),
+    outputFlag: "o",
+    remoteNameFlag: "O",
+    long: new Map([
+      ["--output", "output"],
+      ["--remote-name", "remote-name"],
+      ["--remote-name-all", "remote-name-all"],
+      OUT_FILE,
+      ...CURL_VALUES,
+    ]),
+    savesByDefault: false,
+  },
+  wget: {
+    valueFlags: new Set("aABDeiIloOPQRtTUwX"),
+    outputFlag: "O",
+    long: new Map([["--output-document", "output"], OUT_FILE, ...WGET_VALUES]),
+    savesByDefault: true,
+  },
+};
+
+// fetch(1) and the PowerShell cmdlets.
+const OTHER_DOWNLOADER: Downloader = {
+  valueFlags: new Set("o"),
+  outputFlag: "o",
+  long: new Map([["--output", "output"], OUT_FILE]),
+  savesByDefault: false,
+};
+
+// curl gives the first output option to the first URL, the second to the second, and so on.
+// `outputs` keeps that order: "file" for a named output, "remote" for the URL's own name.
+interface Saved {
+  files: string[];
+  urls: string[];
+  outputs: ("file" | "remote")[];
+  remoteNameAll: boolean;
+}
+
+const save = (saved: Saved, value: string | undefined): void => {
+  saved.outputs.push("file");
+  const path = value === undefined ? undefined : asPath(value);
+  if (path) saved.files.push(path);
+};
+
+const longKey = (word: string): string => word.split("=", 1)[0]!.toLowerCase();
+
+// Each reader returns how many of the following words it consumed.
+const readLong = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  const kind = tool.long.get(longKey(word));
+  if (kind === "remote-name") saved.outputs.push("remote");
+  if (kind === "remote-name-all") saved.remoteNameAll = true;
+  if (kind !== "output" && kind !== "value") return 0;
+  const eq = word.indexOf("=");
+  if (kind === "output") save(saved, eq === -1 ? next : word.slice(eq + 1));
+  return eq === -1 ? 1 : 0;
+};
+
+// A cluster such as `-fsSLo` ends at the first option that takes a value: the rest is the value.
+const readShort = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  for (let at = 1; at < word.length; at++) {
+    const flag = word[at]!;
+    if (flag === tool.remoteNameFlag) saved.outputs.push("remote");
+    if (!tool.valueFlags.has(flag)) continue;
+    const attached = word.slice(at + 1);
+    if (flag === tool.outputFlag) save(saved, attached || next);
+    return attached ? 0 : 1;
+  }
+  return 0;
+};
+
+const readRedirect = (attached: string, next: string | undefined, saved: Saved): number => {
+  const path = asPath(attached || next || "");
+  if (path) saved.files.push(path);
+  return attached ? 0 : 1;
+};
+
+const readWord = (
+  tool: Downloader,
+  word: string,
+  next: string | undefined,
+  saved: Saved,
+): number => {
+  const redirect = REDIRECT.exec(word);
+  if (redirect) return readRedirect(redirect[1]!, next, saved);
+  if (URL_WORD.test(word)) saved.urls.push(word);
+  if (!word.startsWith("-") || word === "-") return 0;
+  const long = word.startsWith("--") || tool.long.has(longKey(word));
+  return long ? readLong(tool, word, next, saved) : readShort(tool, word, next, saved);
+};
 
 const downloadTargets = (words: string[]): string[] => {
   if (!isDownload(words)) return [];
-  const targets: string[] = [];
-  for (let i = 1; i < words.length; i++) {
-    const word = words[i]!;
-    const flag = OUTPUT_LONG.exec(word) ?? (word.startsWith("--") ? null : OUTPUT_SHORT.exec(word));
-    const option = flag ?? REDIRECT.exec(word);
-    if (!option) continue;
-    const attached = option[1];
-    const value = attached || words[++i];
-    const path = value === undefined ? undefined : asPath(value);
-    if (path) targets.push(path);
-  }
-  return targets;
+  const tool = DOWNLOADER_OPTIONS[commandName(words[0]!)] ?? OTHER_DOWNLOADER;
+  const saved: Saved = { files: [], urls: [], outputs: [], remoteNameAll: false };
+  for (let i = 1; i < words.length; i++) i += readWord(tool, words[i]!, words[i + 1], saved);
+  // A URL past the last output option keeps the default. wget -O writes every URL to one file.
+  const byDefault = saved.remoteNameAll || (tool.savesByDefault && saved.outputs.length === 0);
+  const named = saved.urls.filter((_, i) => {
+    const output = saved.outputs[i];
+    return output === undefined ? byDefault : output === "remote";
+  });
+  return [...saved.files, ...named.flatMap((url) => asPath(url) ?? [])];
 };
 
 const EXEC_MODE = /\+[rwxXst]*x|^[0-7]{0,1}[0-7]*[1357][0-7]{0,2}$/u;
@@ -1134,14 +1271,18 @@ const linkMismatchText = textRule("link-mismatch", (file, text) =>
 const CODE_CONTEXTS = new Set<Context>(["inline", "fence", "indented"]);
 
 // Markdown is code only in code spans and blocks, `.txt` never, and any other text file always.
-const confusableHostText = textRule("confusable-host", (file, text) => {
-  if (isMedia(file)) return undefined;
-  if (!isMarkdown(file.path)) return confusableHost(text, () => !isProse(file.path));
-  let map: MarkdownMap | undefined;
-  return confusableHost(text, (index) =>
-    CODE_CONTEXTS.has((map ??= mapMarkdown(text)).contextAt(index)),
-  );
-});
+const confusableHostText: Scanner = (skill) => {
+  const bundled = bundledPaths(skill.files);
+  return textRule("confusable-host", (file, text) => {
+    if (isMedia(file)) return undefined;
+    const isLocal = bundledReference(file, text, bundled);
+    if (!isMarkdown(file.path)) return confusableHost(text, () => !isProse(file.path), isLocal);
+    let map: MarkdownMap | undefined;
+    const isCode = (index: number): boolean =>
+      CODE_CONTEXTS.has((map ??= mapMarkdown(text)).contextAt(index));
+    return confusableHost(text, isCode, isLocal);
+  })(skill);
+};
 
 // Pushed text scans as plain text, as hidden text does, and also with the rules that read any text.
 const scanPushedText = (body: string): Finding[] => {
@@ -1173,8 +1314,7 @@ const textScan: Scanner = (skill) => {
   return [...textFindings(skill, insideHidden), ...hidden];
 };
 
-// Fuzzy matching also finds schemeless hosts, such as `evil.sh` after curl.
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
+const linkify = newLinkify();
 
 const LOCK_FILES = new Set([
   "package-lock.json",
@@ -1196,8 +1336,6 @@ const isLocalOrReserved = (hostname: string): boolean =>
   /(^|\.)example\.[^.]+$/u.test(hostname) ||
   /\.(invalid|test)$/u.test(hostname);
 
-const FETCH = /\b(curl|wget|fetch)\b/u;
-
 interface Link {
   host: string;
   file: string;
@@ -1206,10 +1344,7 @@ interface Link {
 }
 
 const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] => {
-  const namesBundledFile = (name: string): boolean => {
-    const path = name.split(/[?#]/u)[0]!.toLowerCase();
-    return namedPaths(file, path).some((named) => bundled.has(named.toLowerCase()));
-  };
+  const isLocal = bundledReference(file, text, bundled);
   return (linkify.match(text) ?? []).flatMap((link) => {
     let url: URL;
     try {
@@ -1218,16 +1353,13 @@ const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] 
       return [];
     }
     if (isLocalOrReserved(url.hostname)) return [];
-    const schemeless = link.schema === "";
-    if (schemeless && namesBundledFile(link.text) && !FETCH.test(lineBefore(text, link.index))) {
-      return [];
-    }
+    if (isLocal(link)) return [];
     return [{ host: url.host, file: file.path, line: lineAt(text, link.index), url: link.text }];
   });
 };
 
 const urlInventory: Scanner = ({ files }) => {
-  const bundled = new Set(files.map((file) => file.path.toLowerCase()));
+  const bundled = bundledPaths(files);
   const links = new Map<string, Link>();
   for (const file of files) {
     if (isSymlink(file.mode) || LOCK_FILES.has(fileName(file))) continue;

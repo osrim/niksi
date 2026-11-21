@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import {
   appendFile,
   chmod,
@@ -361,6 +362,24 @@ test("audit with an empty lockfile exits 0", async () => {
 
   expect(result.exitCode).toBe(0);
   expect(result.stdout).toContain("Nothing installed (project).");
+});
+
+test("audit and list --json ignore a ski 0.2 layout and leave it in place", async () => {
+  const { project } = await setup("legacy");
+  await mkdir(join(project, ".ski", "skills"), { recursive: true });
+  await writeFile(join(project, "ski-lock.json"), '{"lockfileVersion":1,"skills":{}}\n');
+
+  const audit = await runCli(project, "audit", "--json");
+  const list = await runCli(project, "list", "--json");
+
+  expect(audit.exitCode).toBe(0);
+  expect(JSON.parse(audit.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(list.exitCode).toBe(0);
+  expect(JSON.parse(list.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(existsSync(join(project, "ski-lock.json"))).toBe(true);
+  expect(existsSync(join(project, ".ski", "skills"))).toBe(true);
+  expect(existsSync(join(project, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(project, ".niksi"))).toBe(false);
 });
 
 test.each([

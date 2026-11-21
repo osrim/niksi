@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import {
   chmod,
   mkdir,
@@ -268,6 +269,22 @@ test("update --check --json passed twice still writes only JSON to stdout", asyn
   expect(result.exitCode).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({ scope: "global", skills: [] });
   expect(result.stderr).toContain("Using global scope.");
+});
+
+test("update --check --json ignores a ski 0.2 layout and leaves it in place", async () => {
+  const legacy = join(tmp, "legacy-project");
+  await mkdir(join(legacy, ".ski", "skills"), { recursive: true });
+  await mkdir(join(legacy, ".git"));
+  await writeFile(join(legacy, "ski-lock.json"), '{"lockfileVersion":1,"skills":{}}\n');
+
+  const result = await runCli(legacy, ...CHECK, "--json");
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(existsSync(join(legacy, "ski-lock.json"))).toBe(true);
+  expect(existsSync(join(legacy, ".ski", "skills"))).toBe(true);
+  expect(existsSync(join(legacy, "niksi-lock.json"))).toBe(false);
+  expect(existsSync(join(legacy, ".niksi"))).toBe(false);
 });
 
 test.each([

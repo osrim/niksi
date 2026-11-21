@@ -144,9 +144,9 @@ A `niksi.json` that isn't a JSON object, has a value of the wrong type, or has a
 
 ### Moving an existing global lockfile
 
-The global lockfile is `$XDG_CONFIG_HOME/niksi/niksi-lock.json`, or `~/.config/niksi/niksi-lock.json` when `XDG_CONFIG_HOME` is unset. If that file does not exist, `niksi` keeps using the legacy lockfile at `$XDG_DATA_HOME/niksi/niksi-lock.json`, which defaults to `~/.local/share/niksi/niksi-lock.json`. Reads and writes keep using the legacy file until you move it.
+The global lockfile is `$XDG_CONFIG_HOME/niksi/niksi-lock.json`, or `~/.config/niksi/niksi-lock.json` when `XDG_CONFIG_HOME` is unset or relative. If that file does not exist, `niksi` keeps using the legacy lockfile at `$XDG_DATA_HOME/niksi/niksi-lock.json`, which defaults to `~/.local/share/niksi/niksi-lock.json`. Reads and writes keep using the legacy file until you move it.
 
-When both files exist, `niksi` uses the config file. Confirm that the config file does not already exist, then migrate by moving the legacy file:
+When both files exist, `niksi` uses the config file. Confirm that the config file does not already exist, then migrate by moving the legacy file. The commands assume that each XDG variable is unset or absolute:
 
 ```sh
 config_home=${XDG_CONFIG_HOME:-"$HOME/.config"}

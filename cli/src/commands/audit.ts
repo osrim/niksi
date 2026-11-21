@@ -143,7 +143,7 @@ export const run = async (options: AuditOptions): Promise<void> => {
 const reportScanned = ({ skill, findings, modified }: Scanned, scope: Scope): void => {
   logFindings(skill.name, findings);
   if (!modified) return;
-  reviewWarn(
+  logWarn(
     `${skillName(skill.name)}: modified, so no critical finding is accepted.\nRun \`nik install${scopeFlag(scope)}\` to restore the reviewed files.`,
   );
 };

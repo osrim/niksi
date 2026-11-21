@@ -351,6 +351,16 @@ test("a bundled file name after curl, wget, or fetch is still a host", () => {
   ]);
 });
 
+test("a bundled .app path with a lookalike letter is not a confusable host", () => {
+  const plist = "Editorβ.app/Contents/Info.plist";
+  const confusable = (text: string, ...others: SkillFile[]) =>
+    findingsFor("confusable-host", file("SKILL.md", `${text}\n`), ...others).map((f) => f.severity);
+  const bundled = file(plist, "<plist/>\n");
+  expect(confusable(`Open ${plist} for the version.`, bundled)).toEqual([]);
+  expect(confusable(`Open ${plist} for the version.`)).toEqual(["critical"]);
+  expect(confusable(`Run curl ${plist} for the version.`, bundled)).toEqual(["critical"]);
+});
+
 test("local, reserved, and lock-file URLs are not inventoried", () => {
   expect(
     urlsIn(

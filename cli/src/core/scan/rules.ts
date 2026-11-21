@@ -16,7 +16,7 @@ import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
 import { combine, nearest } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
-import { confusableHost } from "./confusable-host.ts";
+import { confusableHost, type LocalLink } from "./confusable-host.ts";
 import { demotes, type ProseJudge } from "./context.ts";
 import { dependencySource } from "./dependency-source.ts";
 import { destructive, destructiveMatches } from "./destructive.ts";
@@ -1243,15 +1243,39 @@ const linkMismatchText = textRule("link-mismatch", (file, text) =>
 
 const CODE_CONTEXTS = new Set<Context>(["inline", "fence", "indented"]);
 
+const FETCH = /\b(curl|wget|fetch)\b/u;
+
+const bundledPaths = (files: SkillFile[]): Set<string> =>
+  new Set(files.map((file) => file.path.toLowerCase()));
+
+// A link without a scheme that names a bundled file, such as `Editor.app/Contents/Info.plist`, is
+// a local path, unless a download command comes before it on its line.
+const bundledReference = (
+  file: SkillFile,
+  text: string,
+  bundled: Set<string>,
+): ((link: LocalLink) => boolean) => {
+  const namesBundledFile = (name: string): boolean => {
+    const path = name.split(/[?#]/u)[0]!.toLowerCase();
+    return namedPaths(file, path).some((named) => bundled.has(named.toLowerCase()));
+  };
+  return (link) =>
+    link.schema === "" && namesBundledFile(link.text) && !FETCH.test(lineBefore(text, link.index));
+};
+
 // Markdown is code only in code spans and blocks, `.txt` never, and any other text file always.
-const confusableHostText = textRule("confusable-host", (file, text) => {
-  if (isMedia(file)) return undefined;
-  if (!isMarkdown(file.path)) return confusableHost(text, () => !isProse(file.path));
-  let map: MarkdownMap | undefined;
-  return confusableHost(text, (index) =>
-    CODE_CONTEXTS.has((map ??= mapMarkdown(text)).contextAt(index)),
-  );
-});
+const confusableHostText: Scanner = (skill) => {
+  const bundled = bundledPaths(skill.files);
+  return textRule("confusable-host", (file, text) => {
+    if (isMedia(file)) return undefined;
+    const isLocal = bundledReference(file, text, bundled);
+    if (!isMarkdown(file.path)) return confusableHost(text, () => !isProse(file.path), isLocal);
+    let map: MarkdownMap | undefined;
+    const isCode = (index: number): boolean =>
+      CODE_CONTEXTS.has((map ??= mapMarkdown(text)).contextAt(index));
+    return confusableHost(text, isCode, isLocal);
+  })(skill);
+};
 
 // Pushed text scans as plain text, as hidden text does, and also with the rules that read any text.
 const scanPushedText = (body: string): Finding[] => {
@@ -1305,8 +1329,6 @@ const isLocalOrReserved = (hostname: string): boolean =>
   /(^|\.)example\.[^.]+$/u.test(hostname) ||
   /\.(invalid|test)$/u.test(hostname);
 
-const FETCH = /\b(curl|wget|fetch)\b/u;
-
 interface Link {
   host: string;
   file: string;
@@ -1315,10 +1337,7 @@ interface Link {
 }
 
 const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] => {
-  const namesBundledFile = (name: string): boolean => {
-    const path = name.split(/[?#]/u)[0]!.toLowerCase();
-    return namedPaths(file, path).some((named) => bundled.has(named.toLowerCase()));
-  };
+  const isLocal = bundledReference(file, text, bundled);
   return (linkify.match(text) ?? []).flatMap((link) => {
     let url: URL;
     try {
@@ -1327,16 +1346,13 @@ const fileLinks = (file: SkillFile, text: string, bundled: Set<string>): Link[] 
       return [];
     }
     if (isLocalOrReserved(url.hostname)) return [];
-    const schemeless = link.schema === "";
-    if (schemeless && namesBundledFile(link.text) && !FETCH.test(lineBefore(text, link.index))) {
-      return [];
-    }
+    if (isLocal(link)) return [];
     return [{ host: url.host, file: file.path, line: lineAt(text, link.index), url: link.text }];
   });
 };
 
 const urlInventory: Scanner = ({ files }) => {
-  const bundled = new Set(files.map((file) => file.path.toLowerCase()));
+  const bundled = bundledPaths(files);
   const links = new Map<string, Link>();
   for (const file of files) {
     if (isSymlink(file.mode) || LOCK_FILES.has(fileName(file))) continue;

@@ -1,6 +1,7 @@
 import { Ansis } from "ansis";
 import cliTruncate from "cli-truncate";
 import { createSupportsColor } from "supports-color";
+import { codeOf } from "../core/scan/invisible.ts";
 export { tildify } from "../core/paths.ts";
 
 // supports-color handles piped output and TERM=dumb. NO_COLOR needs an explicit check.
@@ -25,7 +26,23 @@ export const blue: Paint = ansi.blue;
 export const bold: Paint = ansi.bold;
 export const dim: Paint = ansi.dim;
 
-export const skillName: Paint = ansi.cyan;
+const CONTROL = /(?![\t\n])[\p{Cc}\p{Cf}]/gu;
+const LINE_CONTROL = /[\p{Cc}\p{Cf}]/gu;
+
+const marker = (char: string): string => {
+  const code = char.codePointAt(0)!;
+  return code < 0x20 || code === 0x7f
+    ? `^${String.fromCharCode(code ^ 0x40)}`
+    : `<${codeOf(code)}>`;
+};
+
+// For multiline text such as file bodies and diffs: tabs and newlines stay.
+export const escapeControl = (text: string): string => text.replace(CONTROL, marker);
+
+// For a single value such as a name or a path: tabs and newlines show as ^I and ^J.
+export const escapeLine = (text: string): string => text.replace(LINE_CONTROL, marker);
+
+export const skillName: Paint = (text) => ansi.cyan(escapeLine(text));
 
 export const unstruck: Paint = (text) => `${ansi.strikethrough.close}${text}`;
 
@@ -58,4 +75,6 @@ export const pad = (text: string, width: number): string =>
 export const summarize = (text: string | undefined, width = 60): string | undefined =>
   text === undefined || text === ""
     ? undefined
-    : cliTruncate(text.replace(/\s+/gu, " ").trim(), width, { preferTruncationOnSpace: true });
+    : cliTruncate(escapeLine(text.replace(/\s+/gu, " ").trim()), width, {
+        preferTruncationOnSpace: true,
+      });

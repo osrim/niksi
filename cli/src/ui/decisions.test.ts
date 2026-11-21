@@ -89,4 +89,16 @@ describe("clackDecisions", () => {
 
     expect(exit).toHaveBeenCalledWith(130);
   });
+
+  test("dependency labels are escaped and the selected value stays raw", async () => {
+    const multiselect = spyOn(p, "multiselect").mockResolvedValue(["evil\u001B[2J"]);
+
+    expect(
+      await clackDecisions.pickDependencies([{ name: "evil\u001B[2J", hint: "a hint" }]),
+    ).toEqual(["evil\u001B[2J"]);
+
+    expect(multiselect.mock.calls[0]![0].options).toEqual([
+      { value: "evil\u001B[2J", label: "evil^[[2J", hint: "a hint" },
+    ]);
+  });
 });

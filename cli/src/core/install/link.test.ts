@@ -12,7 +12,7 @@ import {
   rename,
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { integrityOf } from "../skill/integrity.ts";
 import { entryMatches, IntegrityError, materialize, storeEntryPath } from "./store.ts";
@@ -317,7 +317,24 @@ test("assertSkillsDirSafe rejects a skills dir symlinked into the store", async 
   process.chdir(dir);
   try {
     await symlink(storeDir(), join(dir, ".claude", "skills"));
-    expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow("symlink into the store");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow("points into the store");
+  } finally {
+    process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe names the data directory for a skills dir symlinked outside the store", async () => {
+  const dir = join(tmp, "proj-data-link");
+  await mkdir(join(dir, ".claude"), { recursive: true });
+  const globalCopies = join(dataDir(), "skills");
+  await mkdir(globalCopies, { recursive: true });
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await symlink(globalCopies, join(dir, ".claude", "skills"));
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `points into niksi's data directory (${await realpath(globalCopies)}) through the symlink`,
+    );
   } finally {
     process.chdir(prev);
   }
@@ -340,17 +357,147 @@ test("assertSkillsDirSafe rejects a project skills dir symlinked into a global a
     await symlink(relative(join(dir, ".claude"), claudeGlobal), join(dir, ".claude", "skills"));
     await symlink(join(opencodeGlobal, "nested"), join(dir, ".opencode", "skills"));
     await symlink(elsewhere, join(dir, ".agents", "skills"));
+    const claudeLink = skillsDir("project", "claude");
     await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
-      `is a symlink into a global skills directory (${await realpath(claudeGlobal)}).\nRemove it and re-run.`,
+      `${claudeLink} points into a global skills directory (${await realpath(claudeGlobal)}) through the symlink ${claudeLink}.\nRemove ${claudeLink} and re-run.`,
     );
     await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
-      "symlink into a global skills directory",
+      "points into a global skills directory",
     );
     expect(await assertSkillsDirSafe("project", "universal")).toBe(
       skillsDir("project", "universal"),
     );
   } finally {
     process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe rejects a project skills dir under a symlinked agent dir", async () => {
+  const dir = join(tmp, "proj-parent-link");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const claudeGlobal = skillsDir("global", "claude");
+  await mkdir(claudeGlobal, { recursive: true });
+  await mkdir(join(storeDir(), "linked-agent"), { recursive: true });
+  await mkdir(join(tmp, "dotfiles-agents"), { recursive: true });
+  await symlink(join(tmp, "claude-home"), join(dir, ".claude"));
+  await symlink(join(storeDir(), "linked-agent"), join(dir, ".opencode"));
+  await symlink(join(tmp, "dotfiles-agents"), join(dir, ".agents"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const claudeLink = dirname(skillsDir("project", "claude"));
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `${skillsDir("project", "claude")} points into a global skills directory (${await realpath(claudeGlobal)}) through the symlink ${claudeLink}.\nRemove ${claudeLink} and re-run.`,
+    );
+    await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
+      `points into the store (${await realpath(storeDir())}/linked-agent/skills) through the symlink ${dirname(skillsDir("project", "opencode"))}.`,
+    );
+    expect(await assertSkillsDirSafe("project", "universal")).toBe(
+      skillsDir("project", "universal"),
+    );
+  } finally {
+    process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe rejects a project skills dir inside a global one without a symlink", async () => {
+  const claudeGlobal = skillsDir("global", "claude");
+  const dir = join(claudeGlobal, "nested-project");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const dest = skillsDir("project", "claude");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `${dest} is inside a global skills directory (${await realpath(dir)}/.claude/skills).\nRun from a project outside it.`,
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("assertSkillsDirSafe names the skills link of a shared agent dir and checks dangling links where they sit", async () => {
+  const dir = join(tmp, "proj-shared-config");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const claudeGlobal = skillsDir("global", "claude");
+  await mkdir(claudeGlobal, { recursive: true });
+  const shared = join(tmp, "shared-config");
+  await mkdir(shared, { recursive: true });
+  await symlink(claudeGlobal, join(shared, "skills"));
+  await symlink(shared, join(dir, ".claude"));
+  const storeAgent = join(storeDir(), "dangling-agent");
+  await mkdir(storeAgent, { recursive: true });
+  await symlink(join(tmp, "outside", "missing"), join(storeAgent, "skills"));
+  await symlink(storeAgent, join(dir, ".opencode"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const skillsLink = join(await realpath(shared), "skills");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `through the symlink ${skillsLink}.\nRemove ${skillsLink} and re-run.`,
+    );
+    const agentLink = dirname(skillsDir("project", "opencode"));
+    await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
+      `points into the store (${await realpath(storeAgent)}/skills) through the symlink ${agentLink}.`,
+    );
+  } finally {
+    process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe tells a global install to pick an agent directory outside the data directory", async () => {
+  const restoreClaude = captureEnv("CLAUDE_HOME");
+  process.env.CLAUDE_HOME = join(dataDir(), "claude");
+  try {
+    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
+      `is inside niksi's data directory (${join(await realpath(dataDir()), "claude", "skills")}).`,
+    );
+    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
+      ".\nChoose a global agent directory outside it.",
+    );
+  } finally {
+    restoreClaude();
+  }
+});
+
+test("assertSkillsDirSafe refuses a project skills dir that a dangling global link points at", async () => {
+  const dir = join(tmp, "proj-global-target");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const kiroGlobal = skillsDir("global", "kiro");
+  await mkdir(dirname(kiroGlobal), { recursive: true });
+  await symlink(join(dir, ".kiro", "skills"), kiroGlobal);
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await expect(assertSkillsDirSafe("project", "kiro")).rejects.toThrow(
+      "is inside a global skills directory",
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(kiroGlobal, { force: true });
+  }
+});
+
+test("assertSkillsDirSafe names the project link when the global skills dir is itself a link", async () => {
+  const dir = join(tmp, "proj-alias-global");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const clineGlobal = skillsDir("global", "cline");
+  const dotfiles = join(tmp, "dotfiles-cline-skills");
+  await mkdir(dotfiles, { recursive: true });
+  await mkdir(dirname(clineGlobal), { recursive: true });
+  await symlink(dotfiles, clineGlobal);
+  await symlink(dirname(clineGlobal), join(dir, ".cline"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const agentLink = dirname(skillsDir("project", "cline"));
+    await expect(assertSkillsDirSafe("project", "cline")).rejects.toThrow(
+      `through the symlink ${agentLink}.\nRemove ${agentLink} and re-run.`,
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(clineGlobal, { force: true });
   }
 });
 

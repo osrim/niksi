@@ -1,10 +1,10 @@
 import { mkdir, rm, symlink, lstat, readlink, realpath, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
 import type { SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
-import { canonicalDir, childPath, dataDir, tildify, type Scope } from "../paths.ts";
+import { canonicalDir, childPath, dataDir, storeDir, tildify, type Scope } from "../paths.ts";
 import { replaceDir } from "./replace.ts";
 import { isInside, present, realpathOrNearest, unmanagedError } from "./target.ts";
 
@@ -16,25 +16,92 @@ const isSymlinkPath = async (path: string): Promise<boolean> => {
   }
 };
 
+const linkTarget = async (path: string): Promise<string> =>
+  resolve(await realpathOrNearest(dirname(path)), await readlink(path));
+
+// The location of `dest`, plus the target it would create when it is a dangling symlink.
+const destPaths = async (path: string): Promise<string[]> => {
+  const location = await realpathOrNearest(path);
+  if (!(await isSymlinkPath(path)) || existsSync(path)) return [location];
+  return [location, await realpathOrNearest(await linkTarget(path))];
+};
+
+// Where a forbidden root sits as configured, where it resolves, and where it points when dangling.
+const rootPaths = async (root: string): Promise<string[]> => {
+  const location = join(await realpathOrNearest(dirname(root)), basename(root));
+  return [...new Set([location, ...(await destPaths(root))])];
+};
+
+// Names the `skills` link at its real location when the agent dir is a link that does not cross on its own.
+const crossingLink = async (dest: string, roots: string[]): Promise<string> => {
+  const agentDir = dirname(dest);
+  if (!(await isSymlinkPath(agentDir))) return dest;
+  const throughParent = join(await realpathOrNearest(agentDir), basename(dest));
+  return roots.some((root) => isInside(throughParent, root)) ? agentDir : throughParent;
+};
+
+interface Forbidden {
+  label: string;
+  roots: string[];
+}
+
+interface Containment extends Forbidden {
+  resolved: string;
+}
+
+const containmentError = async (
+  scope: Scope,
+  dest: string,
+  { label, roots, resolved }: Containment,
+): Promise<Error> => {
+  const agentDir = dirname(dest);
+  const unlinked = join(
+    await realpathOrNearest(dirname(agentDir)),
+    basename(agentDir),
+    basename(dest),
+  );
+  if (resolved === unlinked) {
+    const remedy =
+      scope === "global"
+        ? "Choose a global agent directory outside it."
+        : "Run from a project outside it.";
+    return new Error(`${dest} is inside ${label} (${resolved}).\n${remedy}`);
+  }
+  const link = await crossingLink(dest, roots);
+  return new Error(
+    `${dest} points into ${label} (${resolved}) through the symlink ${link}.\nRemove ${link} and re-run.`,
+  );
+};
+
+const forbiddenRoots = (scope: Scope): Promise<Forbidden[]> => {
+  // The store sits inside the data directory, so it comes first to get the narrower name.
+  const roots = [
+    { label: "the store", root: storeDir() },
+    { label: "niksi's data directory", root: dataDir() },
+  ];
+  if (scope === "project") {
+    for (const def of SKILLS_DIRS)
+      roots.push({ label: "a global skills directory", root: def.globalDir() });
+  }
+  return Promise.all(
+    roots.map(async ({ label, root }) => ({ label, roots: await rootPaths(root) })),
+  );
+};
+
 export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise<string> => {
   const dest = skillsDir(scope, agent);
   const canonical = canonicalDir(scope);
-  if ((await realpathOrNearest(dest)) === (await realpathOrNearest(canonical))) {
+  const paths = await destPaths(dest);
+  const realCanonical = await realpathOrNearest(canonical);
+  if (paths.includes(realCanonical)) {
     throw new Error(
       `${dest} and ${canonical} are the same directory.\nski keeps skill copies in ${canonical} and links agents to them. Remove the symlink and re-run.`,
     );
   }
-  if (!(await isSymlinkPath(dest))) return dest;
-  const resolved = await realpathOrNearest(resolve(dirname(dest), await readlink(dest)));
-  const forbidden = [{ label: "the store", root: dataDir() }];
-  if (scope === "project") {
-    for (const def of SKILLS_DIRS)
-      forbidden.push({ label: "a global skills directory", root: def.globalDir() });
-  }
-  for (const { label, root } of forbidden) {
-    if (isInside(resolved, await realpathOrNearest(root))) {
-      throw new Error(`${dest} is a symlink into ${label} (${resolved}).\nRemove it and re-run.`);
-    }
+  const forbidden = await forbiddenRoots(scope);
+  for (const resolved of paths) {
+    const hit = forbidden.find(({ roots }) => roots.some((root) => isInside(resolved, root)));
+    if (hit) throw await containmentError(scope, dest, { ...hit, resolved });
   }
   return dest;
 };
@@ -48,8 +115,7 @@ export const canonicalPath = (name: string, scope: Scope): string =>
 export const isManagedLink = async (path: string, scope: Scope): Promise<boolean> => {
   if (!(await isSymlinkPath(path))) return false;
   try {
-    const resolved = resolve(await realpathOrNearest(dirname(path)), await readlink(path));
-    return isInside(resolved, await realpathOrNearest(canonicalDir(scope)));
+    return isInside(await linkTarget(path), await realpathOrNearest(canonicalDir(scope)));
   } catch {
     return false;
   }

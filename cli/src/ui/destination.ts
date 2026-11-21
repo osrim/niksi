@@ -19,13 +19,14 @@ import {
 import { readConfig, remember } from "../core/config.ts";
 import type { InstalledSkill } from "../core/install/destination.ts";
 import { syncExcludes } from "../core/install/exclude.ts";
+import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { placementOf } from "../core/install/lockfile.ts";
 import { projectRoot, type Scope } from "../core/paths.ts";
 import { otherScope, resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { usageError } from "../core/usage.ts";
-import { isInteractive, unwrap } from "./prompt.ts";
+import { fail, isInteractive, unwrap } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
-import { dim, pad, skillName, tildify } from "./style.ts";
+import { dim, escapeControl, pad, skillName, tildify } from "./style.ts";
 
 interface AgentSelection {
   agent?: string | string[];
@@ -192,6 +193,16 @@ export const chooseAgents = async (
 const warnOverlap = (agents: AgentId[], scope: Scope, detected: DetectedAgent[]): AgentId[] => {
   for (const warning of overlapWarnings(agents, scope, detected)) warn(warning);
   return agents;
+};
+
+// Exits 1 before any write when a skills directory resolves into a place niksi must not write.
+export const refuseUnsafeSkillsDirs = async (
+  scope: Scope,
+  agents: Iterable<AgentId>,
+): Promise<void> => {
+  for (const agent of agents) {
+    await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(escapeControl(e.message)));
+  }
 };
 
 export const warnAncestorCollisions = (names: string[]): void => {

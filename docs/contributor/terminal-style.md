@@ -67,7 +67,7 @@ No-op messages are `Nothing selected.`, `Nothing to add|adopt|copy|install|updat
 | red | failure or critical finding |
 | blue | information |
 
-Paint through `ui/style.ts` only. It resolves `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, and non-TTY output, and strips escape codes that Clack emits when color is off.
+Paint through `ui/style.ts` only. It resolves `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, and non-TTY output, and strips escape codes that Clack emits when color is off. Pass text from a skill or a source, such as a path, a frontmatter value, or a finding detail, through `escapeControl` before you paint, measure, or print it. For a single value, such as a name or a path, use `escapeLine`, which also marks tabs and newlines so the value stays on one row. `skillName` and `summarize` escape for you.
 
 ## Tables and spinners
 

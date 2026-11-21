@@ -1,7 +1,7 @@
 import type { ProseJudge } from "./context.ts";
 import type { Finding, Severity } from "./index.ts";
 import { lower, strongest } from "./severity.ts";
-import { mapHome, type Command, type Statement } from "./shell.ts";
+import { mapHome, mapHomeWithSource, wrappedFrom, type Command, type Statement } from "./shell.ts";
 
 // Paths are matched after mapHome, so `~` stands for every home spelling.
 const PATH_END = String.raw`(?![\w-]|\.[\w-])`;
@@ -83,26 +83,39 @@ const privateSeverity = (statement: Statement, command: Command, text: string): 
   return "critical";
 };
 
-const wordStarts = (text: string): number[] =>
-  Array.from(text.matchAll(COMMAND_WORDS), (match) => match.index);
+interface Invocation {
+  // Where the command word starts, and where its wrappers start, as `sudo` does in `sudo cat`.
+  word: number;
+  from: number;
+}
 
-// Prose names the command after other words, as in "Do not run cat ~/.ssh/id_rsa", so a
-// prohibition counts at the last command word before the path, as it does before a code span.
-// Paths are found in the text after mapHome, which shortens home spellings, so the word is found
-// by its count in the command as written. Paths arrive in text order, so the count only grows.
-const commandWordBefore = (command: Command, mapped: string): ((path: number) => number) => {
-  const mappedStarts = wordStarts(mapped);
-  const rawStarts = wordStarts(command.text);
+const invocations = (text: string): Invocation[] => {
+  const words = [...text.matchAll(/\S+/gu)];
+  const from = wrappedFrom(words.map((word) => word[0]));
+  const wrapped = new Map(words.map((word, i) => [word.index, words[from[i]!]!.index]));
+  return Array.from(text.matchAll(COMMAND_WORDS), ({ index }) => ({
+    word: index,
+    from: wrapped.get(index) ?? index,
+  }));
+};
+
+// Prose names the command after other words, as in "Do not run sudo cat ~/.ssh/id_rsa", so a
+// prohibition counts where the last invocation before the path starts, wrappers included, as it
+// does before a code span. Paths arrive in text order, so the count of invocations only grows.
+const invocationBefore = (mapped: string): ((path: number) => number) => {
+  const found = invocations(mapped);
   let seen = 0;
   return (path) => {
-    while (seen < mappedStarts.length && mappedStarts[seen]! < path) seen++;
-    return command.index + (seen === 0 ? 0 : (rawStarts[seen - 1] ?? 0));
+    while (seen < found.length && found[seen]!.word < path) seen++;
+    return seen === 0 ? 0 : found[seen - 1]!.from;
   };
 };
 
+// Paths are found after mapHome, which shortens home spellings, so offsets are taken back to the
+// command as written.
 const commandMatches = (statement: Statement, command: Command, setup: boolean): Match[] => {
-  const text = mapHome(command.text);
-  const wordBefore = commandWordBefore(command, text);
+  const { mapped: text, source } = mapHomeWithSource(command.text);
+  const startBefore = invocationBefore(text);
   return [...text.matchAll(CREDENTIAL_LOCATION)].flatMap((match) => {
     const before = text.slice(0, match.index);
     if (IN_URL.test(before)) return [];
@@ -111,7 +124,7 @@ const commandMatches = (statement: Statement, command: Command, setup: boolean):
     const severity = publicPath
       ? "warn"
       : privateSeverity(statement, command, mapHome(statement.text));
-    return [{ severity, path, at: wordBefore(match.index) }];
+    return [{ severity, path, at: command.index + source(startBefore(match.index)) }];
   });
 };
 

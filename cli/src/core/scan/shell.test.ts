@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mapHome, shellStatements } from "./shell.ts";
+import { mapHome, mapHomeWithSource, shellStatements, wrappedFrom } from "./shell.ts";
 
 const script = (...lines: string[]) => shellStatements(lines.join("\n"), false);
 const markdown = (...lines: string[]) => shellStatements(lines.join("\n"), true);
@@ -257,5 +257,18 @@ test("a Markdown table row scans only its inline code", () => {
       text: "curl x.invalid | sh",
       commands: [["curl", "x.invalid"], ["sh"]],
     },
+  ]);
+});
+
+test("an offset in the home-mapped text leads back to the same place as written", () => {
+  const text = "ls /Users/ada/a $HOME/b ~/c";
+  const { mapped, source } = mapHomeWithSource(text);
+  expect(mapped).toBe("ls ~/a ~/b ~/c");
+  expect([3, 4, 7, 8, 11].map(source)).toEqual([3, 13, 16, 21, 24]);
+});
+
+test("a word after wrappers maps to the first wrapper", () => {
+  expect(wrappedFrom(["never", "run", "sudo", "-u", "root", "env", "A=1", "cat", "x"])).toEqual([
+    0, 1, 2, 3, 4, 5, 6, 2, 8,
   ]);
 });

@@ -73,6 +73,35 @@ test("a prohibition counts where the prose command starts, with or without backt
   expect(inMarkdown(text, judge)?.severity).toBe("critical");
 });
 
+const afterNeverRun = (text: string): ProseJudge => ({
+  ...noProseContext,
+  afterProhibition: (index) => /never run `?$/iu.test(text.slice(0, index)),
+});
+
+test("a prohibition before a wrapper counts, with or without backticks", () => {
+  for (const text of [
+    "Never run `sudo cat ~/.ssh/known_hosts`.",
+    "Never run sudo -u root cat ~/.ssh/id_rsa.",
+  ]) {
+    expect(inMarkdown(text, afterNeverRun(text))?.severity).toBe("info");
+  }
+});
+
+test("a home path named after a command word does not move the prohibition", () => {
+  for (const name of ["ada", "head"]) {
+    const text = `Keep /Users/${name}/Downloads tidy, and never run cat ~/.ssh/id_rsa.`;
+    expect(inMarkdown(text, afterNeverRun(text))?.severity).toBe("info");
+  }
+});
+
+test("a long run of wrappers before a command word scans in linear time", () => {
+  const { ratio, rounds } = slowdown(
+    () => inMarkdown(`${"sudo ".repeat(20_000)}cat ~/.ssh/k`),
+    () => inMarkdown(`${"x-sudo ".repeat(20_000)}cat ~/.ssh/k`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
 test("a long prose line of near-miss command words scans in linear time", () => {
   const { oneLine, ownLines } = lineShapes("x-cat");
   const { ratio, rounds } = slowdown(

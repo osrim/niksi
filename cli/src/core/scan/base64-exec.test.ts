@@ -54,7 +54,9 @@ test("a call name built from pieces and os.system through __import__", () => {
 });
 
 test("a getattr call counts only when its opening parenthesis is on the same line", () => {
-  expect(inScript("getattr(o, 'sy' + 'stem') \t(cmd)")?.line).toBe(1);
+  for (const space of [" \t", "\f", "\v", "\r", "\u00a0"]) {
+    expect(inScript(`getattr(o, 'sy' + 'stem')${space}(cmd)`)?.line).toBe(1);
+  }
   expect(inScript("getattr(o, 'sy' + 'stem')", "(cmd)")).toBeUndefined();
 });
 
@@ -113,13 +115,17 @@ test("a match quotes from the first decoder or sink to the first partner after i
   );
 });
 
-test.each(["b64decode", "eval(", "Buffer.from(", "getattr('", "eval(atob("])(
-  "a long line of %p scans in linear time",
-  (word) => {
-    const { ratio, rounds } = slowdown(
-      () => inScript(lineShapes(word).oneLine),
-      () => inScript(lineShapes(word).ownLines),
-    );
-    expect(ratio, rounds).toBeLessThan(3);
-  },
-);
+test.each([
+  "b64decode",
+  "eval(",
+  "Buffer.from(",
+  "getattr('",
+  "getattr(o, 'a' + 'b')\f",
+  "eval(atob(",
+])("a long line of %p scans in linear time", (word) => {
+  const { ratio, rounds } = slowdown(
+    () => inScript(lineShapes(word).oneLine),
+    () => inScript(lineShapes(word).ownLines),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});

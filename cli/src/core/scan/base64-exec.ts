@@ -37,7 +37,7 @@ const decodesBuffer = (): Token => lazyChain(token(/Buffer\.from\(/u), token(/["
 const runsCode = (): Token => token(new RegExp(SINK, "u"));
 
 const CONCATENATED_GETATTR = lazyChain(token(/\bgetattr\s*\(/u), token(/["']\s*\+\s*["']/u));
-const CALL = /[ \t]*\(/uy;
+const CALL = /[^\S\n]*\(/uy;
 
 // getattr(obj, "sys" + "tem")(…): the name is joined inside the parentheses right before a call.
 const calledGetattr: Finder = (text) =>

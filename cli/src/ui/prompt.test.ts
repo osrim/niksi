@@ -51,7 +51,7 @@ describe("markFailed", () => {
       markFailed();
       expect(process.exitCode).toBe(3);
     } finally {
-      process.exitCode = saved;
+      process.exitCode = saved ?? 0;
     }
   });
 });

@@ -6,6 +6,7 @@ import {
   ensureClone,
   findRef,
   git,
+  isBranch,
   lsTreeEntries,
   pathHistory,
   readBlobs,
@@ -30,6 +31,17 @@ const commitOf = (skill: InstalledSkill): string => {
 const branchOf = (skill: InstalledSkill): string => {
   if (!skill.branch) throw new Error(`${skill.name}: lockfile entry has no branch`);
   return skill.branch;
+};
+
+// A raw GitHub URL names its ref in full. findRef tries a branch first, so a tag keeps its
+// refs/tags/ prefix when a branch has the same name.
+const treeRef = async (clone: string, ref: string): Promise<string | null> => {
+  const branch = /^refs\/heads\/(.+)$/u.exec(ref)?.[1];
+  if (branch !== undefined) return (await isBranch(clone, branch)) ? branch : null;
+  if ((await findRef(clone, ref)) === null) return null;
+  const tag = /^refs\/tags\/(.+)$/u.exec(ref)?.[1];
+  if (tag === undefined) return ref;
+  return (await isBranch(clone, tag)) ? ref : tag;
 };
 
 const requireCommit = (rev: string | undefined): string => {
@@ -107,8 +119,8 @@ export class GitSource implements Source {
     const clone = await this.clone();
     // Try the longest ref because branch names can contain slashes.
     for (let refSegmentCount = segments.length; refSegmentCount > 0; refSegmentCount--) {
-      const ref = segments.slice(0, refSegmentCount).join("/");
-      if (!(await findRef(clone, ref))) continue;
+      const ref = await treeRef(clone, segments.slice(0, refSegmentCount).join("/"));
+      if (ref === null) continue;
       const dir = segments.slice(refSegmentCount).join("/");
       const defaultRef = await defaultBranch(clone).catch(() => null);
       return ref === defaultRef ? { dir } : { ref, dir };

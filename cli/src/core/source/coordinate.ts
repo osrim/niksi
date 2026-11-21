@@ -50,8 +50,6 @@ const splitRefPastAuthority = (input: string): { base: string; ref?: string; scp
   };
 };
 
-const RAW_REF_PREFIXES = new Set(["heads", "tags"]);
-
 const TREE_MARKERS = new Set(["tree", "blob", "blame", "raw", "src"]);
 const REF_MARKERS = new Set(["commit", "commits", "releases", "tags"]);
 const FILE_MARKERS = new Set(["blob", "blame", "raw"]);
@@ -80,10 +78,9 @@ const parseWebUrl = (raw: string): WebUrl | null => {
   if (host === "raw.githubusercontent.com") {
     const [owner, repo, ...rest] = parts;
     if (!owner || !repo || rest.length === 0) return null;
-    const prefixed = rest[0] === "refs" && RAW_REF_PREFIXES.has(rest[1] ?? "");
     return {
       repo: `https://github.com/${owner}/${dropGitSuffix(repo)}`,
-      tree: rest.slice(prefixed ? 2 : 0, -1),
+      tree: rest.slice(0, -1),
     };
   }
 

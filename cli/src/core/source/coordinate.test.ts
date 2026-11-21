@@ -249,20 +249,19 @@ test("an SCP address takes any SSH user and a repo with no owner", () => {
   });
 });
 
-test("a raw GitHub URL drops a refs/heads/ or refs/tags/ prefix and keeps a slashy branch", () => {
+test("a raw GitHub URL keeps a refs/heads/ or refs/tags/ prefix for splitTree to resolve", () => {
   expect(
     parseCoordinate("https://raw.githubusercontent.com/o/r/refs/heads/main/skills/tdd/SKILL.md"),
-  ).toEqual({ repo: "https://github.com/o/r", kind: "git", tree: ["main", "skills", "tdd"] });
-  expect(
-    parseCoordinate("https://raw.githubusercontent.com/o/r/refs/tags/v1.2.0/tdd/SKILL.md"),
-  ).toEqual({ repo: "https://github.com/o/r", kind: "git", tree: ["v1.2.0", "tdd"] });
-  expect(
-    parseCoordinate(
-      "https://raw.githubusercontent.com/o/r/refs/heads/release/2.x/skills/tdd/SKILL.md",
-    ),
   ).toEqual({
     repo: "https://github.com/o/r",
     kind: "git",
-    tree: ["release", "2.x", "skills", "tdd"],
+    tree: ["refs", "heads", "main", "skills", "tdd"],
+  });
+  expect(
+    parseCoordinate("https://raw.githubusercontent.com/o/r/refs/tags/v1.2.0/tdd/SKILL.md"),
+  ).toEqual({
+    repo: "https://github.com/o/r",
+    kind: "git",
+    tree: ["refs", "tags", "v1.2.0", "tdd"],
   });
 });

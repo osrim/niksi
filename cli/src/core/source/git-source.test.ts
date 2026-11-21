@@ -84,6 +84,32 @@ test("a tag splits like a branch", async () => {
   });
 });
 
+test("a ref named in full splits to its short name", async () => {
+  expect(
+    await new GitSource(repo).splitTree(["refs", "heads", "release", "1.0", "pstack"]),
+  ).toEqual({ ref: "release/1.0", dir: "pstack" });
+  expect(await new GitSource(repo).splitTree(["refs", "heads", "main", "pstack"])).toEqual({
+    dir: "pstack",
+  });
+  expect(await new GitSource(repo).splitTree(["refs", "tags", "v1.2.0", "pstack"])).toEqual({
+    ref: "v1.2.0",
+    dir: "pstack",
+  });
+});
+
+test("a tag named in full stays a tag when a branch has the same name", async () => {
+  const clash = join(tmp, "clash");
+  await $`git clone -q ${repo} ${clash}`.quiet();
+  await $`git -C ${clash} -c tag.gpgsign=false tag clash HEAD~1`.quiet();
+  await $`git -C ${clash} branch clash HEAD`.quiet();
+  const source = new GitSource(clash);
+  const { ref, dir } = await source.splitTree(["refs", "tags", "clash", "pstack"]);
+  expect({ ref, dir }).toEqual({ ref: "refs/tags/clash", dir: "pstack" });
+  expect((await source.resolve(ref)).commit).toBe(
+    (await $`git -C ${clash} rev-parse refs/tags/clash`.text()).trim(),
+  );
+});
+
 test("no prefix naming a ref leaves the whole remainder as a subtree", async () => {
   expect(await new GitSource(repo).splitTree(["nope", "pstack"])).toEqual({
     dir: "nope/pstack",

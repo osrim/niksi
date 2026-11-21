@@ -247,6 +247,10 @@ test("an SCP address takes any SSH user and a repo with no owner", () => {
     kind: "git",
     ref: "v2",
   });
+  expect(parseCoordinate("deploy+ci@hö.st:o/r")).toEqual({
+    repo: "deploy+ci@hö.st:o/r",
+    kind: "git",
+  });
 });
 
 test("a raw GitHub URL keeps a refs/heads/ or refs/tags/ prefix for splitTree to resolve", () => {

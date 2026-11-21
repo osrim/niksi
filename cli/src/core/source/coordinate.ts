@@ -22,7 +22,9 @@ const LOCAL_PATH = /^(~|\.{1,2})?\//u;
 const isLocalPath = (raw: string): boolean =>
   LOCAL_PATH.test(raw) || raw === "~" || raw === "." || raw === "..";
 
-const SCP_AUTHORITY = /^[\w.-]+@[^:/]+:/u;
+// The user part follows the lockfile's [user@]host:path rule: anything Git hands to SSH except a
+// leading -.
+const SCP_AUTHORITY = /^[^-@/:\s][^@/:\s]*@[^:/]+:/u;
 
 export const repoName = (repo: string): string =>
   repo

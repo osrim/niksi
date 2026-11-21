@@ -282,7 +282,7 @@ test("stops when the members of the skill's archives pass 25 MiB in total", () =
   expect(unread).toEqual([{ file: "a.zip!two.txt", detail: SIZE_STOP }]);
 });
 
-test("stops when a tar.gz inflates past what is left of 25 MiB", () => {
+test("stops when a tar.gz member passes what is left of 25 MiB", () => {
   const { members, unread } = readArchives([
     file("a.zip", zip(stored("first.txt", Buffer.alloc(24 * MIB, "a")))),
     file("big.tar.gz", tgz({ name: "big.txt", data: randomBytes(2 * MIB) })),
@@ -290,7 +290,20 @@ test("stops when a tar.gz inflates past what is left of 25 MiB", () => {
   ]);
 
   expect(members.map((member) => member.path)).toEqual(["a.zip!first.txt"]);
-  expect(unread).toEqual([{ file: "big.tar.gz", detail: SIZE_STOP }]);
+  expect(unread).toEqual([{ file: "big.tar.gz!big.txt", detail: SIZE_STOP }]);
+});
+
+test("skips a tar.gz ratio bomb after earlier archives took most of 25 MiB", () => {
+  const { members, unread } = readArchives([
+    file("a.zip", zip(stored("first.txt", Buffer.alloc(24 * MIB, "a")))),
+    file("bomb.tar.gz", tgz({ name: "zeros.txt", data: Buffer.alloc(30 * MIB) })),
+    file("after.zip", zip({ name: "after.md", data: "x" })),
+  ]);
+
+  expect(members.map((member) => member.path)).toEqual(["a.zip!first.txt", "after.zip!after.md"]);
+  expect(unread).toEqual([
+    { file: "bomb.tar.gz", detail: "inflates past the ratio budget of 100:1, not read" },
+  ]);
 });
 
 test("skips a small tar.gz that inflates past 100:1 and reads the archives after it", () => {

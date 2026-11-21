@@ -246,15 +246,15 @@ const stop = (walk: Walk, file: string, budget: string): undefined => {
 const isTooLarge = (error: unknown): boolean =>
   error instanceof Error && "code" in error && error.code === "ERR_BUFFER_TOO_LARGE";
 
-// The output cap stops a bomb while it inflates, whatever size its headers declare.
+// The output cap stops a bomb while it inflates, whatever size its headers declare. `left` is the
+// room in the size budget.
 const inflate = (
   walk: Walk,
   path: string,
   unzip: typeof inflateRawSync,
   data: Buffer,
-  { declared, ratioCap }: { declared: number; ratioCap: number },
+  { declared, ratioCap, left }: { declared: number; ratioCap: number; left: number },
 ): Buffer | undefined => {
-  const left = MAX_BYTES - walk.bytes;
   if (declared > ratioCap) return skip(walk, path, RATIO_BUDGET);
   if (declared > left) return stop(walk, path, SIZE_BUDGET);
   try {
@@ -270,11 +270,14 @@ const inflate = (
 const TAR_OVERHEAD = (4 * MAX_MEMBERS + 20) * BLOCK;
 
 // The tarball may inflate to the ratio plus the tar overhead, so a bomb skips this archive only.
-// The ratio then counts member bytes, and the size budget counts the members as they are taken.
+// Its room is the whole size budget, whatever earlier archives took, so a bomb never stops the
+// archives after it. The ratio then counts member bytes, and the size budget counts the members as
+// they are taken.
 const gzipEntries = (walk: Walk, file: SkillFile): Entry[] => {
   const tarball = inflate(walk, file.path, gunzipSync, file.content, {
     declared: 0,
     ratioCap: file.content.length * MAX_RATIO + TAR_OVERHEAD,
+    left: MAX_BYTES + TAR_OVERHEAD,
   });
   if (!tarball) return [];
   const entries = tarEntries(tarball);
@@ -303,6 +306,7 @@ const memberContent = (walk: Walk, path: string, entry: Entry): Buffer | undefin
     return inflate(walk, path, inflateRawSync, entry.data, {
       declared: entry.inflatedSize,
       ratioCap: entry.data.length * MAX_RATIO,
+      left: MAX_BYTES - walk.bytes,
     });
   } catch (error) {
     return skip(walk, path, `member could not be read: ${(error as Error).message}`);

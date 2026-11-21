@@ -748,13 +748,38 @@ interface Downloader {
   valueFlags: Set<string>;
   outputFlag: string;
   remoteNameFlag?: string;
-  long: Map<string, "output" | "remote-name" | "remote-name-all">;
+  long: Map<string, "output" | "remote-name" | "remote-name-all" | "value">;
   // Saves under the URL's name unless an output option says otherwise.
   savesByDefault: boolean;
 }
 
 // Windows PowerShell aliases curl and wget to Invoke-WebRequest, whose `-OutFile` takes one dash.
 const OUT_FILE = ["-outfile", "output"] as const;
+
+// Long options whose value is not a transfer, such as the URL after `--referer`.
+const takesValue = (names: string) =>
+  names
+    .trim()
+    .split(/\s+/u)
+    .map((name) => [`--${name}`, "value"] as const);
+
+const CURL_VALUES = takesValue(
+  `
+    user-agent cookie cookie-jar continue-at data dump-header referer cert form header config
+    max-time ftp-port quote range telnet-option upload-file user proxy-user write-out proxy
+    request speed-time speed-limit time-cond data-raw data-binary data-ascii data-urlencode
+    form-string json url-query preproxy doh-url proxy1.0 socks4 socks4a socks5 socks5-hostname
+    proxy-header connect-to resolve cacert capath key output-dir retry connect-timeout max-redirs
+  `,
+);
+
+const WGET_VALUES = takesValue(
+  `
+    append-output accept base domains execute input-file output-file directory-prefix quota
+    reject tries timeout user-agent wait referer header post-data post-file body-data body-file
+    method user password load-cookies save-cookies ca-certificate certificate
+  `,
+);
 
 const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
   curl: {
@@ -766,13 +791,14 @@ const DOWNLOADER_OPTIONS: Record<string, Downloader> = {
       ["--remote-name", "remote-name"],
       ["--remote-name-all", "remote-name-all"],
       OUT_FILE,
+      ...CURL_VALUES,
     ]),
     savesByDefault: false,
   },
   wget: {
     valueFlags: new Set("aABDeiIloOPQRtTUwX"),
     outputFlag: "O",
-    long: new Map([["--output-document", "output"], OUT_FILE]),
+    long: new Map([["--output-document", "output"], OUT_FILE, ...WGET_VALUES]),
     savesByDefault: true,
   },
 };
@@ -812,9 +838,9 @@ const readLong = (
   const kind = tool.long.get(longKey(word));
   if (kind === "remote-name") saved.outputs.push("remote");
   if (kind === "remote-name-all") saved.remoteNameAll = true;
-  if (kind !== "output") return 0;
+  if (kind !== "output" && kind !== "value") return 0;
   const eq = word.indexOf("=");
-  save(saved, eq === -1 ? next : word.slice(eq + 1));
+  if (kind === "output") save(saved, eq === -1 ? next : word.slice(eq + 1));
   return eq === -1 ? 1 : 0;
 };
 

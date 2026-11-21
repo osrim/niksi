@@ -345,6 +345,20 @@ export default [
     silent: "none",
   },
   {
+    name: "a curl --referer URL does not take the -O of the transfer",
+    path: "scripts/setup.sh",
+    content:
+      "#!/bin/sh\ncurl --referer https://x.invalid/report.sh -O https://x.invalid/appendix.txt\nbash report.sh\n",
+    silent: "none",
+  },
+  {
+    name: "a wget --referer URL is not saved",
+    path: "scripts/setup.sh",
+    content:
+      "#!/bin/sh\nwget --referer https://x.invalid/report.sh https://x.invalid/a.txt\nbash report.sh\n",
+    silent: "none",
+  },
+  {
     name: "wget -O - to standard output, then a local script that shares the remote name",
     path: "scripts/setup.sh",
     content: "#!/bin/sh\nwget -O - https://x.invalid/install.sh\nbash install.sh\n",

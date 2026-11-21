@@ -374,4 +374,9 @@ describe("pickSkillsToAdd", () => {
     const written = await refusal(upstream, { source: "local:/", path: "elsewhere/skills/tdd" });
     expect(written).toInclude("tdd is already installed from /elsewhere/skills/tdd.");
   });
+
+  test("the recorded location escapes a control character in its path", async () => {
+    const written = await refusal(upstream, { source: "local:/", path: "else\u202Ewhere/tdd" });
+    expect(written).toInclude("tdd is already installed from /else<U+202E>where/tdd.");
+  });
 });

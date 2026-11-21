@@ -27,7 +27,7 @@ import type { UpdatableVerdict } from "../core/source/upstream.ts";
 import { USAGE_ERROR } from "../core/usage.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "./prompt.ts";
 import { describeUpdate, friendlySource, groupLabel } from "./status.ts";
-import { green, skillName, softOrange, summarize, unstruck } from "./style.ts";
+import { escapeControl, green, skillName, softOrange, summarize, unstruck } from "./style.ts";
 
 const COORDINATE_REMEDY = "Pass skill names, owner/repo/skill, or --all.";
 const SELECTION_REMEDY = "Pass skill names or --all.";
@@ -251,9 +251,11 @@ const extendRow = (skill: DiscoveredSkill, scope: Scope, missing: AgentId[]): Pi
 };
 
 const recordedLocation = (entry: LockEntry): string =>
-  entry.source.startsWith(LOCAL_PREFIX)
-    ? join(coordinateFor(entry.source), entry.path)
-    : [friendlySource(entry.source), entry.path].filter(Boolean).join("/");
+  escapeControl(
+    entry.source.startsWith(LOCAL_PREFIX)
+      ? join(coordinateFor(entry.source), entry.path)
+      : [friendlySource(entry.source), entry.path].filter(Boolean).join("/"),
+  );
 
 const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined =>
   sameSkill(entry, { source: source.id, path }) ? undefined : recordedLocation(entry);

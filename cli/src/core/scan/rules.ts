@@ -11,12 +11,13 @@ import { asText, parseFrontmatter } from "../skill/frontmatter.ts";
 import { isValidSkillName, slugifySkillName } from "../skill/name.ts";
 import { mapMarkdown, type Context, type MarkdownMap } from "../skill/markdown.ts";
 import { codeFences, lineAt } from "../skill/text.ts";
-import { fileName, namedPaths, pathParts } from "./archive.ts";
+import { fileName, pathParts } from "./archive.ts";
 import { base64Exec, base64ExecMatches } from "./base64-exec.ts";
+import { bundledPaths, bundledReference } from "./bundled-reference.ts";
 import { combine, nearest } from "./combine.ts";
 import { credentialDisclosure } from "./credential-disclosure.ts";
 import { credentialPaths } from "./credential-paths.ts";
-import { confusableHost, type LocalLink } from "./confusable-host.ts";
+import { confusableHost } from "./confusable-host.ts";
 import { demotes, type ProseJudge } from "./context.ts";
 import { dependencySource } from "./dependency-source.ts";
 import { destructive, destructiveMatches } from "./destructive.ts";
@@ -1242,26 +1243,6 @@ const linkMismatchText = textRule("link-mismatch", (file, text) =>
 );
 
 const CODE_CONTEXTS = new Set<Context>(["inline", "fence", "indented"]);
-
-const FETCH = /\b(curl|wget|fetch)\b/u;
-
-const bundledPaths = (files: SkillFile[]): Set<string> =>
-  new Set(files.map((file) => file.path.toLowerCase()));
-
-// A link without a scheme that names a bundled file, such as `Editor.app/Contents/Info.plist`, is
-// a local path, unless a download command comes before it on its line.
-const bundledReference = (
-  file: SkillFile,
-  text: string,
-  bundled: Set<string>,
-): ((link: LocalLink) => boolean) => {
-  const namesBundledFile = (name: string): boolean => {
-    const path = name.split(/[?#]/u)[0]!.toLowerCase();
-    return namedPaths(file, path).some((named) => bundled.has(named.toLowerCase()));
-  };
-  return (link) =>
-    link.schema === "" && namesBundledFile(link.text) && !FETCH.test(lineBefore(text, link.index));
-};
 
 // Markdown is code only in code spans and blocks, `.txt` never, and any other text file always.
 const confusableHostText: Scanner = (skill) => {

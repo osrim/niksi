@@ -17,12 +17,12 @@ import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
-import { dim, skillName } from "./style.ts";
+import { dim, escapeControl, skillName } from "./style.ts";
 
 export const warnMentions = (missing: MissingDep[], note: string): void => {
   for (const dep of missing) {
     warn(
-      `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${dep.file}:${dep.line}. ${note}.`,
+      `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${escapeControl(dep.file)}:${dep.line}. ${note}.`,
     );
   }
 };

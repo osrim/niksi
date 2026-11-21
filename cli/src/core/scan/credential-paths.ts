@@ -49,6 +49,7 @@ const COMMAND_WORDS = new RegExp(
     READS.source,
     String.raw`(?<![\w-])(?:${[...MANAGES].join("|")})(?![\w-])`,
     KEY_SETUP.source,
+    String.raw`(?<![\w-])security(?![\w-])`,
   ].join("|"),
   "gu",
 );
@@ -89,24 +90,27 @@ interface Invocation {
   from: number;
 }
 
+// A command word may sit inside a longer word, as `cat` does in `/bin/cat`, so the invocation
+// starts at the word that holds it. Both lists are in text order, so one cursor walks the words.
 const invocations = (text: string): Invocation[] => {
   const words = [...text.matchAll(/\S+/gu)];
   const from = wrappedFrom(words.map((word) => word[0]));
-  const wrapped = new Map(words.map((word, i) => [word.index, words[from[i]!]!.index]));
-  return Array.from(text.matchAll(COMMAND_WORDS), ({ index }) => ({
-    word: index,
-    from: wrapped.get(index) ?? index,
-  }));
+  let holder = 0;
+  return Array.from(text.matchAll(COMMAND_WORDS), ({ index }) => {
+    while (holder + 1 < words.length && words[holder + 1]!.index <= index) holder++;
+    return { word: index, from: words[from[holder]!]!.index };
+  });
 };
 
 // Prose names the command after other words, as in "Do not run sudo cat ~/.ssh/id_rsa", so a
-// prohibition counts where the last invocation before the path starts, wrappers included, as it
-// does before a code span. Paths arrive in text order, so the count of invocations only grows.
+// prohibition counts where the last invocation at or before the path starts, wrappers included, as
+// it does before a code span. A keychain read starts at its command, `security`. Paths arrive in
+// text order, so the count of invocations only grows.
 const invocationBefore = (mapped: string): ((path: number) => number) => {
   const found = invocations(mapped);
   let seen = 0;
   return (path) => {
-    while (seen < found.length && found[seen]!.word < path) seen++;
+    while (seen < found.length && found[seen]!.word <= path) seen++;
     return seen === 0 ? 0 : found[seen - 1]!.from;
   };
 };

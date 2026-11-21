@@ -94,10 +94,35 @@ test("a home path named after a command word does not move the prohibition", () 
   }
 });
 
+test("a prohibition counts before a keychain command and an absolute command path", () => {
+  for (const text of [
+    "Never run security find-generic-password -s x.",
+    "Never run `security find-generic-password -s x`.",
+    "Never run /bin/cat ~/.ssh/id_rsa.",
+    "Never run `/bin/cat ~/.ssh/known_hosts`.",
+  ]) {
+    expect(inMarkdown(text, afterNeverRun(text))?.severity).toBe("info");
+  }
+});
+
+// Each run gets its own text, so no cache keyed by the text carries over between runs.
+const eachRun = (build: (run: number) => string): (() => unknown) => {
+  let run = 0;
+  return () => inMarkdown(build(run++));
+};
+
 test("a long run of wrappers before a command word scans in linear time", () => {
   const { ratio, rounds } = slowdown(
-    () => inMarkdown(`${"sudo ".repeat(20_000)}cat ~/.ssh/k`),
-    () => inMarkdown(`${"x-sudo ".repeat(20_000)}cat ~/.ssh/k`),
+    eachRun((run) => `${"sudo ".repeat(20_000)}cat ~/.ssh/k${run}`),
+    eachRun((run) => `${"nudo ".repeat(20_000)}cat ~/.ssh/k${run}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("a long run of command words inside paths scans in linear time", () => {
+  const { ratio, rounds } = slowdown(
+    eachRun((run) => `${"/bin/cat ".repeat(10_000)}~/.ssh/k${run}`),
+    eachRun((run) => `${"/bin/xyz ".repeat(10_000)}~/.ssh/k${run}`),
   );
   expect(ratio, rounds).toBeLessThan(3);
 });

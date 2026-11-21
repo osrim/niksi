@@ -35,7 +35,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "../ui/prompt.ts";
 import { logError, logSkillError, logWarn } from "../ui/report.ts";
 import { friendlySource } from "../ui/status.ts";
-import { bold, dim, pad, skillName } from "../ui/style.ts";
+import { bold, dim, escapeControl, pad, skillName } from "../ui/style.ts";
 
 export const help: CommandHelp = {
   description:
@@ -167,7 +167,7 @@ const planOf = (item: Resolved & { acceptedRules: string[] }): AdoptPlan => ({
 
 const shown = (path: string): string => {
   const rel = relative(process.cwd(), path);
-  return rel.startsWith("..") ? tildify(path) : rel;
+  return escapeControl(rel.startsWith("..") ? tildify(path) : rel);
 };
 
 const reportSkipped = (skipped: SkippedSkill[], names: string[]): void => {

@@ -324,6 +324,20 @@ test("copies that differ are skipped, and naming one exits 1", async () => {
   expect(await listJson(dir)).toEqual([]);
 });
 
+test("a skipped link names its target with control characters escaped", async () => {
+  const dir = await project("escaped-link");
+  const target = join(tmp, "escaped-link-\u001B[2J-target");
+  await writeSkillMd(target, V1);
+  await mkdir(join(dir, ".claude", "skills"), { recursive: true });
+  await symlink(target, join(dir, ".claude", "skills", "pdf"));
+
+  const adopted = await runCli(dir, "adopt", "pdf", "-y");
+  expect(adopted.exitCode).toBe(1);
+  expect(adopted.stderr).not.toContain("\u001B[2J");
+  expect(adopted.stderr).toContain("escaped-link-^[[2J-target");
+  expect(existsSync(join(dir, "niksi-lock.json"))).toBe(false);
+});
+
 test("an unknown name exits 1, and so does a source that cannot be reached", async () => {
   const dir = await project("unknown");
   await writeSkillMd(join(dir, ".claude", "skills", "pdf"), V2);

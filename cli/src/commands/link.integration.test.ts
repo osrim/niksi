@@ -279,7 +279,7 @@ test("remove does not delete a link that niksi did not create", async () => {
   expect(await readSkills(root)).toEqual({});
 });
 
-test("add refuses a project whose .claude links to the global one and writes nothing", async () => {
+test("add refuses a project whose .claude links to the global one and writes no skill or lockfile", async () => {
   const root = await project("linked-claude", "demo");
   const globalClaude = join(tmp, ".claude");
   await mkdir(join(globalClaude, "skills"), { recursive: true });
@@ -290,6 +290,10 @@ test("add refuses a project whose .claude links to the global one and writes not
     expect(result.exitCode).toBe(1);
     expect(await readdir(join(globalClaude, "skills"))).toEqual([]);
     expect(existsSync(join(root, "niksi-lock.json"))).toBe(false);
+    expect(existsSync(join(root, ".niksi", "skills", "demo"))).toBe(false);
+    const listed = await runCli(root, "list", "--json");
+    expect(listed.exitCode).toBe(0);
+    expect(JSON.parse(listed.stdout).skills).toEqual([]);
   } finally {
     await rm(globalClaude, { recursive: true, force: true });
   }

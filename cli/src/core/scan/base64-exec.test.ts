@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { base64Exec } from "./base64-exec.ts";
 import { shellStatements } from "./shell.ts";
 
@@ -52,6 +53,13 @@ test("a call name built from pieces and os.system through __import__", () => {
   expect(inScript('getattr(obj, "name")(arg)')).toBeUndefined();
 });
 
+test("a getattr call counts only when its opening parenthesis is on the same line", () => {
+  for (const space of [" \t", "\f", "\v", "\r", "\u00a0"]) {
+    expect(inScript(`getattr(o, 'sy' + 'stem')${space}(cmd)`)?.line).toBe(1);
+  }
+  expect(inScript("getattr(o, 'sy' + 'stem')", "(cmd)")).toBeUndefined();
+});
+
 test("one line counts once, and a comment drops one level", () => {
   expect(inScript("echo cGF5bG9hZA== | base64 -d | sh", "data = base64.b64decode(blob)")).toEqual({
     severity: "critical",
@@ -79,6 +87,17 @@ test("a word that names an Object member is not a decoder", () => {
   expect(inMarkdown("Then hasOwnProperty x hasOwnProperty echo | sh")).toBeUndefined();
 });
 
+test("a long run of spaces after an empty-string join scans in linear time", () => {
+  const spaces = " ".repeat(20_000);
+  // A token keeps its answer for the last line it read, so each run gets a line of its own.
+  let run = 0;
+  const { ratio, rounds } = slowdown(
+    () => inScript(`''.join(${spaces}${run++}`),
+    () => inScript(`''.join(${run++}${spaces}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
 test("a long prose line scans in linear time", () => {
   for (const words of ["ordinary ", "base64 ", "openssl enc "]) {
     const text = words.repeat(60_000);
@@ -86,4 +105,27 @@ test("a long prose line scans in linear time", () => {
     expect(inMarkdown(text)).toBeUndefined();
     expect(performance.now() - start).toBeLessThan(1000);
   }
+});
+
+test("a match quotes from the first decoder or sink to the first partner after it", () => {
+  expect(inScript("Buffer.from(atob(eval(x)), 'base64')")?.detail).toBe("atob(eval(");
+  expect(inScript("x = 1; exec(b64decode(a)) and b64decode(b)")?.detail).toBe("exec(b64decode");
+  expect(inScript("getattr(a)(b); getattr(o, 'sy' + 'stem') (cmd)")?.detail).toBe(
+    "getattr(o, 'sy' + 'stem') (",
+  );
+});
+
+test.each([
+  "b64decode",
+  "eval(",
+  "Buffer.from(",
+  "getattr('",
+  "getattr(o, 'a' + 'b')\f",
+  "eval(atob(",
+])("a long line of %p scans in linear time", (word) => {
+  const { ratio, rounds } = slowdown(
+    () => inScript(lineShapes(word).oneLine),
+    () => inScript(lineShapes(word).ownLines),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
 });

@@ -3,12 +3,15 @@ import type { Finding, Severity } from "./index.ts";
 import { isMap, keyIndex, keyLine, readJson } from "./manifest.ts";
 import { matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
+import { lazyChain, perSegment, token } from "./token-chain.ts";
 
+const DOWNLOADS = perSegment(
+  lazyChain(token(/(?<![\w-])(?:curl|wget)(?![\w-])/iu), token(/https?:\/\//iu)),
+);
 // Flags that come before the one that takes inline code, as in `node --no-warnings -e`.
 const FLAGS = String.raw`(?:[ \t]+-[\w=-]+)*?`;
-const RUNS_CODE = new RegExp(
+const RUNS_INLINE = new RegExp(
   [
-    String.raw`(?<![\w-])(?:curl|wget)(?![\w-])[^\n]*?https?:\/\/`,
     String.raw`(?<![\w-])node(?:\.exe)?${FLAGS}[ \t]+(?:-[a-zA-Z]*[ep][a-zA-Z]*|--eval|--print)(?![\w-])`,
     String.raw`(?<![\w-])(?:ba|z|da)?sh${FLAGS}[ \t]+-[a-zA-Z]*c[a-zA-Z]*(?![\w-])`,
     String.raw`(?<![\w-])python[\d.]*${FLAGS}[ \t]+-[a-zA-Z]*c(?![\w-])`,
@@ -40,8 +43,10 @@ interface Hook {
   text: string;
 }
 
+const runsCode = (text: string): boolean => RUNS_INLINE.test(text) || DOWNLOADS(text).length > 0;
+
 const codeSeverity = (texts: string[]): Severity =>
-  texts.some((text) => RUNS_CODE.test(text)) ? "critical" : "warn";
+  texts.some((text) => runsCode(text)) ? "critical" : "warn";
 
 const hookSeverity = (command: string): Severity =>
   ALLOWED.has(command.trim().replaceAll(/\s+/gu, " ")) ? "info" : codeSeverity([command]);
@@ -94,7 +99,7 @@ const setupHooks = (text: string): Hook[] => {
   const body = classBody(text, command.split(".").at(-1)!);
   return [
     {
-      severity: RUNS_CODE.test(body) || PYTHON_DOWNLOAD.test(body) ? "critical" : "warn",
+      severity: runsCode(body) || PYTHON_DOWNLOAD.test(body) ? "critical" : "warn",
       line: lineAt(text, start),
       text: `cmdclass install: ${command}`,
     },

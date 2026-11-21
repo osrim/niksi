@@ -94,3 +94,12 @@ test("a long prose line scans in linear time", () => {
     expect(performance.now() - start).toBeLessThan(1000);
   }
 });
+
+test("a command named after an Object property is not a known command", () => {
+  expect(severity("__proto__ a")).toBeUndefined();
+  expect(severity("constructor a b")).toBeUndefined();
+  expect(severity("toString -c")).toBeUndefined();
+  expect(severity("valueOf /tmp/x")).toBeUndefined();
+  expect(severity("sudo constructor /tmp/x")).toBeUndefined();
+  expect(severity("sudo toString /etc/passwd")).toBeUndefined();
+});

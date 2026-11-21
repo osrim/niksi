@@ -28,6 +28,7 @@ export const cliEnv = (home: string): Record<string, string | undefined> => ({
   XDG_DATA_HOME: join(home, ".local", "share"),
   XDG_CACHE_HOME: join(home, ".cache"),
   CLAUDE_HOME: undefined,
+  CODEX_HOME: undefined,
   CI: "1",
   NO_COLOR: "1",
   FORCE_COLOR: undefined,

@@ -14,7 +14,8 @@ import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { selectRecorded } from "../ui/pick.ts";
 import { refuseUnsafeSkillsDirs } from "../ui/destination.ts";
-import { intro, outro, promptWarn } from "../ui/prompt.ts";
+import { intro, outro } from "../ui/prompt.ts";
+import { logWarn } from "../ui/report.ts";
 import { emptyScopeMessage, reportModified } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 
@@ -36,7 +37,7 @@ interface DisableOptions extends ScopeOptions {
 
 export const run = async (args: string[], options: DisableOptions): Promise<void> => {
   intro("nik disable");
-  const scope = resolveScope(options, promptWarn) ?? "project";
+  const scope = resolveScope(options, logWarn) ?? "project";
 
   const loaded = await loadLock(scope);
   if (Object.keys(loaded.lock.skills).length === 0) {

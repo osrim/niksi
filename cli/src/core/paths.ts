@@ -43,7 +43,7 @@ export const tildify = (path: string): string =>
 
 export const claudeDir = (): string => envPath("CLAUDE_HOME") ?? join(userHome(), ".claude");
 
-const xdgRoot = (variable: string, homeSegment: string): string =>
+export const xdgRoot = (variable: string, homeSegment: string): string =>
   envPath(variable, false) ?? join(userHome(), homeSegment);
 
 const xdgDir = (variable: string, homeSegment: string): string =>

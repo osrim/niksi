@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import { CRITICAL_EXIT } from "../core/scan/index.ts";
 import { logError } from "./report.ts";
 import { red } from "./style.ts";
 
@@ -6,7 +7,6 @@ export const isInteractive = (): boolean => Boolean(process.stdin.isTTY && proce
 
 export const intro = p.intro;
 export const outro = p.outro;
-export const promptWarn = p.log.warn;
 
 export const unwrap = <T>(value: T | typeof p.CANCEL_SYMBOL): T => {
   if (p.isCancel(value)) {
@@ -14,6 +14,10 @@ export const unwrap = <T>(value: T | typeof p.CANCEL_SYMBOL): T => {
     process.exit(130);
   }
   return value as T;
+};
+
+export const markFailed = (): void => {
+  process.exitCode = process.exitCode === CRITICAL_EXIT ? CRITICAL_EXIT : 1;
 };
 
 export const fail = (message: string): never => {

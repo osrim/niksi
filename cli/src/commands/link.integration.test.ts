@@ -174,6 +174,43 @@ test("prompted add asks for the scope and the agents, then links", async () => {
   expect(Object.keys(await readSkills(root))).toEqual(["demo"]);
 });
 
+// Codex detection also reads /etc/codex, which no environment variable redirects.
+test.skipIf(existsSync("/etc/codex"))(
+  "the agent picker opens without a no-agent warning when nothing is detected",
+  async () => {
+    const root = await project("prompted-undetected", "demo");
+    const bin = join(tmp, "git-only-bin");
+    await mkdir(bin, { recursive: true });
+    await symlink(Bun.which("git")!, join(bin, "git"));
+    const restorePath = captureEnv("PATH");
+    process.env.PATH = bin;
+    try {
+      const result = await runTerminal(
+        root,
+        [
+          { on: "Add where?", send: "\r" },
+          { on: "Link to which agents?", send: "\r" },
+          { on: "Add demo?", send: "\r" },
+        ],
+        "add",
+        "./skills/demo",
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("No agent detected");
+      expect(await isLink(join(root, ".claude", "skills", "demo"))).toBe(true);
+      expect((await readSkills(root))["demo"]).toMatchObject({ agents: ["claude"] });
+      expect(await listedRow(root)).toMatchObject({
+        name: "demo",
+        state: "installed",
+        agents: ["claude"],
+      });
+    } finally {
+      restorePath();
+    }
+  },
+);
+
 test("add --copy with an agent records the agents and no copyPath", async () => {
   const root = await project("agent-copy", "demo");
 

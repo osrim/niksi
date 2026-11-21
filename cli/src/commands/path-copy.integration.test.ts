@@ -227,7 +227,7 @@ test("install restores a missing path copy without selecting agents", async () =
   const installed = await runCli(project, "install", "--yes");
   expect(installed.exitCode).toBe(0);
   expect(installed.stdout).not.toContain("Linking to");
-  expect(installed.stdout).not.toContain("No agent detected");
+  expect(installed.stderr).not.toContain("No agent detected");
   expect(installed.stdout).toContain("Installed 1/1 skill(s) (project: published)");
   expect(await readFile(join(target, "SKILL.md"), "utf8")).toContain("name: demo");
 });

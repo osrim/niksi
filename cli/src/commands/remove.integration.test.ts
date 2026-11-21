@@ -78,7 +78,7 @@ test("remove -y warns and proceeds", async () => {
   const removed = await runCli(project, "remove", "grilling", "-y");
 
   expect(removed.exitCode).toBe(0);
-  expect(removed.stdout).toContain("grilling is referenced by wayfinder");
+  expect(removed.stderr).toContain("grilling is referenced by wayfinder");
   expect(removed.stdout).toContain("grilling: removed");
   expect(existsSync(join(project, ".claude", "skills", "grilling"))).toBe(false);
   expect(Object.keys(await readLockJson(project))).toEqual(["wayfinder"]);
@@ -97,7 +97,7 @@ test("remove stays quiet when nothing references the skill", async () => {
   const removed = await runCli(project, "remove", "wayfinder", "-y");
 
   expect(removed.exitCode).toBe(0);
-  expect(removed.stdout).not.toContain("is referenced by");
+  expect(removed.stderr).not.toContain("is referenced by");
   expect(Object.keys(await readLockJson(project))).toEqual(["grilling"]);
 });
 
@@ -110,7 +110,7 @@ test("remove counts a disabled referrer", async () => {
   const removed = await runCli(project, "remove", "grilling", "-y");
 
   expect(removed.exitCode).toBe(0);
-  expect(removed.stdout).toContain("grilling is referenced by wayfinder");
+  expect(removed.stderr).toContain("grilling is referenced by wayfinder");
   expect(await readLockJson(project)).toEqual({
     wayfinder: expect.objectContaining({ disabled: true }),
   });
@@ -124,7 +124,7 @@ test("removing a skill together with its referrers warns about neither", async (
   const removed = await runCli(project, "remove", "grilling", "wayfinder", "implement", "-y");
 
   expect(removed.exitCode).toBe(0);
-  expect(removed.stdout).not.toContain("is referenced by");
+  expect(removed.stderr).not.toContain("is referenced by");
   expect(await readLockJson(project)).toEqual({});
 });
 
@@ -138,6 +138,6 @@ test("remove catches a referrer installed from another source", async () => {
   const removed = await runCli(project, "remove", "grilling", "-y");
 
   expect(removed.exitCode).toBe(0);
-  expect(removed.stdout).toContain("grilling is referenced by planner");
+  expect(removed.stderr).toContain("grilling is referenced by planner");
   expect(Object.keys(await readLockJson(project))).toEqual(["planner"]);
 });

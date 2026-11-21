@@ -21,7 +21,7 @@ import { rank } from "../core/scan/severity.ts";
 import { readDirFiles, type SkillFile } from "../core/skill/files.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { logFindings, logSkillError, logWarn, warn } from "../ui/report.ts";
+import { logFindings, logSkillError, logWarn, reviewWarn } from "../ui/report.ts";
 import { emptyScopeMessage, reportDisabled } from "../ui/status.ts";
 import { skillName, tildify } from "../ui/style.ts";
 
@@ -123,7 +123,7 @@ export const run = async (options: AuditOptions): Promise<void> => {
   if (options.json) return runJson(options);
 
   p.intro("nik audit");
-  const scope = resolveScope(options, p.log.warn) ?? "project";
+  const scope = resolveScope(options, logWarn) ?? "project";
   const loaded = await loadLock(scope);
   const { policy } = await readProjectConfig(scope);
   if (Object.keys(loaded.lock.skills).length === 0) {
@@ -143,7 +143,7 @@ export const run = async (options: AuditOptions): Promise<void> => {
 const reportScanned = ({ skill, findings, modified }: Scanned, scope: Scope): void => {
   logFindings(skill.name, findings);
   if (!modified) return;
-  warn(
+  logWarn(
     `${skillName(skill.name)}: modified, so no critical finding is accepted.\nRun \`nik install${scopeFlag(scope)}\` to restore the reviewed files.`,
   );
 };
@@ -160,9 +160,9 @@ const reportSkipped = ({ missing, disabled }: Audit, scope: Scope): void => {
 const reportRemedy = ({ scanned }: Audit, scope: Scope): void => {
   if (flagged(scanned, "critical") + flagged(scanned, "warn") === 0) return;
   if (deniesWarn(scanned)) {
-    warn(`${PROJECT_CONFIG_NAME} sets policy.denyWarn, so warn findings fail the audit.`);
+    reviewWarn(`${PROJECT_CONFIG_NAME} sets policy.denyWarn, so warn findings fail the audit.`);
   }
-  warn(
+  reviewWarn(
     `Read the flagged files. Run \`nik disable${scopeFlag(scope)}\` or \`nik remove${scopeFlag(scope)}\` to stop agents loading a skill.`,
   );
 };

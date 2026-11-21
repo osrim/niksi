@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import * as p from "@clack/prompts";
 import { captureOutput, setInteractive, type CapturedOutput } from "../test-output.ts";
-import { fail, failNoTTY, isInteractive, requireTTY, unwrap, withSpinner } from "./prompt.ts";
+import {
+  fail,
+  failNoTTY,
+  isInteractive,
+  markFailed,
+  requireTTY,
+  unwrap,
+  withSpinner,
+} from "./prompt.ts";
 
 let output: CapturedOutput;
 let restoreTty: () => void;
@@ -29,6 +37,22 @@ describe("isInteractive", () => {
     expect(isInteractive()).toBe(false);
     process.stdout.isTTY = true;
     expect(isInteractive()).toBe(true);
+  });
+});
+
+describe("markFailed", () => {
+  test("sets exit 1 and keeps an earlier exit 3", () => {
+    const saved = process.exitCode;
+    try {
+      process.exitCode = 0;
+      markFailed();
+      expect(process.exitCode).toBe(1);
+      process.exitCode = 3;
+      markFailed();
+      expect(process.exitCode).toBe(3);
+    } finally {
+      process.exitCode = saved ?? 0;
+    }
   });
 });
 

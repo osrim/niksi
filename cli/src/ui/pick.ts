@@ -244,14 +244,10 @@ const extendRow = (skill: DiscoveredSkill, scope: Scope, missing: AgentId[]): Pi
   return mark === undefined ? { skill, why: `not in ${missing.join(", ")}` } : { skill, mark };
 };
 
-const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined => {
-  if (source.kind === "local") {
-    return sameSkill(entry, { source: source.id, path })
-      ? undefined
-      : join(entry.source, entry.path);
-  }
-  return entry.source === source.id ? undefined : friendlySource(entry.source);
-};
+const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined =>
+  sameSkill(entry, { source: source.id, path })
+    ? undefined
+    : [friendlySource(entry.source), entry.path].filter(Boolean).join("/");
 
 export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> => {
   const { skills, names, lock, scope, agents, source, options } = selection;

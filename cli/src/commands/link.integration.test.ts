@@ -456,6 +456,26 @@ test("add --all installs the skills in skills/ and in plugins/*/skills/ together
   ]);
 });
 
+test("add refuses a same-name skill from another path of the recorded Git source", async () => {
+  const root = await project("same-repo-collision");
+  const repo = join(tmp, "collision-source");
+  await makeSkill(join(repo, "plugins", "a", "skills"), "demo", "from a\n");
+  await makeSkill(join(repo, "plugins", "b", "skills"), "demo", "from b\n");
+  await initRepo(repo);
+  await commitAll(repo, "two demos");
+  const source = pathToFileURL(repo).href;
+  const add = (path: string) => runCli(root, "add", source, path, "-p", "--agent", "claude", "-y");
+
+  expect((await add("plugins/a/skills/demo")).exitCode).toBe(0);
+  const refused = await add("plugins/b/skills/demo");
+
+  expect(refused.exitCode).toBe(1);
+  expect((await readSkills(root))["demo"]).toMatchObject({ source, path: "plugins/a/skills/demo" });
+  expect(await readFile(join(root, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toContain(
+    "from a",
+  );
+});
+
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {
   const forge = "https://github.com/o/hidden-skills";
   const repo = join(tmp, "hidden-skills");

@@ -271,7 +271,16 @@ test("defaultBranch falls back to ls-remote when origin/HEAD is absent", async (
   expect(await defaultBranch(clone)).toBe("main");
 });
 
-test("a fetch follows a default branch renamed upstream", async () => {
+// Git before 2.48 ignores remote.<name>.followRemoteHEAD.
+const followsRemoteHead = (): boolean => {
+  const [major = 0, minor = 0] = /(\d+)\.(\d+)/u
+    .exec(Bun.spawnSync(["git", "--version"]).stdout.toString())!
+    .slice(1)
+    .map(Number);
+  return major > 2 || (major === 2 && minor >= 48);
+};
+
+test.skipIf(!followsRemoteHead())("a fetch follows a default branch renamed upstream", async () => {
   const clone = await cloneOrFetch(remote);
   await $`git -C ${remote} branch -m main trunk`.quiet();
   await cloneOrFetch(remote);

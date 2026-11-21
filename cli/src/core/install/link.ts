@@ -19,12 +19,32 @@ const isSymlinkPath = async (path: string): Promise<boolean> => {
 const linkTarget = async (path: string): Promise<string> =>
   resolve(await realpathOrNearest(dirname(path)), await readlink(path));
 
-const followDanglingLink = async (path: string): Promise<string> =>
-  (await isSymlinkPath(path)) && !existsSync(path)
-    ? realpathOrNearest(await linkTarget(path))
-    : realpathOrNearest(path);
+// The location of `dest`, plus the target it would create when it is a dangling symlink.
+const destPaths = async (path: string): Promise<string[]> => {
+  const location = await realpathOrNearest(path);
+  if (!(await isSymlinkPath(path)) || existsSync(path)) return [location];
+  return [location, await realpathOrNearest(await linkTarget(path))];
+};
 
-const containmentError = async (dest: string, label: string, resolved: string): Promise<Error> => {
+// Names the `skills` link at its real location when the agent dir is a link that does not cross on its own.
+const crossingLink = async (dest: string, root: string): Promise<string> => {
+  const agentDir = dirname(dest);
+  if (!(await isSymlinkPath(agentDir))) return dest;
+  const throughParent = join(await realpathOrNearest(agentDir), basename(dest));
+  return isInside(throughParent, root) ? agentDir : throughParent;
+};
+
+interface Containment {
+  label: string;
+  root: string;
+  resolved: string;
+}
+
+const containmentError = async (
+  scope: Scope,
+  dest: string,
+  { label, root, resolved }: Containment,
+): Promise<Error> => {
   const agentDir = dirname(dest);
   const unlinked = join(
     await realpathOrNearest(dirname(agentDir)),
@@ -32,32 +52,43 @@ const containmentError = async (dest: string, label: string, resolved: string): 
     basename(dest),
   );
   if (resolved === unlinked) {
-    return new Error(`${dest} is inside ${label} (${resolved}).\nRun from a project outside it.`);
+    const remedy =
+      scope === "global"
+        ? "Choose a global agent directory outside it."
+        : "Run from a project outside it.";
+    return new Error(`${dest} is inside ${label} (${resolved}).\n${remedy}`);
   }
-  const link = (await isSymlinkPath(agentDir)) ? agentDir : dest;
+  const link = await crossingLink(dest, root);
   return new Error(
     `${dest} points into ${label} (${resolved}) through the symlink ${link}.\nRemove ${link} and re-run.`,
+  );
+};
+
+const forbiddenRoots = (scope: Scope): Promise<{ label: string; root: string }[]> => {
+  const roots = [{ label: "the store", root: dataDir() }];
+  if (scope === "project") {
+    for (const def of SKILLS_DIRS)
+      roots.push({ label: "a global skills directory", root: def.globalDir() });
+  }
+  return Promise.all(
+    roots.map(async ({ label, root }) => ({ label, root: await realpathOrNearest(root) })),
   );
 };
 
 export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise<string> => {
   const dest = skillsDir(scope, agent);
   const canonical = canonicalDir(scope);
-  const resolved = await followDanglingLink(dest);
-  if (resolved === (await realpathOrNearest(canonical))) {
+  const paths = await destPaths(dest);
+  const realCanonical = await realpathOrNearest(canonical);
+  if (paths.includes(realCanonical)) {
     throw new Error(
       `${dest} and ${canonical} are the same directory.\nski keeps skill copies in ${canonical} and links agents to them. Remove the symlink and re-run.`,
     );
   }
-  const forbidden = [{ label: "the store", root: dataDir() }];
-  if (scope === "project") {
-    for (const def of SKILLS_DIRS)
-      forbidden.push({ label: "a global skills directory", root: def.globalDir() });
-  }
-  for (const { label, root } of forbidden) {
-    if (isInside(resolved, await realpathOrNearest(root))) {
-      throw await containmentError(dest, label, resolved);
-    }
+  const roots = await forbiddenRoots(scope);
+  for (const resolved of paths) {
+    const hit = roots.find(({ root }) => isInside(resolved, root));
+    if (hit) throw await containmentError(scope, dest, { ...hit, resolved });
   }
   return dest;
 };

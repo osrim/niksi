@@ -400,6 +400,48 @@ test("assertSkillsDirSafe rejects a project skills dir inside a global one witho
   }
 });
 
+test("assertSkillsDirSafe names the skills link of a shared agent dir and checks dangling links where they sit", async () => {
+  const dir = join(tmp, "proj-shared-config");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const claudeGlobal = skillsDir("global", "claude");
+  await mkdir(claudeGlobal, { recursive: true });
+  const shared = join(tmp, "shared-config");
+  await mkdir(shared, { recursive: true });
+  await symlink(claudeGlobal, join(shared, "skills"));
+  await symlink(shared, join(dir, ".claude"));
+  const storeAgent = join(storeDir(), "dangling-agent");
+  await mkdir(storeAgent, { recursive: true });
+  await symlink(join(tmp, "outside", "missing"), join(storeAgent, "skills"));
+  await symlink(storeAgent, join(dir, ".opencode"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const skillsLink = join(await realpath(shared), "skills");
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `through the symlink ${skillsLink}.\nRemove ${skillsLink} and re-run.`,
+    );
+    const agentLink = dirname(skillsDir("project", "opencode"));
+    await expect(assertSkillsDirSafe("project", "opencode")).rejects.toThrow(
+      `points into the store (${await realpath(storeAgent)}/skills) through the symlink ${agentLink}.`,
+    );
+  } finally {
+    process.chdir(prev);
+  }
+});
+
+test("assertSkillsDirSafe tells a global install to pick an agent directory outside the data root", async () => {
+  const prevClaude = process.env.CLAUDE_HOME;
+  process.env.CLAUDE_HOME = join(dataDir(), "claude");
+  try {
+    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow("is inside the store");
+    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
+      ".\nChoose a global agent directory outside it.",
+    );
+  } finally {
+    process.env.CLAUDE_HOME = prevClaude;
+  }
+});
+
 test("assertSkillsDirSafe leaves a global skills dir symlink alone", async () => {
   const universalGlobal = skillsDir("global", "universal");
   const claudeGlobal = skillsDir("global", "claude");

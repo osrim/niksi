@@ -11,6 +11,7 @@ import type { Source } from "../core/source/index.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import { pickSkillsToAdd, skillOption } from "./pick.ts";
 import { captureEnv } from "../test-env.ts";
+import { captureOutput } from "../test-output.ts";
 
 const skill = (over: Partial<DiscoveredSkill> = {}): DiscoveredSkill => ({
   name: "tdd",
@@ -331,11 +332,7 @@ describe("pickSkillsToAdd", () => {
     const exit = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("exit");
     });
-    const written: string[] = [];
-    const stderr = spyOn(process.stderr, "write").mockImplementation(((chunk: unknown) => {
-      written.push(String(chunk));
-      return true;
-    }) as typeof process.stderr.write);
+    const output = captureOutput();
     try {
       await expect(
         pickSkillsToAdd({
@@ -350,10 +347,10 @@ describe("pickSkillsToAdd", () => {
           options: { copy: false },
         }),
       ).rejects.toThrow("exit");
-      return written.join("");
+      return output.text();
     } finally {
       exit.mockRestore();
-      stderr.mockRestore();
+      output.restore();
     }
   };
 
@@ -371,5 +368,10 @@ describe("pickSkillsToAdd", () => {
       path: "skills/tdd",
     });
     expect(written).toInclude("tdd is already installed from o/other/skills/tdd.");
+  });
+
+  test("a skill recorded from a local directory names that directory", async () => {
+    const written = await refusal(upstream, { source: "local:/", path: "elsewhere/skills/tdd" });
+    expect(written).toInclude("tdd is already installed from /elsewhere/skills/tdd.");
   });
 });

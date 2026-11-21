@@ -157,7 +157,8 @@ export const discoveryCoordinate = (skill: DiscoveryLocation): string | undefine
   if (!skill.root) return coordinate;
   if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);
   if (!coordinate.startsWith("https://")) return undefined;
-  const ref = skill.pinnedAs || skill.tag || skill.branch || skill.commit;
+  // A followed entry records its latest tag too, and a tree URL at a tag would pin the dependency.
+  const ref = skill.pinnedAs || skill.branch || skill.tag || skill.commit;
   if (!ref) return undefined;
   const segments = [...ref.split("/"), ...skill.root.split("/")];
   return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;

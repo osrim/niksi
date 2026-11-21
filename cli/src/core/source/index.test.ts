@@ -278,19 +278,19 @@ test("discoveryCoordinate adds the discovery root as a forge URL that parses bac
   expect(parseCoordinate(encoded!).tree).toEqual(["release", "2.x", "plugins", "my x"]);
 });
 
-test("a remote discovery root prefers the pinned ref, then the tag, then the branch, then the commit", () => {
+test("a remote discovery root prefers the pinned ref, then the branch, then the tag, then the commit", () => {
   const source = "https://github.com/o/r";
   const root = "plugins/x";
   const commit = "a".repeat(40);
   const branch = "main";
-  expect(
-    discoveryCoordinate({ source, root, pinnedAs: "release/2", tag: "v1", branch, commit }),
-  ).toBe("https://github.com/o/r/tree/release/2/plugins/x");
-  expect(discoveryCoordinate({ source, root, tag: "v1", branch, commit })).toBe(
-    "https://github.com/o/r/tree/v1/plugins/x",
+  expect(discoveryCoordinate({ source, root, pinnedAs: "v2.0.0", branch, commit })).toBe(
+    "https://github.com/o/r/tree/v2.0.0/plugins/x",
   );
-  expect(discoveryCoordinate({ source, root, branch, commit })).toBe(
+  expect(discoveryCoordinate({ source, root, tag: "v1", branch, commit })).toBe(
     "https://github.com/o/r/tree/main/plugins/x",
+  );
+  expect(discoveryCoordinate({ source, root, tag: "v1", commit })).toBe(
+    "https://github.com/o/r/tree/v1/plugins/x",
   );
   expect(discoveryCoordinate({ source, root, commit })).toBe(
     `https://github.com/o/r/tree/${commit}/plugins/x`,

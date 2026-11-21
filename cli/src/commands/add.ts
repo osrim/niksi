@@ -1,6 +1,5 @@
 import * as p from "@clack/prompts";
 import { applySkill, type Applied } from "../core/install/apply.ts";
-import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { addDestination } from "../core/install/destination.ts";
 import { normalizeCopyPath } from "../core/install/path-copy.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
@@ -45,6 +44,7 @@ import { skillName, tildify } from "../ui/style.ts";
 import {
   chooseAgents,
   chooseScope,
+  refuseUnsafeSkillsDirs,
   warnAncestorCollisions,
   warnScopeCollisions,
   type Mode,
@@ -244,9 +244,7 @@ const chooseDestination = async (
     }
   }
   const agents = await chooseAgents(options, scope, mode);
-  for (const agent of agents) {
-    await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
-  }
+  await refuseUnsafeSkillsDirs(scope, agents);
   return { agents, copyPath: undefined };
 };
 

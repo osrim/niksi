@@ -299,6 +299,21 @@ test("add refuses a project whose .claude links to the global one and writes no 
   }
 });
 
+test("a refused skills directory prints its path with control characters escaped", async () => {
+  const root = await project("escaped-refusal", "demo");
+  const evil = join(tmp, "niksi-home", "store", "evil\u001B[2J");
+  await mkdir(evil, { recursive: true });
+  await mkdir(join(root, ".claude"), { recursive: true });
+  await symlink(evil, join(root, ".claude", "skills"));
+
+  const result = await runCli(root, "add", "./skills/demo", "-p", "--agent", "claude", "--yes");
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr).not.toContain("\u001B[2J");
+  expect(result.stderr).toContain("evil^[[2J");
+  expect(await readdir(evil)).toEqual([]);
+});
+
 test("list --json reports link and agent-copy entries, installed, modified, and missing", async () => {
   const names = ["linked", "kept", "unlinked", "dangling", "retargeted"];
   const root = await project("list", "copied", ...names);

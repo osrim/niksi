@@ -535,6 +535,50 @@ test("add from a cached source follows a default branch renamed upstream", async
   ]);
 });
 
+const rawSkillUrl = (ref: string): string =>
+  `https://raw.githubusercontent.com/o/raw-skills/${ref}/skills/demo/SKILL.md`;
+
+test("add of a raw GitHub URL installs the branch or tag that its full ref names", async () => {
+  const forge = "https://github.com/o/raw-skills";
+  const repo = join(tmp, "raw-skills");
+  await makeSkill(join(repo, "skills"), "demo", "Tagged.\n");
+  await initRepo(repo);
+  const tagged = await commitAll(repo, "tagged");
+  await tagHead(repo, "v1.0.0");
+  await makeSkill(join(repo, "skills"), "demo", "Head of main.\n");
+  const head = await commitAll(repo, "head");
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${pathToFileURL(repo).href}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    for (const [ref, commit, body, recorded] of [
+      ["refs/heads/main", head, "Head of main.", { branch: "main" }],
+      ["refs/tags/v1.0.0", tagged, "Tagged.", { pinnedAs: "v1.0.0" }],
+    ] as const) {
+      const root = await project(`raw-${ref.replaceAll("/", "-")}`);
+      const added = await runCli(root, "add", rawSkillUrl(ref), "-p", "--agent", "claude", "-y");
+      expect(added.exitCode).toBe(0);
+      expect((await readSkills(root))["demo"]).toMatchObject({
+        source: forge,
+        path: "skills/demo",
+        commit,
+        track: "pin",
+        ...recorded,
+      });
+      const linked = join(root, ".claude", "skills", "demo", "SKILL.md");
+      expect(await readFile(linked, "utf8")).toContain(body);
+      expect(await listedRow(root)).toMatchObject({
+        name: "demo",
+        source: forge,
+        state: "installed",
+      });
+    }
+  } finally {
+    restore();
+  }
+});
+
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {
   const forge = "https://github.com/o/hidden-skills";
   const repo = join(tmp, "hidden-skills");

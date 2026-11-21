@@ -365,6 +365,14 @@ export const isBranch = async (clone: string, ref: string): Promise<boolean> => 
   return result.code === 0;
 };
 
+export const isTag = async (clone: string, ref: string): Promise<boolean> => {
+  const result = await git(
+    ["rev-parse", "--verify", "--quiet", "--end-of-options", `refs/tags/${ref}^{commit}`],
+    clone,
+  );
+  return result.code === 0;
+};
+
 // Git before 2.48 ignores followRemoteHEAD, so a fetch there leaves origin/HEAD on a branch that
 // upstream renamed and the fetch pruned.
 export const defaultBranch = async (clone: string): Promise<string> => {

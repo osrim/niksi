@@ -10,7 +10,11 @@ export interface Coordinate {
   skill?: string;
   ref?: string;
   tree?: string[];
+  // Set when a raw GitHub URL names its ref in full: tree starts with a branch or a tag name.
+  refNamespace?: RefNamespace;
 }
+
+export type RefNamespace = "heads" | "tags";
 
 const GITHUB_SHORTHAND = /^[\w.-]+\/[\w.-]+(?:\/[\w.-]+)*$/u;
 
@@ -63,7 +67,13 @@ interface WebUrl {
   repo: string;
   ref?: string;
   tree?: string[];
+  refNamespace?: RefNamespace;
 }
+
+const refNamespaceOf = (segments: string[]): RefNamespace | undefined =>
+  segments[0] === "refs" && (segments[1] === "heads" || segments[1] === "tags")
+    ? segments[1]
+    : undefined;
 
 const parseWebUrl = (raw: string): WebUrl | null => {
   let url: URL;
@@ -80,9 +90,11 @@ const parseWebUrl = (raw: string): WebUrl | null => {
   if (host === "raw.githubusercontent.com") {
     const [owner, repo, ...rest] = parts;
     if (!owner || !repo || rest.length === 0) return null;
+    const refNamespace = refNamespaceOf(rest);
     return {
       repo: `https://github.com/${owner}/${dropGitSuffix(repo)}`,
-      tree: rest.slice(0, -1),
+      tree: rest.slice(refNamespace === undefined ? 0 : 2, -1),
+      ...(refNamespace === undefined ? {} : { refNamespace }),
     };
   }
 
@@ -175,6 +187,7 @@ export const parseCoordinate = (raw: string): Coordinate => {
       kind: "git",
       ...(chosen !== undefined ? { ref: chosen } : {}),
       ...(web.tree !== undefined ? { tree: web.tree } : {}),
+      ...(web.refNamespace !== undefined ? { refNamespace: web.refNamespace } : {}),
     };
   }
 

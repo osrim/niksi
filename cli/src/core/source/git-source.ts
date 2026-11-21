@@ -7,6 +7,7 @@ import {
   findRef,
   git,
   isBranch,
+  isTag,
   lsTreeEntries,
   pathHistory,
   readBlobs,
@@ -15,7 +16,7 @@ import {
 } from "./git.ts";
 import { MODE_GITLINK, isSkillContent, type SkillFile } from "../skill/files.ts";
 import { discoverSkills, type DiscoveredSkill } from "./discover.ts";
-import { repoName } from "./coordinate.ts";
+import { repoName, type RefNamespace } from "./coordinate.ts";
 import { resolveRevision, resolveUpstream, type Revision } from "./revision.ts";
 import type { InstalledSkill } from "../install/destination.ts";
 import type { Scope } from "../paths.ts";
@@ -33,15 +34,16 @@ const branchOf = (skill: InstalledSkill): string => {
   return skill.branch;
 };
 
-// A raw GitHub URL names its ref in full. findRef tries a branch first, so a tag keeps its
-// refs/tags/ prefix when a branch has the same name.
-const treeRef = async (clone: string, ref: string): Promise<string | null> => {
-  const branch = /^refs\/heads\/(.+)$/u.exec(ref)?.[1];
-  if (branch !== undefined) return (await isBranch(clone, branch)) ? branch : null;
-  if ((await findRef(clone, ref)) === null) return null;
-  const tag = /^refs\/tags\/(.+)$/u.exec(ref)?.[1];
-  if (tag === undefined) return ref;
-  return (await isBranch(clone, tag)) ? ref : tag;
+// A raw GitHub URL names its ref in full, so the ref stays a choice even on the default branch.
+const qualifiedRef = async (
+  clone: string,
+  namespace: RefNamespace,
+  name: string,
+): Promise<string | null> => {
+  if (namespace === "heads") return (await isBranch(clone, name)) ? name : null;
+  if (!(await isTag(clone, name))) return null;
+  // findRef tries a branch first, so a tag keeps its prefix when a branch has its name.
+  return (await isBranch(clone, name)) ? `refs/tags/${name}` : name;
 };
 
 const requireCommit = (rev: string | undefined): string => {
@@ -115,15 +117,23 @@ export class GitSource implements Source {
     return discoverSkills(await this.clone(), requireCommit(rev), repoName(this.id), root);
   }
 
-  async splitTree(segments: string[]): Promise<{ ref?: string; dir: string }> {
+  async splitTree(
+    segments: string[],
+    namespace?: RefNamespace,
+  ): Promise<{ ref?: string; dir: string }> {
     const clone = await this.clone();
     // Try the longest ref because branch names can contain slashes.
     for (let refSegmentCount = segments.length; refSegmentCount > 0; refSegmentCount--) {
-      const ref = await treeRef(clone, segments.slice(0, refSegmentCount).join("/"));
-      if (ref === null) continue;
+      const name = segments.slice(0, refSegmentCount).join("/");
       const dir = segments.slice(refSegmentCount).join("/");
+      if (namespace !== undefined) {
+        const ref = await qualifiedRef(clone, namespace, name);
+        if (ref !== null) return { ref, dir };
+        continue;
+      }
+      if (!(await findRef(clone, name))) continue;
       const defaultRef = await defaultBranch(clone).catch(() => null);
-      return ref === defaultRef ? { dir } : { ref, dir };
+      return name === defaultRef ? { dir } : { ref: name, dir };
     }
     return { dir: segments.join("/") };
   }

@@ -40,7 +40,7 @@ const splitRef = (input: string): { base: string; ref?: string } => {
   return { base: input };
 };
 
-const splitInput = (input: string): { base: string; ref?: string; scp: boolean } => {
+const splitRefPastAuthority = (input: string): { base: string; ref?: string; scp: boolean } => {
   const authority = SCP_AUTHORITY.exec(input)?.[0] ?? "";
   const { base, ref } = splitRef(input.slice(authority.length));
   return {
@@ -141,15 +141,21 @@ const localPath = (raw: string): string => {
   return isAbsolute(expanded) ? expanded : resolvePath(expanded);
 };
 
+const cloneUrl = (repo: string, ref: string | undefined): Coordinate => ({
+  repo,
+  kind: "git",
+  ...(ref !== undefined ? { ref } : {}),
+});
+
 export const parseCoordinate = (raw: string): Coordinate => {
   const input = raw.trim();
   if (!input) throw new Error("empty coordinate");
   if (input.includes("#")) throw usageError(HASH_REJECTED);
 
-  const { base, ref, scp } = splitInput(input);
+  const { base, ref, scp } = splitRefPastAuthority(input);
   if (ref === "") throw new Error(`invalid coordinate "${raw}": empty ref after @`);
   if (!base) throw new Error(`invalid coordinate "${raw}": no repo`);
-  if (scp) return { repo: base, kind: "git", ...(ref !== undefined ? { ref } : {}) };
+  if (scp) return cloneUrl(base, ref);
 
   if (isLocalPath(base)) {
     if (ref !== undefined) {
@@ -185,7 +191,7 @@ export const parseCoordinate = (raw: string): Coordinate => {
   }
 
   if (/^(https?:\/\/|ssh:\/\/|file:\/\/)/u.test(base)) {
-    return { repo: base, kind: "git", ...(ref !== undefined ? { ref } : {}) };
+    return cloneUrl(base, ref);
   }
   throw new Error(`Invalid coordinate "${raw}". Use owner/repo, a Git URL, or a local path.`);
 };

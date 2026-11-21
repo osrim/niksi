@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import * as find from "empathic/find";
 
-export const LOCKFILE_NAME = "niksi-lock.json";
+const LOCKFILE_NAME = "niksi-lock.json";
 
 export type Scope = "global" | "project";
 

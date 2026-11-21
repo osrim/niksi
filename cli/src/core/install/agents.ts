@@ -15,7 +15,7 @@ interface SkillsDirDef {
 const userPath = (...segments: string[]): string => join(userHome(), ...segments);
 
 const xdgConfigDir = (name: string): string =>
-  join(envPath("XDG_CONFIG_HOME") ?? userPath(".config"), name);
+  join(envPath("XDG_CONFIG_HOME", false) ?? userPath(".config"), name);
 
 export const onPath = (binary: string): boolean =>
   (process.env.PATH ?? "")
@@ -97,7 +97,7 @@ export const AGENTS: AgentDef[] = [
     display: "Codex",
     reads: reads(["universal"]),
     detect: () =>
-      existsSync(envPath("CODEX_HOME") ?? userPath(".codex")) ||
+      existsSync(envPath("CODEX_HOME", false) ?? userPath(".codex")) ||
       existsSync("/etc/codex") ||
       onPath("codex"),
   },

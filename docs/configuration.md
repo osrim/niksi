@@ -157,7 +157,7 @@ mv "$data_home/niksi/niksi-lock.json" "$config_home/niksi/niksi-lock.json"
 
 Do not copy the file. Leaving both paths populated makes the legacy file inactive and lets the two files drift. `NIKSI_HOME` users do not need to migrate because both paths resolve to `$NIKSI_HOME/niksi-lock.json`.
 
-Every path variable, including `HOME` and `CLAUDE_HOME`, must be an absolute path. `~` is not expanded.
+Path variables take absolute paths, and `~` is not expanded. A relative `HOME`, `NIKSI_HOME`, or `CLAUDE_HOME` stops the command with an error. A relative XDG variable or `CODEX_HOME` counts as unset, so its default applies, as the [XDG Base Directory specification](https://specifications.freedesktop.org/basedir-spec/latest/) requires.
 
 The store is a download cache. A lockfile entry installs without the network when the store holds its content, and installed skills do not depend on it. `nik prune` deletes unrecorded store entries. It keeps every entry that the global lockfile or the current project's lockfile records. See [commands.md](commands.md#prune).
 
@@ -174,6 +174,7 @@ Each entry records the skill's source, path, revision, integrity, and placement,
 | `NIKSI_HOME` | Root for data and config. See [Paths](#paths). |
 | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` | Standard XDG roots. |
 | `CLAUDE_HOME` | Global Claude directory. Default `~/.claude`. |
+| `CODEX_HOME` | Codex directory, used to detect Codex. Default `~/.codex`. |
 | `NO_COLOR` | Disable color. |
 | `FORCE_COLOR` | Enable color when stdout is not a terminal. |
 | `CI`, `NO_UPDATE_NOTIFIER`, `NIKSI_NO_UPDATE_NOTIFIER` | Disable the update notice and its release check. |

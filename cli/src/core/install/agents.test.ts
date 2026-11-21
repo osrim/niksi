@@ -337,9 +337,21 @@ test("ancestor skills dirs stop at the git worktree root", async () => {
   ]);
 });
 
-test("a relative XDG_CONFIG_HOME is refused rather than redirecting the install", () => {
+test("a relative XDG_CONFIG_HOME falls back to ~/.config", async () => {
   process.env.XDG_CONFIG_HOME = "config";
-  expect(() => skillsDir("global", "opencode")).toThrow(
-    'XDG_CONFIG_HOME must be an absolute path, got "config".',
-  );
+  expect(skillsDir("global", "opencode")).toBe(join(tmp, "home", ".config", "opencode", "skills"));
+
+  const root = await project("relative-xdg");
+  await mkdir(join(root, "config", "zed"), { recursive: true });
+  await mkdir(join(tmp, "home", ".config", "amp"), { recursive: true });
+  expect(detectedNames()).toEqual(["Amp"]);
+});
+
+test("a relative $CODEX_HOME falls back to ~/.codex", async () => {
+  const root = await project("relative-codex");
+  await mkdir(join(root, "codex-home"), { recursive: true });
+  process.env.CODEX_HOME = "codex-home";
+  expect(detectedNames()).toEqual([]);
+  await mkdir(join(tmp, "home", ".codex"), { recursive: true });
+  expect(detectedNames()).toEqual(["Codex"]);
 });

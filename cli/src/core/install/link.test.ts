@@ -447,7 +447,7 @@ test("assertSkillsDirSafe names the skills link of a shared agent dir and checks
 });
 
 test("assertSkillsDirSafe tells a global install to pick an agent directory outside the data directory", async () => {
-  const prevClaude = process.env.CLAUDE_HOME;
+  const restoreClaude = captureEnv("CLAUDE_HOME");
   process.env.CLAUDE_HOME = join(dataDir(), "claude");
   try {
     await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
@@ -457,7 +457,47 @@ test("assertSkillsDirSafe tells a global install to pick an agent directory outs
       ".\nChoose a global agent directory outside it.",
     );
   } finally {
-    process.env.CLAUDE_HOME = prevClaude;
+    restoreClaude();
+  }
+});
+
+test("assertSkillsDirSafe refuses a project skills dir that a dangling global link points at", async () => {
+  const dir = join(tmp, "proj-global-target");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const kiroGlobal = skillsDir("global", "kiro");
+  await mkdir(dirname(kiroGlobal), { recursive: true });
+  await symlink(join(dir, ".kiro", "skills"), kiroGlobal);
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await expect(assertSkillsDirSafe("project", "kiro")).rejects.toThrow(
+      "is inside a global skills directory",
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(kiroGlobal, { force: true });
+  }
+});
+
+test("assertSkillsDirSafe names the project link when the global skills dir is itself a link", async () => {
+  const dir = join(tmp, "proj-alias-global");
+  await mkdir(join(dir, ".git"), { recursive: true });
+  const clineGlobal = skillsDir("global", "cline");
+  const dotfiles = join(tmp, "dotfiles-cline-skills");
+  await mkdir(dotfiles, { recursive: true });
+  await mkdir(dirname(clineGlobal), { recursive: true });
+  await symlink(dotfiles, clineGlobal);
+  await symlink(dirname(clineGlobal), join(dir, ".cline"));
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    const agentLink = dirname(skillsDir("project", "cline"));
+    await expect(assertSkillsDirSafe("project", "cline")).rejects.toThrow(
+      `through the symlink ${agentLink}.\nRemove ${agentLink} and re-run.`,
+    );
+  } finally {
+    process.chdir(prev);
+    await rm(clineGlobal, { force: true });
   }
 });
 

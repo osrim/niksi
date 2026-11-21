@@ -26,24 +26,33 @@ const destPaths = async (path: string): Promise<string[]> => {
   return [location, await realpathOrNearest(await linkTarget(path))];
 };
 
+// Where a forbidden root sits as configured, where it resolves, and where it points when dangling.
+const rootPaths = async (root: string): Promise<string[]> => {
+  const location = join(await realpathOrNearest(dirname(root)), basename(root));
+  return [...new Set([location, ...(await destPaths(root))])];
+};
+
 // Names the `skills` link at its real location when the agent dir is a link that does not cross on its own.
-const crossingLink = async (dest: string, root: string): Promise<string> => {
+const crossingLink = async (dest: string, roots: string[]): Promise<string> => {
   const agentDir = dirname(dest);
   if (!(await isSymlinkPath(agentDir))) return dest;
   const throughParent = join(await realpathOrNearest(agentDir), basename(dest));
-  return isInside(throughParent, root) ? agentDir : throughParent;
+  return roots.some((root) => isInside(throughParent, root)) ? agentDir : throughParent;
 };
 
-interface Containment {
+interface Forbidden {
   label: string;
-  root: string;
+  roots: string[];
+}
+
+interface Containment extends Forbidden {
   resolved: string;
 }
 
 const containmentError = async (
   scope: Scope,
   dest: string,
-  { label, root, resolved }: Containment,
+  { label, roots, resolved }: Containment,
 ): Promise<Error> => {
   const agentDir = dirname(dest);
   const unlinked = join(
@@ -58,13 +67,13 @@ const containmentError = async (
         : "Run from a project outside it.";
     return new Error(`${dest} is inside ${label} (${resolved}).\n${remedy}`);
   }
-  const link = await crossingLink(dest, root);
+  const link = await crossingLink(dest, roots);
   return new Error(
     `${dest} points into ${label} (${resolved}) through the symlink ${link}.\nRemove ${link} and re-run.`,
   );
 };
 
-const forbiddenRoots = (scope: Scope): Promise<{ label: string; root: string }[]> => {
+const forbiddenRoots = (scope: Scope): Promise<Forbidden[]> => {
   // The store sits inside the data directory, so it comes first to get the narrower name.
   const roots = [
     { label: "the store", root: storeDir() },
@@ -75,7 +84,7 @@ const forbiddenRoots = (scope: Scope): Promise<{ label: string; root: string }[]
       roots.push({ label: "a global skills directory", root: def.globalDir() });
   }
   return Promise.all(
-    roots.map(async ({ label, root }) => ({ label, root: await realpathOrNearest(root) })),
+    roots.map(async ({ label, root }) => ({ label, roots: await rootPaths(root) })),
   );
 };
 
@@ -89,9 +98,9 @@ export const assertSkillsDirSafe = async (scope: Scope, agent: AgentId): Promise
       `${dest} and ${canonical} are the same directory.\nski keeps skill copies in ${canonical} and links agents to them. Remove the symlink and re-run.`,
     );
   }
-  const roots = await forbiddenRoots(scope);
+  const forbidden = await forbiddenRoots(scope);
   for (const resolved of paths) {
-    const hit = roots.find(({ root }) => isInside(resolved, root));
+    const hit = forbidden.find(({ roots }) => roots.some((root) => isInside(resolved, root)));
     if (hit) throw await containmentError(scope, dest, { ...hit, resolved });
   }
   return dest;

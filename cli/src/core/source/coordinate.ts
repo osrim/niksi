@@ -22,8 +22,11 @@ const LOCAL_PATH = /^(~|\.{1,2})?\//u;
 const isLocalPath = (raw: string): boolean =>
   LOCAL_PATH.test(raw) || raw === "~" || raw === "." || raw === "..";
 
+const SCP_AUTHORITY = /^[\w.-]+@[^:/]+:/u;
+
 export const repoName = (repo: string): string =>
   repo
+    .replace(SCP_AUTHORITY, "")
     .replace(/\/+$/u, "")
     .split("/")
     .pop()!
@@ -36,6 +39,18 @@ const splitRef = (input: string): { base: string; ref?: string } => {
   }
   return { base: input };
 };
+
+const splitInput = (input: string): { base: string; ref?: string; scp: boolean } => {
+  const authority = SCP_AUTHORITY.exec(input)?.[0] ?? "";
+  const { base, ref } = splitRef(input.slice(authority.length));
+  return {
+    base: base && authority + base,
+    ...(ref !== undefined ? { ref } : {}),
+    scp: authority !== "",
+  };
+};
+
+const RAW_REF_PREFIXES = new Set(["heads", "tags"]);
 
 const TREE_MARKERS = new Set(["tree", "blob", "blame", "raw", "src"]);
 const REF_MARKERS = new Set(["commit", "commits", "releases", "tags"]);
@@ -65,9 +80,10 @@ const parseWebUrl = (raw: string): WebUrl | null => {
   if (host === "raw.githubusercontent.com") {
     const [owner, repo, ...rest] = parts;
     if (!owner || !repo || rest.length === 0) return null;
+    const prefixed = rest[0] === "refs" && RAW_REF_PREFIXES.has(rest[1] ?? "");
     return {
       repo: `https://github.com/${owner}/${dropGitSuffix(repo)}`,
-      tree: rest.slice(0, -1),
+      tree: rest.slice(prefixed ? 2 : 0, -1),
     };
   }
 
@@ -130,9 +146,10 @@ export const parseCoordinate = (raw: string): Coordinate => {
   if (!input) throw new Error("empty coordinate");
   if (input.includes("#")) throw usageError(HASH_REJECTED);
 
-  const { base, ref } = splitRef(input);
+  const { base, ref, scp } = splitInput(input);
   if (ref === "") throw new Error(`invalid coordinate "${raw}": empty ref after @`);
   if (!base) throw new Error(`invalid coordinate "${raw}": no repo`);
+  if (scp) return { repo: base, kind: "git", ...(ref !== undefined ? { ref } : {}) };
 
   if (isLocalPath(base)) {
     if (ref !== undefined) {
@@ -167,7 +184,7 @@ export const parseCoordinate = (raw: string): Coordinate => {
     };
   }
 
-  if (/^(https?:\/\/|git@|ssh:\/\/|file:\/\/)/u.test(base)) {
+  if (/^(https?:\/\/|ssh:\/\/|file:\/\/)/u.test(base)) {
     return { repo: base, kind: "git", ...(ref !== undefined ? { ref } : {}) };
   }
   throw new Error(`Invalid coordinate "${raw}". Use owner/repo, a Git URL, or a local path.`);

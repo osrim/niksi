@@ -38,6 +38,8 @@ git@github.com:owner/repo.git     clone URL
 
 `owner/repo` always means GitHub. Every other forge needs a full URL. A URL path is the repository, so name the skill as a positional argument instead.
 
+A clone URL can use any SSH user and needs no owner, as in `deploy@git.example.com:team/repo.git` or `git@git.example.com:repo.git`.
+
 Segments after `owner/repo` name one skill. `add` resolves them in this order:
 
 1. The path of a skill that discovery finds in the source.

@@ -103,6 +103,8 @@ test("repoName strips .git and trailing slashes", () => {
   expect(repoName("https://github.com/o/superpowers")).toBe("superpowers");
   expect(repoName("https://github.com/o/r.git")).toBe("r");
   expect(repoName("/tmp/upstream/")).toBe("upstream");
+  expect(repoName("git@host.example:repo.git")).toBe("repo");
+  expect(repoName("deploy@host.example:team/repo.git")).toBe("repo");
 });
 
 test("a GitHub tree URL yields the repo and an unsplit remainder", () => {
@@ -224,4 +226,43 @@ test("parseSource keeps a source alone and names the caller's remedy otherwise",
   expect(() => parseSource("o/r@v1.0.0", "Pass the skill name.")).toThrow(
     "o/r@v1.0.0 names a skill or ref inside a source.\nPass the skill name.",
   );
+});
+
+test("an SCP address takes any SSH user and a repo with no owner", () => {
+  expect(parseCoordinate("git@host.example:repo.git")).toEqual({
+    repo: "git@host.example:repo.git",
+    kind: "git",
+  });
+  expect(parseCoordinate("git@host.example:repo.git@v1")).toEqual({
+    repo: "git@host.example:repo.git",
+    kind: "git",
+    ref: "v1",
+  });
+  expect(parseCoordinate("deploy@host.example:team/repo.git")).toEqual({
+    repo: "deploy@host.example:team/repo.git",
+    kind: "git",
+  });
+  expect(parseCoordinate("deploy.bot-1@host.example:team/repo.git@v2")).toEqual({
+    repo: "deploy.bot-1@host.example:team/repo.git",
+    kind: "git",
+    ref: "v2",
+  });
+});
+
+test("a raw GitHub URL drops a refs/heads/ or refs/tags/ prefix and keeps a slashy branch", () => {
+  expect(
+    parseCoordinate("https://raw.githubusercontent.com/o/r/refs/heads/main/skills/tdd/SKILL.md"),
+  ).toEqual({ repo: "https://github.com/o/r", kind: "git", tree: ["main", "skills", "tdd"] });
+  expect(
+    parseCoordinate("https://raw.githubusercontent.com/o/r/refs/tags/v1.2.0/tdd/SKILL.md"),
+  ).toEqual({ repo: "https://github.com/o/r", kind: "git", tree: ["v1.2.0", "tdd"] });
+  expect(
+    parseCoordinate(
+      "https://raw.githubusercontent.com/o/r/refs/heads/release/2.x/skills/tdd/SKILL.md",
+    ),
+  ).toEqual({
+    repo: "https://github.com/o/r",
+    kind: "git",
+    tree: ["release", "2.x", "skills", "tdd"],
+  });
 });

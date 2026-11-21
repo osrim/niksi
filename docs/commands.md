@@ -215,16 +215,18 @@ nik update --check [-g|-p] [--json]
 - `update` reports missing dependencies but does not install them. If an entry
   has a `root`, both the check and the `nik add` command use that directory.
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
-  For remote sources, the command uses the recorded branch. If absent, it uses
-  `pinnedAs`, `tag`, or `commit`, in that order. Without any of these, `update`
-  reports that it cannot generate the command.
+  For an `https://` source, the forge URL names a ref: the recorded branch for
+  a dependency that a skill tracking `auto` mentions, and the reviewed ref for
+  one that only pinned skills mention. For an SSH or `file://` source with a
+  `root`, or an entry that records no ref, `update` prints a warning instead of
+  the command.
 - When only pinned skills mention a missing dependency, its `nik add` command
   ends the coordinate with `@<ref>`, so the dependency lands at the revision you
   reviewed. The ref is the new `pinnedAs` tag, or the commit when there is no
   tag or the tag has a character other than an ASCII letter, a digit, `.`, `_`,
-  `+`, or `-`. In a forge URL, `@<ref>` takes precedence over the branch in the
-  path. A dependency that a skill tracking `auto` mentions gets a command
-  without `@ref`, so one source can print two commands.
+  `+`, or `-`. A forge URL names the same ref in its path. A dependency that a
+  skill tracking `auto` mentions gets a command without `@ref`, so one source
+  can print two commands.
 - A dependency that the current scope records is not missing. An enabled
   dependency in the other scope counts only when a link or agent copy is present
   in every agent directory used by the updated skill. When it counts, `update`

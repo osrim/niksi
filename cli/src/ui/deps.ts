@@ -183,12 +183,17 @@ const reportGroupHints = (
   mentionedByAuto: Set<string>,
   scope: Scope,
 ): void => {
-  const location = group[0]!.verdict.skill;
   const atLatest = missing.filter((dep) => mentionedByAuto.has(dep.name));
   const atReviewed = missing.filter((dep) => !mentionedByAuto.has(dep.name));
-  if (atLatest.length > 0) reportNotInstalled(atLatest, location, scope);
+  if (atLatest.length > 0) {
+    const followed = group.find((item) => item.verdict.skill.track !== "pin")!.verdict.skill;
+    reportNotInstalled(atLatest, followed, scope);
+  }
   if (atReviewed.length > 0) {
-    const { upstream } = group.find((item) => item.verdict.skill.track === "pin")!.verdict;
-    reportNotInstalled(atReviewed, location, scope, pinnedRef(upstream));
+    const { skill, upstream } = group.find((item) => item.verdict.skill.track === "pin")!.verdict;
+    // The tree URL names the reviewed ref too, so it still resolves after the recorded ref is gone.
+    const ref = pinnedRef(upstream);
+    const reviewed = ref === undefined ? skill : { ...skill, pinnedAs: ref };
+    reportNotInstalled(atReviewed, reviewed, scope, ref);
   }
 };

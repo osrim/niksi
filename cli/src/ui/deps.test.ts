@@ -259,6 +259,58 @@ describe("reportUpdateDeps", () => {
     expect(printed()).toContain(`Add them: nik add ${tmp}@v2.0.0 other -g\n`);
   });
 
+  test("a rooted mixed group names the followed branch and the reviewed tag in its tree URLs", async () => {
+    const remote = join(tmp, "remote");
+    const root = "plugins/x";
+    await makeSkill(join(remote, root), "primary", "Use /helper and /other.\n");
+    await makeSkill(join(remote, root), "secondary", "Use /helper.\n");
+    await makeSkill(join(remote, root), "helper");
+    await makeSkill(join(remote, root), "other");
+    const plugins = new LocalSource(remote);
+    const recordedAt = (name: string, entry: Partial<InstalledSkill>): InstalledSkill => ({
+      ...verdict(name, plugins).skill,
+      source: "https://github.com/o/r",
+      path: `${root}/${name}`,
+      root,
+      branch: "main",
+      ...entry,
+    });
+    const files = (name: string) => plugins.fetchFiles(undefined, `${root}/${name}`);
+
+    await reportUpdateDeps(
+      [
+        {
+          verdict: {
+            ...verdict("primary", plugins),
+            skill: recordedAt("primary", { track: "pin", pinnedAs: "v1.0.0" }),
+            upstream: { commit: COMMIT, branch: "main", track: "pin", pinnedAs: "v2.0.0" },
+          },
+          files: await files("primary"),
+          diff: noDiff,
+        },
+        {
+          verdict: {
+            ...verdict("secondary", plugins),
+            skill: recordedAt("secondary", { tag: "v1.0.0" }),
+            upstream: { commit: COMMIT, branch: "main", track: "auto", tag: "v2.0.0" },
+          },
+          files: await files("secondary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain(
+      "Add them: nik add https://github.com/o/r/tree/main/plugins/x helper -g\n",
+    );
+    expect(printed()).toContain(
+      "Add them: nik add https://github.com/o/r/tree/v2.0.0/plugins/x@v2.0.0 other -g\n",
+    );
+  });
+
   test("a Markdown link to another skill's SKILL.md counts as a mention", async () => {
     await reportUpdateDeps(
       [

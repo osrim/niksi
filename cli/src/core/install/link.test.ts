@@ -323,6 +323,23 @@ test("assertSkillsDirSafe rejects a skills dir symlinked into the store", async 
   }
 });
 
+test("assertSkillsDirSafe names the data directory for a skills dir symlinked outside the store", async () => {
+  const dir = join(tmp, "proj-data-link");
+  await mkdir(join(dir, ".claude"), { recursive: true });
+  const globalCopies = join(dataDir(), "skills");
+  await mkdir(globalCopies, { recursive: true });
+  const prev = process.cwd();
+  process.chdir(dir);
+  try {
+    await symlink(globalCopies, join(dir, ".claude", "skills"));
+    await expect(assertSkillsDirSafe("project", "claude")).rejects.toThrow(
+      `points into niksi's data directory (${await realpath(globalCopies)}) through the symlink`,
+    );
+  } finally {
+    process.chdir(prev);
+  }
+});
+
 test("assertSkillsDirSafe rejects a project skills dir symlinked into a global agent dir", async () => {
   const dir = join(tmp, "proj-global-link");
   await mkdir(join(dir, ".claude"), { recursive: true });
@@ -429,11 +446,13 @@ test("assertSkillsDirSafe names the skills link of a shared agent dir and checks
   }
 });
 
-test("assertSkillsDirSafe tells a global install to pick an agent directory outside the data root", async () => {
+test("assertSkillsDirSafe tells a global install to pick an agent directory outside the data directory", async () => {
   const prevClaude = process.env.CLAUDE_HOME;
   process.env.CLAUDE_HOME = join(dataDir(), "claude");
   try {
-    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow("is inside the store");
+    await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
+      `is inside niksi's data directory (${join(await realpath(dataDir()), "claude", "skills")}).`,
+    );
     await expect(assertSkillsDirSafe("global", "claude")).rejects.toThrow(
       ".\nChoose a global agent directory outside it.",
     );

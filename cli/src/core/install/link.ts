@@ -4,7 +4,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { skillsDir, SKILLS_DIRS, type AgentId } from "./agents.ts";
 import type { SkillFile } from "../skill/files.ts";
 import { integrityOfDir } from "../skill/integrity.ts";
-import { canonicalDir, childPath, dataDir, tildify, type Scope } from "../paths.ts";
+import { canonicalDir, childPath, dataDir, storeDir, tildify, type Scope } from "../paths.ts";
 import { replaceDir } from "./replace.ts";
 import { isInside, present, realpathOrNearest, unmanagedError } from "./target.ts";
 
@@ -65,7 +65,11 @@ const containmentError = async (
 };
 
 const forbiddenRoots = (scope: Scope): Promise<{ label: string; root: string }[]> => {
-  const roots = [{ label: "the store", root: dataDir() }];
+  // The store sits inside the data directory, so it comes first to get the narrower name.
+  const roots = [
+    { label: "the store", root: storeDir() },
+    { label: "niksi's data directory", root: dataDir() },
+  ];
   if (scope === "project") {
     for (const def of SKILLS_DIRS)
       roots.push({ label: "a global skills directory", root: def.globalDir() });

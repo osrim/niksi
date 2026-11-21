@@ -59,7 +59,7 @@ When a detected agent reads two or more of the chosen directories, `niksi` warns
 
 Editing a linked skill changes it for every linked agent.
 
-`niksi` won't write to a skills directory that lands inside its data root (see [Paths](#paths)). In project scope, it also won't write to one that lands inside a global skills directory from the table above. This covers a project `.claude` that links to `~/.claude`, a project inside a global skills directory, and `-p` run from your home directory, where `.claude/skills` is `~/.claude/skills`. When a symlink causes the overlap, the error names it so you can remove it. Otherwise, run project installs from a project outside that directory, and point global agent directories outside the data root.
+`niksi` won't write to a skills directory that lands inside its data directory (`NIKSI_HOME`, or `~/.local/share/niksi` by default, see [Paths](#paths)). In project scope, it also won't write to one that lands inside a global skills directory from the table above. This covers a project `.claude` that links to `~/.claude`, a project inside a global skills directory, and `-p` run from your home directory, where `.claude/skills` is `~/.claude/skills`. When a symlink causes the overlap, the error names it so you can remove it. Otherwise, run project installs from a project outside that directory, and point global agent directories outside the data directory.
 
 In project scope, `.niksi/.gitignore` keeps the skill directories out of Git. Links in the agents' skills directories are hidden with `.git/info/exclude`, in a block that `niksi` rebuilds after every write. Commit `niksi-lock.json`. Copies made with `--copy` can be committed.
 

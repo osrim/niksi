@@ -54,7 +54,7 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
   The lockfile records this discovery root as `root`.
 - Named skills must exist in the source and have distinct names.
-- `add` doesn't install a skill when the scope already has one by that name from another source or another path. It names where the installed one came from. Run `nik remove <skill>` first.
+- `add` doesn't install a skill when the scope already has one by that name from another source or another path. When you name the skill, `add` says where the installed one came from and exits `1`. The picker shows the skill as unavailable, and `--all` leaves it out. Run `nik remove <skill>` first.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
 - Without `@ref`, `add` installs the upstream revision, a tag or the head of a branch (see [Tag or branch](#tag-or-branch)), even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
 - `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).

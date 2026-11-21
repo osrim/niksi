@@ -291,14 +291,15 @@ test("audit scans the rest when a path copy cannot be read", async () => {
   ]);
 });
 
-test("audit stops on a ski 0.2 layout and moves nothing", async () => {
+test("audit ignores a ski 0.2 lockfile and leaves it in place", async () => {
   const { project } = await setup("legacy");
   const legacy = join(project, "ski-lock.json");
   await writeFile(legacy, '{"lockfileVersion":1,"skills":{}}\n');
 
   const result = await runCli(project, "audit");
 
-  expect(result.exitCode).toBe(1);
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Nothing installed (project).");
   expect(existsSync(legacy)).toBe(true);
   expect(existsSync(join(project, "niksi-lock.json"))).toBe(false);
 });

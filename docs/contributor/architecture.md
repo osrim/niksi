@@ -27,7 +27,7 @@ cli/src/
   test-color.ts      fresh-process probe for color output, tests only
   test-timing.ts     slowdown against a same-size linear baseline, tests only
   commands/          add, adopt, install, update, remove, list, audit, disable, enable, prune, completion, scan-source
-  ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices, legacy migration notice
+  ui/                prompts, review, gate, decisions, pager, reports, help, status, destination choices
   core/
     completion/      completion spec from the registered commands, bash, zsh, and fish scripts, skill names for the helper
     config.ts        remembered scope and agent choices
@@ -42,7 +42,7 @@ cli/src/
     source/          coordinates, Git and local sources, revisions, upstream, release age, provenance hints, content match
     skill/           files, frontmatter, integrity, dependency mentions, Markdown map
     scan/            scan rules, findings, and per-rule fixtures
-    install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, unmanaged skills, adoption, ski layout migration
+    install/         scope, agents, store, target checks, links, path copies, replacement, destination, lockfile, unmanaged skills, adoption
 ```
 
 `core/source/` and `core/install/` are siblings. Runtime imports point from `install/` to `source/` only. Source adapters may type-import installed skill data. Commands and UI combine the two.

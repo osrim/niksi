@@ -15,7 +15,6 @@ import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { fail, isInteractive, unwrap } from "../ui/prompt.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { warn } from "../ui/report.ts";
 import { refuseViolations, reportDisabled, reportModified } from "../ui/status.ts";
 import { skillName, tildify } from "../ui/style.ts";
@@ -48,7 +47,6 @@ export const run = async (options: InstallOptions): Promise<void> => {
   p.intro("nik install");
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const { policy } = await readProjectConfig(scope);
-  await migrateIfLegacy(scope);
   const { enabled, disabled } = splitDisabled(await readInstallLock(scope, options.frozenLockfile));
   const skills = installedSkills(enabled);
   refuseViolations(policyViolations(policy, skills), "Nothing installed.");

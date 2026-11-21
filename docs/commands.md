@@ -283,7 +283,6 @@ With `--check`, `update` checks every enabled skill against its source and shows
 - It ignores the [cooldown](#cooldown). A skill with a young upstream revision still counts as outdated.
 - It doesn't check disabled skills. It names them in one info line.
 - In project scope, it doesn't check a skill whose source the policy in `niksi.json` doesn't allow. It names each such skill and its source. See [Project configuration](configuration.md#project-configuration).
-- When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
 - It takes only `-g`, `-p`, and `--json`. Skill names, `--all`, `--source`, `--yes`, `--dangerous-skip-critical-approval`, `--report`, and `--min-release-age` with `--check` exit `2`. So does `--json` without `--check`.
 
 `--json` writes one JSON object to stdout and nothing else. Diagnostics go to stderr. `skills` holds each checked skill, sorted by name. `disabled` holds the names of disabled skills, and `blocked` holds the names of skills that the project policy left out. The check covers neither.
@@ -424,7 +423,7 @@ nik audit [-g|-p] [--json]
 `audit` scans every installed skill with the current rules. `add` and `update` scan a skill once, when they write it. Run `audit` after you upgrade `niksi` to check skills you approved under older rules.
 
 - `audit` reads the files on disk, not the store. A link entry reads its canonical copy. An agent copy reads every copy present in a recorded agent's skills directory and scans copies with the same content once. A path copy reads its destination.
-- `audit` does not use the network and does not write. It skips the update notice and its release check. When files from ski 0.2 need moving, it exits `1` and names `nik list`, which moves them.
+- `audit` does not use the network and does not write. It skips the update notice and its release check.
 - It prints the findings of each skill with their severities. It asks nothing, so a critical finding never needs a terminal.
 - A critical finding whose rule id the lockfile entry lists in `review.acceptedRules` is accepted: `add` or `update` approved it for that content. `audit` still prints it with its severity, marks it `(accepted)`, and counts it in the summary as `N accepted finding(s)`, apart from the other findings. It does not change the exit code. See [security-scan.md](security-scan.md#accepted-findings).
 - An acceptance holds only while the files on disk match the entry's `integrity`. For an agent copy, every present copy must match. For a modified skill, `audit` accepts no finding and says that the skill is modified.

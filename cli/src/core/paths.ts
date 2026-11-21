@@ -4,7 +4,6 @@ import { homedir } from "node:os";
 import * as find from "empathic/find";
 
 export const LOCKFILE_NAME = "niksi-lock.json";
-export const LEGACY_LOCKFILE_NAME = "ski-lock.json";
 
 export type Scope = "global" | "project";
 
@@ -44,7 +43,7 @@ export const tildify = (path: string): string =>
 
 export const claudeDir = (): string => envPath("CLAUDE_HOME") ?? join(userHome(), ".claude");
 
-export const xdgRoot = (variable: string, homeSegment: string): string =>
+const xdgRoot = (variable: string, homeSegment: string): string =>
   envPath(variable, false) ?? join(userHome(), homeSegment);
 
 const xdgDir = (variable: string, homeSegment: string): string =>
@@ -62,7 +61,6 @@ export const canonicalDir = (scope: Scope): string =>
 
 const ROOT_MARKERS = [
   LOCKFILE_NAME,
-  LEGACY_LOCKFILE_NAME, // ponytail: finds unmigrated ski projects. Delete in 0.5.0.
   ".agents",
   ".claude",
   ".opencode",

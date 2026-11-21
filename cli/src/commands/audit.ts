@@ -1,6 +1,5 @@
 import * as p from "@clack/prompts";
 import { loadLock, type LoadedLockfile } from "../core/install/lockfile.ts";
-import { legacyLayoutPresent } from "../core/install/migrate.ts";
 import {
   installedPaths,
   installedSkills,
@@ -67,15 +66,6 @@ const acceptedCount = (scanned: Scanned[]): number =>
     0,
   );
 
-const openLock = (scope: Scope): Promise<LoadedLockfile> => {
-  if (legacyLayoutPresent(scope)) {
-    throw new Error(
-      `found files from ski 0.2. Run \`nik list${scopeFlag(scope)}\` once to move them, then audit again.`,
-    );
-  }
-  return loadLock(scope);
-};
-
 // Copies with the same content give the same findings, so scan each distinct content once.
 const scanCopies = (name: string, contents: SkillFile[][]): Finding[] => {
   const findings = contents.flatMap((files) => runScanners({ name, files }));
@@ -134,7 +124,7 @@ export const run = async (options: AuditOptions): Promise<void> => {
 
   p.intro("nik audit");
   const scope = resolveScope(options, p.log.warn) ?? "project";
-  const loaded = await openLock(scope);
+  const loaded = await loadLock(scope);
   const { policy } = await readProjectConfig(scope);
   if (Object.keys(loaded.lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
@@ -192,7 +182,7 @@ const summaryLine = ({ scanned }: Audit, scope: Scope): string => {
 
 const runJson = async (options: AuditOptions): Promise<void> => {
   const scope = resolveScope(options, logWarn) ?? "project";
-  const loaded = await openLock(scope);
+  const loaded = await loadLock(scope);
   const { policy } = await readProjectConfig(scope);
   const audit = await auditLock(loaded, scope, policy?.denyWarn);
   setExitCode(audit);

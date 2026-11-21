@@ -38,6 +38,8 @@ git@github.com:owner/repo.git     clone URL
 
 `owner/repo` always means GitHub. Every other forge needs a full URL. A URL path is the repository, so name the skill as a positional argument instead.
 
+A clone URL can use any SSH user and needs no owner, as in `deploy@git.example.com:team/repo.git` or `git@git.example.com:repo.git`.
+
 Segments after `owner/repo` name one skill. `add` resolves them in this order:
 
 1. The path of a skill that discovery finds in the source.
@@ -52,6 +54,7 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
   The lockfile records this discovery root as `root`.
 - Named skills must exist in the source and have distinct names.
+- `add` doesn't install a skill when the scope already has one by that name from another source or another path. When you name the skill, `add` says where the installed one came from and exits `1`. The picker shows the skill as unavailable, and `--all` leaves it out. Run `nik remove <skill>` first.
 - `@ref` pins the skill. A pinned skill updates only when you name it in `nik update`.
 - Without `@ref`, `add` installs the upstream revision, a tag or the head of a branch (see [Tag or branch](#tag-or-branch)), even when it is younger than the [cooldown](#cooldown), and prints one warning with its age: `v2.0.0 is 1 day old, inside the 3-day cooldown.` `--min-release-age 0` turns the warning off.
 - `add` shows and scans every file before writing. `Read files…` at the review questions opens the files in a pager. See [security-scan.md](security-scan.md).
@@ -59,7 +62,8 @@ Segments after `owner/repo` name one skill. `add` resolves them in this order:
 - When `niksi.json` sets `policy.denyWarn`, a warn finding needs approval like a critical one, and `--yes` doesn't accept it. See [security-scan.md](security-scan.md#severities).
 - `add` offers to review missing dependencies mentioned by approved skills. With
   `--yes` or without a terminal, it prints a `nik add` command instead. This
-  command uses the same discovery root.
+  command uses the same discovery root. When the discovery root is in an SSH or
+  `file://` source, `add` prints a warning instead of the command.
 - `add` skips a mentioned skill that the current scope records. An enabled skill
   in the other scope counts only when a link or agent copy is present in every
   selected agent directory. When it counts, `add` names that scope. Path copies
@@ -211,16 +215,18 @@ nik update --check [-g|-p] [--json]
 - `update` reports missing dependencies but does not install them. If an entry
   has a `root`, both the check and the `nik add` command use that directory.
   `https://github.com/o/r/tree/main/plugins/x` searches `plugins/x`.
-  For remote sources, the command uses the recorded branch. If absent, it uses
-  `pinnedAs`, `tag`, or `commit`, in that order. Without any of these, `update`
-  reports that it cannot generate the command.
+  For an `https://` source, the forge URL names a ref: the recorded branch for
+  a dependency that a skill tracking `auto` mentions, and the reviewed ref for
+  one that only pinned skills mention. For an SSH or `file://` source with a
+  `root`, or an entry that records no ref, `update` prints a warning instead of
+  the command.
 - When only pinned skills mention a missing dependency, its `nik add` command
   ends the coordinate with `@<ref>`, so the dependency lands at the revision you
   reviewed. The ref is the new `pinnedAs` tag, or the commit when there is no
   tag or the tag has a character other than an ASCII letter, a digit, `.`, `_`,
-  `+`, or `-`. In a forge URL, `@<ref>` takes precedence over the branch in the
-  path. A dependency that a skill tracking `auto` mentions gets a command
-  without `@ref`, so one source can print two commands.
+  `+`, or `-`. A forge URL names the same ref in its path. A dependency that a
+  skill tracking `auto` mentions gets a command without `@ref`, so one source
+  can print two commands.
 - A dependency that the current scope records is not missing. An enabled
   dependency in the other scope counts only when a link or agent copy is present
   in every agent directory used by the updated skill. When it counts, `update`

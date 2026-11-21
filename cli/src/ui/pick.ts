@@ -15,13 +15,19 @@ import { integrityOf } from "../core/skill/integrity.ts";
 import type { Scope } from "../core/paths.ts";
 import { scopeFlag } from "../core/install/scope.ts";
 import { parseSource, type Coordinate } from "../core/source/coordinate.ts";
-import { sameSkill, sourceMatches, type Source } from "../core/source/index.ts";
+import {
+  coordinateFor,
+  LOCAL_PREFIX,
+  sameSkill,
+  sourceMatches,
+  type Source,
+} from "../core/source/index.ts";
 import { displayLabel, type Revision } from "../core/source/revision.ts";
 import type { UpdatableVerdict } from "../core/source/upstream.ts";
 import { USAGE_ERROR } from "../core/usage.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "./prompt.ts";
 import { describeUpdate, friendlySource, groupLabel } from "./status.ts";
-import { green, skillName, softOrange, summarize, unstruck } from "./style.ts";
+import { escapeControl, green, skillName, softOrange, summarize, unstruck } from "./style.ts";
 
 const COORDINATE_REMEDY = "Pass skill names, owner/repo/skill, or --all.";
 const SELECTION_REMEDY = "Pass skill names or --all.";
@@ -244,14 +250,15 @@ const extendRow = (skill: DiscoveredSkill, scope: Scope, missing: AgentId[]): Pi
   return mark === undefined ? { skill, why: `not in ${missing.join(", ")}` } : { skill, mark };
 };
 
-const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined => {
-  if (source.kind === "local") {
-    return sameSkill(entry, { source: source.id, path })
-      ? undefined
-      : join(entry.source, entry.path);
-  }
-  return entry.source === source.id ? undefined : friendlySource(entry.source);
-};
+const recordedLocation = (entry: LockEntry): string =>
+  escapeControl(
+    entry.source.startsWith(LOCAL_PREFIX)
+      ? join(coordinateFor(entry.source), entry.path)
+      : [friendlySource(entry.source), entry.path].filter(Boolean).join("/"),
+  );
+
+const installedElsewhere = (entry: LockEntry, source: Source, path: string): string | undefined =>
+  sameSkill(entry, { source: source.id, path }) ? undefined : recordedLocation(entry);
 
 export const pickSkillsToAdd = async (selection: AddSelection): Promise<Picked> => {
   const { skills, names, lock, scope, agents, source, options } = selection;

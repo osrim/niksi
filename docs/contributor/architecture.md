@@ -117,7 +117,9 @@ When the other scope satisfies a dependency, the report names that scope. An
 unreadable lockfile in the other scope prints a warning, and the check ignores
 that scope. A declined or blocked dependency does not remove its approved parent.
 Dependencies are offered only in a terminal without `yes`. Otherwise they are
-reported with the `nik add` command that adds them.
+reported with the `nik add` command that adds them. When `discoveryCoordinate`
+cannot build a coordinate for the discovery root, the report prints a warning
+instead of the command.
 
 Review questions and dependency offers go through a `Decisions` object from `ui/decisions.ts`. `clackDecisions` asks with Clack. Tests pass scripted decisions. Whether to ask, and what an answer means, stays in the gate and the review module.
 

@@ -6,9 +6,12 @@ import { applySkill } from "../core/install/apply.ts";
 import { emptyLock } from "../core/install/lockfile.ts";
 import type { SkillFile } from "../core/skill/files.ts";
 import type { DiscoveredSkill } from "../core/source/discover.ts";
+import { GitSource } from "../core/source/git-source.ts";
+import type { Source } from "../core/source/index.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import { pickSkillsToAdd, skillOption } from "./pick.ts";
 import { captureEnv } from "../test-env.ts";
+import { captureOutput } from "../test-output.ts";
 
 const skill = (over: Partial<DiscoveredSkill> = {}): DiscoveredSkill => ({
   name: "tdd",
@@ -318,5 +321,62 @@ describe("pickSkillsToAdd", () => {
       extend: [{ skill: copied, agents: ["opencode"] }],
       asked: false,
     });
+  });
+
+  const refusal = async (source: Source, entry: { source: string; path: string }) => {
+    const lock = emptyLock();
+    await applySkill(
+      { name: "tdd", ...entry, revision: rev, files: () => Promise.resolve(files) },
+      { kind: "link", scope: "global", agents: ["claude"], lock },
+    );
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exit");
+    });
+    const output = captureOutput();
+    try {
+      await expect(
+        pickSkillsToAdd({
+          skills: [skill({ path: "plugins/b/skills/tdd" })],
+          names: ["tdd"],
+          lock,
+          scope: "global",
+          agents: ["claude"],
+          source,
+          root: "",
+          rev,
+          options: { copy: false },
+        }),
+      ).rejects.toThrow("exit");
+      return output.text();
+    } finally {
+      exit.mockRestore();
+      output.restore();
+    }
+  };
+
+  test("a same-name skill at another path of the same repo is held by the recorded one", async () => {
+    const written = await refusal(new GitSource(sourceId), {
+      source: sourceId,
+      path: "plugins/a/skills/tdd",
+    });
+    expect(written).toInclude("tdd is already installed from o/r/plugins/a/skills/tdd.");
+  });
+
+  test("a skill recorded from a URL names that URL's repo and path", async () => {
+    const written = await refusal(upstream, {
+      source: "https://github.com/o/other",
+      path: "skills/tdd",
+    });
+    expect(written).toInclude("tdd is already installed from o/other/skills/tdd.");
+  });
+
+  test("a skill recorded from a local directory names that directory", async () => {
+    const written = await refusal(upstream, { source: "local:/", path: "elsewhere/skills/tdd" });
+    expect(written).toInclude("tdd is already installed from /elsewhere/skills/tdd.");
+  });
+
+  test("the recorded location escapes a control character in its path", async () => {
+    const written = await refusal(upstream, { source: "local:/", path: "else\u202Ewhere/tdd" });
+    expect(written).toInclude("tdd is already installed from /else<U+202E>where/tdd.");
   });
 });

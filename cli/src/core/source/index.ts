@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { projectRoot, type Scope } from "../paths.ts";
 import type { DiscoveredSkill } from "./discover.ts";
-import type { SourceKind, Coordinate } from "./coordinate.ts";
+import type { SourceKind, Coordinate, RefNamespace } from "./coordinate.ts";
 import type { Revision } from "./revision.ts";
 import type { SkillFile } from "../skill/files.ts";
 import type { InstalledSkill } from "../install/destination.ts";
@@ -47,7 +47,7 @@ export interface Source {
   upstream(skill: InstalledSkill): Promise<Upstream>;
   committedAt(rev: Revision): Promise<number | undefined>;
   discover(rev: string | undefined, root?: string): Promise<DiscoveredSkill[]>;
-  splitTree(segments: string[]): Promise<{ ref?: string; dir: string }>;
+  splitTree(segments: string[], namespace?: RefNamespace): Promise<{ ref?: string; dir: string }>;
   fetchFiles(rev: string | undefined, path: string): Promise<SkillFile[]>;
   history(rev: Revision, path: string): Promise<PastContent[]>;
   changes(from: InstalledSkill, to: string | undefined, before: string): Promise<Changes>;
@@ -78,7 +78,7 @@ export const resolveCoordinate = async (
   let dir = "";
   let ref = coordinate.ref;
   if (coordinate.tree) {
-    const split = await source.splitTree(coordinate.tree);
+    const split = await source.splitTree(coordinate.tree, coordinate.refNamespace);
     dir = split.dir;
     ref ??= split.ref;
   }
@@ -156,7 +156,9 @@ export const discoveryCoordinate = (skill: DiscoveryLocation): string | undefine
   const coordinate = coordinateFor(skill.source);
   if (!skill.root) return coordinate;
   if (skill.source.startsWith(LOCAL_PREFIX)) return join(coordinate, skill.root);
-  const ref = skill.branch || skill.pinnedAs || skill.tag || skill.commit;
+  if (!coordinate.startsWith("https://")) return undefined;
+  // A followed entry records its latest tag too, and a tree URL at a tag would pin the dependency.
+  const ref = skill.pinnedAs || skill.branch || skill.tag || skill.commit;
   if (!ref) return undefined;
   const segments = [...ref.split("/"), ...skill.root.split("/")];
   return `${coordinate}/tree/${segments.map(encodeURIComponent).join("/")}`;

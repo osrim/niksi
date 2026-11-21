@@ -17,12 +17,12 @@ import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
 import { logWarn, warn } from "./report.ts";
-import { dim, escapeControl, skillName } from "./style.ts";
+import { dim, escapeLine, skillName } from "./style.ts";
 
 export const warnMentions = (missing: MissingDep[], note: string): void => {
   for (const dep of missing) {
     warn(
-      `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${escapeControl(dep.file)}:${dep.line}. ${note}.`,
+      `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${escapeLine(dep.file)}:${dep.line}. ${note}.`,
     );
   }
 };
@@ -65,6 +65,10 @@ export const reportNotInstalled = (
   const selectors = missing.map((dep) =>
     dep.path === undefined ? dep.name : pathInRoot(discovered.root, dep.path),
   );
+  if (selectors.some((selector) => escapeLine(selector) !== selector)) {
+    warn("Cannot generate an add command: a dependency name or path holds control characters.");
+    return;
+  }
   const at = ref === undefined ? "" : `@${ref}`;
   p.log.info(
     `Add them: ${dim(`nik add ${coordinate}${at} ${selectors.join(" ")}${scopeFlag(scope)}`)}`,

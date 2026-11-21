@@ -124,6 +124,19 @@ test("a dependency warning escapes control characters in the file path", () => {
   expect(printed()).toContain("primary mentions helper at docs/^[[2J<U+202E>.md:5. not installed.");
 });
 
+test("a dependency path with control characters gets no add command", () => {
+  reportNotInstalled(
+    [{ from: "primary", name: "twin", path: "b/\u001B[2Jtwin", file: "SKILL.md", line: 6 }],
+    { source: "https://github.com/o/r" },
+    "project",
+  );
+  expect(printed()).not.toContain("\u001B[2J");
+  expect(printed()).not.toContain("Add them:");
+  expect(printed()).toContain(
+    "Cannot generate an add command: a dependency name or path holds control characters.",
+  );
+});
+
 test("an ambiguous dependency appears in the add command by its path", () => {
   reportNotInstalled(
     [

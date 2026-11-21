@@ -2,7 +2,17 @@ import * as p from "@clack/prompts";
 import prettyBytes from "pretty-bytes";
 import { isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Finding, Severity } from "../core/scan/index.ts";
-import { blue, bold, dim, escapeControl, orange, pad, red, skillName } from "./style.ts";
+import {
+  blue,
+  bold,
+  dim,
+  escapeControl,
+  escapeLine,
+  orange,
+  pad,
+  red,
+  skillName,
+} from "./style.ts";
 
 const headline =
   (paint: (text: string) => string) =>
@@ -23,7 +33,7 @@ export const logSkillError = (name: string, cause: unknown): void =>
 export const warn = (message: string): void => p.log.warn(headline(orange)(message));
 
 export const fileLabel = (file: SkillFile): string =>
-  `${escapeControl(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
+  `${escapeLine(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
 
 export const renderFiles = (files: SkillFile[]): string => files.map(fileLabel).join("\n");
 
@@ -61,7 +71,7 @@ const detailOf = (finding: Finding): string => {
 
 const locationOf = (finding: Finding): string => {
   if (!finding.file) return "";
-  const file = escapeControl(finding.file);
+  const file = escapeLine(finding.file);
   return finding.line ? `${file}:${finding.line}` : file;
 };
 

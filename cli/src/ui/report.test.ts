@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Finding } from "../core/scan/index.ts";
-import { renderFindings } from "./report.ts";
+import { MODE_FILE } from "../core/skill/files.ts";
+import { fileLabel, renderFindings } from "./report.ts";
 
 const ESC = "\u001B";
 
@@ -155,5 +156,19 @@ test("renderFindings escapes control characters in the skill name and the detail
     "1 warn finding",
     "  symlink: links inside the skill",
     "    link  symlink \u2192 a^[]8;;x^G<U+202E>b",
+  ]);
+});
+
+test("a tab or newline in a file name keeps the label on one row", () => {
+  expect(fileLabel({ path: "a\nb.sh", content: Buffer.from("x"), mode: MODE_FILE })).toBe(
+    "a^Jb.sh (1 B)",
+  );
+  const rendered = renderFindings("fixture", [
+    executableAt("a\nb.sh", "first"),
+    executableAt("c\td.sh", "second"),
+  ]);
+  expect(Bun.stripANSI(rendered).split("\n").slice(-2)).toEqual([
+    "    a^Jb.sh  first",
+    "    c^Id.sh  second",
   ]);
 });

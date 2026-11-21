@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import type { Finding } from "../core/scan/index.ts";
 import { pageSkills, type PagedSkill } from "./pager.ts";
 import { unwrap } from "./prompt.ts";
-import { skillName } from "./style.ts";
+import { escapeLine, skillName } from "./style.ts";
 
 export interface DependencyOffer {
   name: string;
@@ -56,7 +56,7 @@ export const clackDecisions: Decisions = {
     unwrap(
       await p.multiselect<string>({
         message: "Add these dependencies?",
-        options: offers.map(({ name, hint }) => ({ value: name, label: name, hint })),
+        options: offers.map(({ name, hint }) => ({ value: name, label: escapeLine(name), hint })),
         required: false,
       }),
     ),

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { probe, probeTerminal } from "../test-color.ts";
-import { escapeControl, skillName } from "./style.ts";
+import { escapeControl, escapeLine, skillName, summarize } from "./style.ts";
 
 const ESC = "\u001B";
 
@@ -85,4 +85,15 @@ describe("escapeControl", () => {
 
 test("skillName escapes control characters in the name", () => {
   expect(Bun.stripANSI(skillName(`evil${ESC}[2J\u202Eab`))).toBe("evil^[[2J<U+202E>ab");
+});
+
+test("escapeLine also marks tabs and newlines, so a name stays on one line", () => {
+  expect(escapeLine(`a\tb\nc${ESC}`)).toBe("a^Ib^Jc^[");
+  expect(Bun.stripANSI(skillName("two\nlines"))).toBe("two^Jlines");
+});
+
+test("summarize escapes control characters before it truncates", () => {
+  const hint = summarize(`Clears${ESC}[2J the screen\u202E and more`, 20)!;
+  expect(hint).not.toContain(ESC);
+  expect(hint.startsWith("Clears^[[2J the")).toBe(true);
 });

@@ -27,6 +27,7 @@ export const bold: Paint = ansi.bold;
 export const dim: Paint = ansi.dim;
 
 const CONTROL = /(?![\t\n])[\p{Cc}\p{Cf}]/gu;
+const LINE_CONTROL = /[\p{Cc}\p{Cf}]/gu;
 
 const marker = (char: string): string => {
   const code = char.codePointAt(0)!;
@@ -35,9 +36,13 @@ const marker = (char: string): string => {
     : `<${codeOf(code)}>`;
 };
 
+// For multiline text such as file bodies and diffs: tabs and newlines stay.
 export const escapeControl = (text: string): string => text.replace(CONTROL, marker);
 
-export const skillName: Paint = (text) => ansi.cyan(escapeControl(text));
+// For a single value such as a name or a path: tabs and newlines show as ^I and ^J.
+export const escapeLine = (text: string): string => text.replace(LINE_CONTROL, marker);
+
+export const skillName: Paint = (text) => ansi.cyan(escapeLine(text));
 
 export const unstruck: Paint = (text) => `${ansi.strikethrough.close}${text}`;
 
@@ -70,4 +75,6 @@ export const pad = (text: string, width: number): string =>
 export const summarize = (text: string | undefined, width = 60): string | undefined =>
   text === undefined || text === ""
     ? undefined
-    : cliTruncate(text.replace(/\s+/gu, " ").trim(), width, { preferTruncationOnSpace: true });
+    : cliTruncate(escapeLine(text.replace(/\s+/gu, " ").trim()), width, {
+        preferTruncationOnSpace: true,
+      });

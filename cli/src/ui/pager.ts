@@ -4,7 +4,7 @@ import { onPath } from "../core/install/agents.ts";
 import { byPath, decodeText, isSymlink, type SkillFile } from "../core/skill/files.ts";
 import type { Changes } from "../core/source/index.ts";
 import { fileLabel } from "./report.ts";
-import { blue, bold, colorOn, dim, escapeControl, green, red } from "./style.ts";
+import { blue, bold, colorOn, dim, escapeControl, escapeLine, green, red } from "./style.ts";
 
 export interface PagedSkill {
   name: string;
@@ -42,7 +42,7 @@ export const colorStat = (stat: string): string =>
   );
 
 const renderFile = (file: SkillFile, highlight: Highlight): string => {
-  const path = escapeControl(file.path);
+  const path = escapeLine(file.path);
   const header = bold(fileLabel(file));
   const text = decodeText(file)?.text;
   const body = isSymlink(file.mode)
@@ -58,7 +58,7 @@ const skillFirst = (a: SkillFile, b: SkillFile): number =>
 
 const renderSkill = ({ name, files, diff }: PagedSkill, highlight: Highlight): string =>
   [
-    bold(`==> ${escapeControl(name)}`),
+    bold(`==> ${escapeLine(name)}`),
     ...(diff?.patch ? [colorDiff(escapeControl(diff.patch.trimEnd()))] : []),
     ...files.toSorted(skillFirst).map((file) => renderFile(file, highlight)),
   ].join("\n\n");

@@ -17,7 +17,7 @@ import { fetchSkillFiles, type SkillFiles } from "./flow.ts";
 import { reviewSkills, type ReviewOptions } from "./gate.ts";
 import { isInteractive } from "./prompt.ts";
 import { logSourceCaution } from "./report.ts";
-import { summarize } from "./style.ts";
+import { escapeLine, summarize } from "./style.ts";
 
 export interface ReviewRequest {
   source: Source;
@@ -76,7 +76,10 @@ const refersTo = (dep: MissingDep, skill: DiscoveredSkill): boolean =>
 
 const offerFor = (request: ReviewRequest, dep: MissingDep): DependencyOffer => {
   const skill = request.skills.find((candidate) => refersTo(dep, candidate))!;
-  return { name: dep.name, hint: summarize(skill.description) ?? `mentioned by ${dep.from}` };
+  return {
+    name: dep.name,
+    hint: summarize(skill.description) ?? `mentioned by ${escapeLine(dep.from)}`,
+  };
 };
 
 const expandDependencies = async (

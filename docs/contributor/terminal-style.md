@@ -37,7 +37,7 @@ Linking to claude.
 
 `--path` selects project scope and a destination root. It prints no scope or agent default.
 
-`install` and `enable` select agents only when the entries they restore include a link entry without recorded agents. When every link entry records agents, or there are only copies, they print no agent default. With `--agent`, they print `Ignoring --agent. Every lockfile entry records its destination.` on stderr. When there is nothing to restore, they print no notice.
+`install` and `enable` select agents only when the entries they restore include a link entry without recorded agents. When every link entry records agents, or there are only copies, they print no agent default. With `--agent`, they print `Ignoring --agent. Every skill to restore records its destination.` on stderr. When there is nothing to restore, they print no notice.
 
 ## Result lines
 

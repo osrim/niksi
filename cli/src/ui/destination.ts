@@ -135,7 +135,7 @@ export const preferredAgents = (
 
 const NO_AGENT = "No agent detected. Using claude. Pass --agent to choose.";
 
-const AGENT_IGNORED = "Ignoring --agent. Every lockfile entry records its destination.";
+const AGENT_IGNORED = "Ignoring --agent. Every skill to restore records its destination.";
 
 export const checkAgentFlag = (value: string | string[] | undefined): AgentId[] | null => {
   try {

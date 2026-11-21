@@ -175,6 +175,6 @@ test("restoring entries that record their agents ignores --agent with a warning 
   expect(output.text()).toBe(output.stderr());
   expect(output.stderr().match(/Ignoring --agent/gu)).toEqual(["Ignoring --agent"]);
   expect(output.stderr()).toContain(
-    "Ignoring --agent. Every lockfile entry records its destination.",
+    "Ignoring --agent. Every skill to restore records its destination.",
   );
 });

@@ -97,11 +97,18 @@ test("enable says it ignores --agent when every selected entry records its agent
 
   expect(enabled.exitCode).toBe(0);
   expect(enabled.stderr).toContain(
-    "Ignoring --agent. Every lockfile entry records its destination.",
+    "Ignoring --agent. Every skill to restore records its destination.",
   );
   expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(true);
   expect(existsSync(join(project, ".opencode", "skills", "alpha"))).toBe(false);
-  expect((await readLockJson(project))["alpha"]!["agents"]).toEqual(["claude"]);
+  const alpha = (await readLockJson(project))["alpha"]!;
+  expect(alpha["agents"]).toEqual(["claude"]);
+  expect(alpha["disabled"]).toBeUndefined();
+  const listed = await runCli(project, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toMatchObject([
+    { name: "alpha", state: "installed", agents: ["claude"] },
+  ]);
 });
 
 test("disable with a local source path disables every entry from that source only", async () => {

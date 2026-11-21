@@ -231,7 +231,7 @@ test("install says it ignores --agent when every link entry records its agents",
 
   expect(flagged.exitCode).toBe(0);
   expect(flagged.stderr).toContain(
-    "Ignoring --agent. Every lockfile entry records its destination.",
+    "Ignoring --agent. Every skill to restore records its destination.",
   );
   expect(await isLink(join(root, ".claude", "skills", "recorded"))).toBe(true);
   expect(await isLink(join(root, ".opencode", "skills", "recorded"))).toBe(false);

@@ -170,7 +170,19 @@ export const cloneOrFetch = async (repo: string, options: CloneOptions = {}): Pr
   const sshBatch = options.sshBatch === true;
   if (sshBatch) batchClones.add(dir);
   if (existsSync(dir)) {
-    const fetched = await git(["fetch", "--quiet", "--prune", "--tags", "--force", "origin"], dir);
+    const fetched = await git(
+      [
+        "-c",
+        "remote.origin.followRemoteHEAD=always",
+        "fetch",
+        "--quiet",
+        "--prune",
+        "--tags",
+        "--force",
+        "origin",
+      ],
+      dir,
+    );
     if (fetched.code === 0) return dir;
     const fresh = `${dir}.new`;
     await rm(fresh, { recursive: true, force: true });
@@ -328,15 +340,6 @@ export const listTags = async (clone: string): Promise<TagRef[]> => {
     });
 };
 
-export const defaultBranch = async (clone: string): Promise<string> => {
-  const result = await git(["symbolic-ref", "refs/remotes/origin/HEAD"], clone);
-  if (result.code === 0) return result.out.replace("refs/remotes/origin/", "");
-  const remote = await git(["ls-remote", "--symref", "origin", "HEAD"], clone);
-  const match = remote.out.match(/^ref: refs\/heads\/(\S+)\tHEAD$/mu);
-  if (match) return match[1]!;
-  throw new Error("cannot determine the default branch");
-};
-
 export const findRef = async (clone: string, ref: string): Promise<string | null> => {
   for (const candidate of [`origin/${ref}`, `refs/tags/${ref}^{commit}`, `${ref}^{commit}`]) {
     const result = await git(
@@ -360,6 +363,19 @@ export const isBranch = async (clone: string, ref: string): Promise<boolean> => 
     clone,
   );
   return result.code === 0;
+};
+
+// Git before 2.48 ignores followRemoteHEAD, so a fetch there leaves origin/HEAD on a branch that
+// upstream renamed and the fetch pruned.
+export const defaultBranch = async (clone: string): Promise<string> => {
+  const head = await git(["symbolic-ref", "refs/remotes/origin/HEAD"], clone);
+  const recorded = head.out.replace("refs/remotes/origin/", "");
+  if (head.code === 0 && (await isBranch(clone, recorded))) return recorded;
+  const remote = await git(["ls-remote", "--symref", "origin", "HEAD"], clone);
+  const name = /^ref: refs\/heads\/(\S+)\tHEAD$/mu.exec(remote.out)?.[1];
+  if (name === undefined) throw new Error("cannot determine the default branch");
+  await git(["remote", "set-head", "origin", name], clone);
+  return name;
 };
 
 // The stat shows in a note, which wraps its content 6 columns short of the 80-column default.

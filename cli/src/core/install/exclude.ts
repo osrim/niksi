@@ -7,8 +7,8 @@ import { placementOf, readLock } from "./lockfile.ts";
 import { installedSkills } from "./destination.ts";
 import { projectRoot } from "../paths.ts";
 
-export const BLOCK_BEGIN = "# >>> niksi: managed skill links (rebuilt by `nik install`)";
-export const BLOCK_END = "# <<< niksi";
+const BLOCK_BEGIN = "# >>> niksi: managed skill links (rebuilt by `nik install`)";
+const BLOCK_END = "# <<< niksi";
 
 const stripBlock = (text: string): string => {
   const lines = text.split("\n");
@@ -37,7 +37,7 @@ export const replaceBlock = (current: string, patterns: string[]): string => {
   return `${kept}${kept === "" ? "" : "\n"}${block}\n`;
 };
 
-export const excludeFile = async (root: string): Promise<string | null> => {
+const excludeFile = async (root: string): Promise<string | null> => {
   const result = await git(["rev-parse", "--git-path", "info/exclude"], root);
   if (result.code !== 0) return null;
   return isAbsolute(result.out) ? result.out : join(root, result.out);

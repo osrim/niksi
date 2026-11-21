@@ -12,7 +12,6 @@ import {
 } from "../ui/destination.ts";
 import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { selectRecorded } from "../ui/pick.ts";
 import { intro, outro, promptWarn } from "../ui/prompt.ts";
 import { emptyScopeMessage, refuseViolations } from "../ui/status.ts";
@@ -39,7 +38,6 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
   intro("nik enable");
   const scope = resolveScope(options, promptWarn) ?? "project";
   const { policy } = await readProjectConfig(scope);
-  await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
   if (Object.keys(loaded.lock.skills).length === 0) {

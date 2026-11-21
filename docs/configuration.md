@@ -142,10 +142,6 @@ A `niksi.json` that isn't a JSON object, has a value of the wrong type, or has a
 
 `NIKSI_HOME` replaces the data and config roots at once. `NIKSI_HOME=/tmp/x` puts the global skills, the global lockfile, the store, and the config under `/tmp/x`. It does not move the cache.
 
-### Migrating from ski
-
-Before 0.3.0 the project was named `ski`. The first `nik` command in a project renames `ski-lock.json` to `niksi-lock.json` and `.ski` to `.niksi`, re-points the agent skill links, renames the block in `.git/info/exclude`, and moves `~/.config/ski/config.json` to `~/.config/niksi/config.json`. The first `nik` command with `-g` moves the global skills, lockfile, store, config, and cache from `~/.local/share/ski`, `~/.config/ski`, and `~/.cache/ski` to `niksi` the same way. A skills directory or lockfile whose new path already exists is left alone. An old store, cache, or config beside a new one is deleted. `SKI_HOME` is now `NIKSI_HOME`. A set `SKI_HOME` without `NIKSI_HOME` exits `2`.
-
 ### Moving an existing global lockfile
 
 The global lockfile is `$XDG_CONFIG_HOME/niksi/niksi-lock.json`, or `~/.config/niksi/niksi-lock.json` when `XDG_CONFIG_HOME` is unset. If that file does not exist, `niksi` keeps using the legacy lockfile at `$XDG_DATA_HOME/niksi/niksi-lock.json`, which defaults to `~/.local/share/niksi/niksi-lock.json`. Reads and writes keep using the legacy file until you move it.

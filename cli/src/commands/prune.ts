@@ -11,7 +11,6 @@ import {
 import { storeDir, type Scope } from "../core/paths.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { bold, dim, pad, tildify } from "../ui/style.ts";
 
 export const help: CommandHelp = {
@@ -56,7 +55,6 @@ const printPlan = (plan: PruneCandidate[]): void => {
 
 export const run = async (options: PruneOptions): Promise<void> => {
   p.intro("nik prune");
-  for (const scope of SCOPES) await migrateIfLegacy(scope);
   const plan = await prunePlan(await keptEntries());
   if (plan.length === 0) {
     p.outro("Nothing to prune.");

@@ -271,7 +271,7 @@ test("update --check --json passed twice still writes only JSON to stdout", asyn
   expect(result.stderr).toContain("Using global scope.");
 });
 
-test("update --check stops on a ski 0.2 layout, names nik list, and moves nothing", async () => {
+test("update --check --json ignores a ski 0.2 layout and leaves it in place", async () => {
   const legacy = join(tmp, "legacy-project");
   await mkdir(join(legacy, ".ski", "skills"), { recursive: true });
   await mkdir(join(legacy, ".git"));
@@ -279,9 +279,12 @@ test("update --check stops on a ski 0.2 layout, names nik list, and moves nothin
 
   const result = await runCli(legacy, ...CHECK, "--json");
 
-  expect(result.exitCode).toBe(1);
-  expect(result.stdout).toBe("");
-  expect(result.stderr).toContain("Run `nik list` once to move them, then check again.");
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    scope: "project",
+    lockfile: join(legacy, "niksi-lock.json"),
+    skills: [],
+  });
   expect(existsSync(join(legacy, "ski-lock.json"))).toBe(true);
   expect(existsSync(join(legacy, ".ski", "skills"))).toBe(true);
   expect(existsSync(join(legacy, "niksi-lock.json"))).toBe(false);

@@ -6,7 +6,6 @@ export const isInteractive = (): boolean => Boolean(process.stdin.isTTY && proce
 
 export const intro = p.intro;
 export const outro = p.outro;
-export const promptWarn = p.log.warn;
 
 export const unwrap = <T>(value: T | typeof p.CANCEL_SYMBOL): T => {
   if (p.isCancel(value)) {

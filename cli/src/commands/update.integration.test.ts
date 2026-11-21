@@ -350,7 +350,8 @@ test("a skill added from a forge URL subtree keeps its root, and the dependency 
       commit: upstreamCommit,
       root: "plugins/x",
     });
-    expect(updated.stdout).not.toContain("mentions friend");
+    expect(updated.stderr).toContain("primary mentions helper");
+    expect(updated.stderr).not.toContain("mentions friend");
     const hint = /Add them: nik add (\S+) (.+)$/mu.exec(updated.stdout);
     expect(hint?.slice(1)).toEqual([`${forge}/tree/main/plugins/x`, "helper"]);
 

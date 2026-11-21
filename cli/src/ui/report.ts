@@ -30,7 +30,7 @@ export const logWarn = (message: string): void =>
 export const logSkillError = (name: string, cause: unknown): void =>
   logError(`${skillName(name)}: ${(cause as Error).message}`);
 
-export const warn = (message: string): void => p.log.warn(headline(orange)(message));
+export const reviewWarn = (message: string): void => p.log.warn(headline(orange)(message));
 
 export const fileLabel = (file: SkillFile): string =>
   `${escapeLine(file.path)} (${isSymlink(file.mode) ? "symlink" : prettyBytes(file.content.length)})`;
@@ -44,7 +44,7 @@ const LOG_BY_SEVERITY: Record<Severity, (message: string) => void> = {
 };
 
 export const logSourceCaution = (): void => {
-  warn(bold("Review files before installing."));
+  reviewWarn(bold("Review files before installing."));
 };
 
 const SEVERITY_COLOR: Record<Severity, (text: string) => string> = {

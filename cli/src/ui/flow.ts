@@ -8,6 +8,7 @@ import type { SkillFile } from "../core/skill/files.ts";
 import { writeLock, type LoadedLockfile } from "../core/install/lockfile.ts";
 import { IntegrityError } from "../core/install/store.ts";
 import type { Scope } from "../core/paths.ts";
+import { CRITICAL_EXIT } from "../core/scan/index.ts";
 import { scopeFlag } from "../core/install/scope.ts";
 import { failNoTTY, isInteractive, unwrap, withSpinner } from "./prompt.ts";
 import { logError, logSkillError } from "./report.ts";
@@ -170,7 +171,7 @@ export const land = async <T>({
       failed++;
     }
   }
-  if (failed > 0) process.exitCode = process.exitCode === 3 ? 3 : 1;
+  if (failed > 0) process.exitCode = process.exitCode === CRITICAL_EXIT ? CRITICAL_EXIT : 1;
   if (lock) await writeLock(lock);
   await hideLinksFromGit(scope);
   if (outro) p.outro(outro(applied));

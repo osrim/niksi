@@ -88,7 +88,8 @@ test("a non-interactive subtree add prints a dependency command that preserves t
     const flags = ["-p", "--agent", "claude", "--yes"];
     const added = await runCli(project, "add", `${forge}/tree/main/plugins/x`, "primary", ...flags);
     expect(added.exitCode).toBe(0);
-    expect(added.stdout).not.toContain("mentions outside");
+    expect(added.stderr).toContain("primary mentions helper");
+    expect(added.stderr).not.toContain("mentions outside");
     expect(existsSync(join(project, ".niksi/skills/helper"))).toBe(false);
     const hint = /Add them: nik add (\S+) (.+)$/mu.exec(added.stdout);
     expect(hint?.slice(1)).toEqual([`${forge}/tree/main/plugins/x`, "helper"]);

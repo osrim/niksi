@@ -4,7 +4,7 @@ For contributors. Rules for what `niksi` prints and asks. User-facing behavior o
 
 ## Streams
 
-Human output goes to stdout inside a Clack frame. Runtime warnings, errors, and the update notice go to stderr. Security findings and the cooldown warning of `add` stay on stdout because they are part of the review. `list --json`, `audit --json`, and `update --check --json` write only JSON to stdout.
+Human output goes to stdout inside a Clack frame. Runtime warnings, errors, and the update notice go to stderr. The review stays on stdout: the security findings, the `Review files before installing.` caution, the `skipped` line of a declined or blocked skill, and the cooldown warning of `add`. So do the notes that `audit` prints with its findings. `list --json`, `audit --json`, and `update --check --json` write only JSON to stdout.
 
 The internal `__scan-source` command writes JSON counts to stdout and discovery warnings and findings to stderr. The GitHub Action puts stderr in the job log.
 
@@ -37,7 +37,7 @@ Linking to claude.
 
 `--path` selects project scope and a destination root. It prints no scope or agent default.
 
-`install` selects agents only when the lockfile has a link entry without recorded agents. A lockfile whose link entries all record agents, or that contains only copies, prints no agent default. With `--agent`, it prints `Ignoring --agent. Every lockfile entry records its destination.`
+`install` and `enable` select agents only when the entries they restore include a link entry without recorded agents. When every link entry records agents, or there are only copies, they print no agent default. With `--agent`, they print `Ignoring --agent. Every lockfile entry records its destination.` on stderr.
 
 ## Result lines
 

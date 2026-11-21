@@ -87,6 +87,23 @@ test("disable removes the link and canonical copy, keeps the entry, and rebuilds
   expect(await readFile(exclude, "utf8")).toContain(".claude/skills/alpha");
 });
 
+test("enable says it ignores --agent when every selected entry records its agents", async () => {
+  const { project, source } = await setup("enable-agent-ignored");
+  await makeSkill(source, "alpha");
+  await addLink(project, source, "alpha");
+  expect((await runCli(project, "disable", "alpha", "-y")).exitCode).toBe(0);
+
+  const enabled = await runCli(project, "enable", "alpha", "-y", "--agent", "opencode");
+
+  expect(enabled.exitCode).toBe(0);
+  expect(enabled.stderr).toContain(
+    "Ignoring --agent. Every lockfile entry records its destination.",
+  );
+  expect(existsSync(join(project, ".claude", "skills", "alpha"))).toBe(true);
+  expect(existsSync(join(project, ".opencode", "skills", "alpha"))).toBe(false);
+  expect((await readLockJson(project))["alpha"]!["agents"]).toEqual(["claude"]);
+});
+
 test("disable with a local source path disables every entry from that source only", async () => {
   const { project, source } = await setup("by-source");
   const other = join(tmp, "by-source-other");
@@ -281,8 +298,8 @@ test("disable warns that a modified skill's edits are discarded", async () => {
 
   const disabled = await runCli(project, "disable", "alpha", "-y");
   expect(disabled.exitCode).toBe(0);
-  expect(disabled.stdout).toContain("1 skill(s) modified since install: alpha");
-  expect(disabled.stdout).toContain("Disabling discards those edits");
+  expect(disabled.stderr).toContain("1 skill(s) modified since install: alpha");
+  expect(disabled.stderr).toContain("Disabling discards those edits");
   expect(existsSync(join(project, ".niksi", "skills", "alpha"))).toBe(false);
 });
 
@@ -355,7 +372,7 @@ test("agent copies and path copies go through a disable and enable cycle", async
   const enabled = await runCli(project, "enable", "--all", "-y");
   expect(enabled.exitCode).toBe(0);
   expect(enabled.stdout).not.toContain("Linking to");
-  expect(enabled.stdout).not.toContain("No agent detected");
+  expect(enabled.stderr).not.toContain("No agent detected");
   expect((await lstat(join(project, ".agents", "skills", "gamma"))).isDirectory()).toBe(true);
   expect(existsSync(join(project, "published", "delta", "SKILL.md"))).toBe(true);
   lock = await readLockJson(project);
@@ -420,7 +437,7 @@ test("disable -y warns and proceeds, and a disabled referrer does not count", as
   const disabled = await runCli(project, "disable", "grilling", "-y");
 
   expect(disabled.exitCode).toBe(0);
-  expect(disabled.stdout).toContain("grilling is referenced by wayfinder\n");
+  expect(disabled.stderr).toContain("grilling is referenced by wayfinder\n");
   expect(disabled.stdout).toContain("grilling: disabled");
   expect(existsSync(join(project, ".claude", "skills", "grilling"))).toBe(false);
   expect((await readLockJson(project))["grilling"]!["disabled"]).toBe(true);
@@ -435,7 +452,7 @@ test("disabling a skill together with its referrers warns about neither", async 
   const disabled = await runCli(project, "disable", "grilling", "wayfinder", "-y");
 
   expect(disabled.exitCode).toBe(0);
-  expect(disabled.stdout).not.toContain("is referenced by");
+  expect(disabled.stderr).not.toContain("is referenced by");
   const lock = await readLockJson(project);
   expect(lock["grilling"]!["disabled"]).toBe(true);
   expect(lock["wayfinder"]!["disabled"]).toBe(true);
@@ -451,7 +468,7 @@ test("disable catches a referrer installed from another source", async () => {
   const disabled = await runCli(project, "disable", "grilling", "-y");
 
   expect(disabled.exitCode).toBe(0);
-  expect(disabled.stdout).toContain("grilling is referenced by planner");
+  expect(disabled.stderr).toContain("grilling is referenced by planner");
   expect((await readLockJson(project))["grilling"]!["disabled"]).toBe(true);
 });
 

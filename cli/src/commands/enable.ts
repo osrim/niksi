@@ -4,16 +4,12 @@ import { resolveScope, type ScopeOptions } from "../core/install/scope.ts";
 import { policyViolations } from "../core/policy.ts";
 import { readProjectConfig } from "../core/project-config.ts";
 import { displayLabel } from "../core/source/revision.ts";
-import {
-  chooseAgents,
-  needsAgents,
-  refuseUnsafeSkillsDirs,
-  warnLinkCollisions,
-} from "../ui/destination.ts";
+import { checkAgentFlag, restoreAgents, warnLinkCollisions } from "../ui/destination.ts";
 import { land, reportRestoreError, restoreSkill } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { selectRecorded } from "../ui/pick.ts";
-import { intro, outro, promptWarn } from "../ui/prompt.ts";
+import { intro, outro } from "../ui/prompt.ts";
+import { logWarn } from "../ui/report.ts";
 import { emptyScopeMessage, refuseViolations } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 
@@ -35,8 +31,9 @@ interface EnableOptions extends ScopeOptions {
 }
 
 export const run = async (args: string[], options: EnableOptions): Promise<void> => {
+  checkAgentFlag(options.agent);
   intro("nik enable");
-  const scope = resolveScope(options, promptWarn) ?? "project";
+  const scope = resolveScope(options, logWarn) ?? "project";
   const { policy } = await readProjectConfig(scope);
 
   const loaded = await loadLock(scope);
@@ -59,8 +56,7 @@ export const run = async (args: string[], options: EnableOptions): Promise<void>
 
   const selected = skills.filter((skill) => names.includes(skill.name));
   refuseViolations(policyViolations(policy, selected), "Nothing enabled.");
-  const agents = needsAgents(selected) ? await chooseAgents(options, scope) : [];
-  await refuseUnsafeSkillsDirs(scope, agents);
+  const agents = await restoreAgents(selected, options, scope);
   warnLinkCollisions(selected, scope, agents);
 
   await land({

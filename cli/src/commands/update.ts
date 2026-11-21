@@ -54,7 +54,7 @@ import type { CommandHelp } from "../ui/help.ts";
 import { colorStat } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
-import { logError, logSkillError, logSourceCaution, logWarn, warn } from "../ui/report.ts";
+import { logError, logSkillError, logSourceCaution, logWarn } from "../ui/report.ts";
 import {
   describeUpdate,
   emptyScopeMessage,
@@ -105,7 +105,7 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   const source = sourceSelector(options.source, names);
   const reportPath = await reportTarget(options.report);
   p.intro("nik update");
-  const scope = resolveScope(options, p.log.warn) ?? "project";
+  const scope = resolveScope(options, logWarn) ?? "project";
   const { minimumReleaseAge, policy } = await readProjectConfig(scope);
   const days = minReleaseAge(options.minReleaseAge, minimumReleaseAge);
   const report: UpdateReport = {
@@ -342,7 +342,7 @@ const destinationFor = async (
 ): Promise<Destination> => {
   const { destination, defaulted } = await updateDestination(skill, scope, lock);
   if (defaulted && destination.kind === "link") {
-    warn(`${skillName(skill.name)}: missing. Linking to ${destination.agents.join(", ")}.`);
+    logWarn(`${skillName(skill.name)}: missing. Linking to ${destination.agents.join(", ")}.`);
   }
   return destination;
 };
@@ -577,7 +577,7 @@ const runCheck = async (names: string[], options: UpdateOptions): Promise<void> 
   const empty = Object.keys(target.loaded.lock.skills).length === 0;
   const emptyMessage = empty ? await emptyScopeMessage(scope) : "";
   p.intro("nik update --check");
-  for (const message of warnings) p.log.warn(message);
+  for (const message of warnings) logWarn(message);
   if (empty) {
     p.outro(emptyMessage);
     return;

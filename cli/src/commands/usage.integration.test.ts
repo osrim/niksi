@@ -74,6 +74,8 @@ test.each([
     args: ["add", "./skills/demo", "-p", "--agent", "nope", "-y"],
     message: "Unknown agent(s): nope",
   },
+  { args: ["install", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
+  { args: ["enable", "demo", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
   { args: ["install", "demo"], message: "nik install takes no arguments." },
   { args: ["prune", "-g"], message: "Unknown option `-g`" },
 ])("$args exits 2 with a usage message", async ({ args, message }) => {
@@ -85,6 +87,17 @@ test.each([
   expect(result.stderr).toContain(message);
   expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
 });
+
+test.each([["install"], ["update"], ["list"], ["audit"], ["enable"], ["disable"], ["remove"]])(
+  "%s from the home directory warns about global scope on stderr",
+  async (command) => {
+    const result = await runCli(tmp, command);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("Home directory. Using global scope.");
+    expect(result.stdout).not.toContain("Home directory");
+  },
+);
 
 test.each([
   {

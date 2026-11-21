@@ -230,7 +230,7 @@ test("install says it ignores --agent when every link entry records its agents",
   const flagged = await run(root, "install", "--agent", "opencode", "--yes");
 
   expect(flagged.exitCode).toBe(0);
-  expect(flagged.stdout).toContain(
+  expect(flagged.stderr).toContain(
     "Ignoring --agent. Every lockfile entry records its destination.",
   );
   expect(await isLink(join(root, ".claude", "skills", "recorded"))).toBe(true);

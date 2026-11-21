@@ -299,6 +299,53 @@ test("add refuses a project whose .claude links to the global one and writes no 
   }
 });
 
+test("install refuses to restore into a .claude that links to the global one", async () => {
+  const root = await project("linked-restore", "demo");
+  await addLink(root, "demo");
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+  await rm(join(root, ".claude"), { recursive: true });
+  await rm(join(root, ".niksi"), { recursive: true });
+  const globalClaude = join(tmp, ".claude");
+  await mkdir(join(globalClaude, "skills"), { recursive: true });
+  await symlink(globalClaude, join(root, ".claude"));
+  try {
+    const result = await runCli(root, "install", "--yes");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("through the symlink");
+    expect(await readdir(join(globalClaude, "skills"))).toEqual([]);
+    expect(existsSync(join(root, ".niksi", "skills", "demo"))).toBe(false);
+    expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+    expect(await listedRow(root)).toMatchObject({ name: "demo", state: "missing" });
+  } finally {
+    await rm(globalClaude, { recursive: true, force: true });
+  }
+});
+
+test("remove refuses the whole selection when a .claude links to the global one", async () => {
+  const root = await project("linked-remove", "demo");
+  await addLink(root, "demo");
+  const lock = await readFile(join(root, "niksi-lock.json"), "utf8");
+  await rm(join(root, ".claude"), { recursive: true });
+  const globalClaude = join(tmp, ".claude");
+  await mkdir(join(globalClaude, "skills"), { recursive: true });
+  const globalLink = join(globalClaude, "skills", "demo");
+  await symlink(join(root, ".niksi", "skills", "demo"), globalLink);
+  await symlink(globalClaude, join(root, ".claude"));
+  try {
+    const result = await runCli(root, "remove", "demo", "--yes");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("through the symlink");
+    expect(await isLink(globalLink)).toBe(true);
+    expect(existsSync(join(root, ".niksi", "skills", "demo", "SKILL.md"))).toBe(true);
+    expect(await readFile(join(root, "niksi-lock.json"), "utf8")).toBe(lock);
+    expect(await listedRow(root)).toMatchObject({ name: "demo", state: "installed" });
+  } finally {
+    await rm(globalClaude, { recursive: true, force: true });
+  }
+});
+
 test("a refused skills directory prints its path with control characters escaped", async () => {
   const root = await project("escaped-refusal", "demo");
   const evil = join(tmp, "niksi-home", "store", "evil\u001B[2J");

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -15,6 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { $ } from "bun";
 import {
   cliRunner,
   commitAll,
@@ -474,6 +476,63 @@ test("add refuses a same-name skill from another path of the recorded Git source
   expect(await readFile(join(root, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toContain(
     "from a",
   );
+  expect(await listedRow(root)).toMatchObject({
+    name: "demo",
+    source,
+    path: "plugins/a/skills/demo",
+    state: "installed",
+  });
+});
+
+test("add takes an SCP address with no owner", async () => {
+  const root = await project("scp-no-owner");
+  const host = join(tmp, "ssh-host");
+  await makeSkill(join(host, "repo.git", "skills"), "demo");
+  await initRepo(join(host, "repo.git"));
+  await commitAll(join(host, "repo.git"), "init");
+  const ssh = join(tmp, "bin", "ssh-host");
+  await mkdir(join(tmp, "bin"), { recursive: true });
+  // Runs the remote command on this machine, from the directory that stands in for the host.
+  await writeFile(ssh, `#!/bin/sh\nfor last; do :; done\ncd '${host}' && exec sh -c "$last"\n`);
+  await chmod(ssh, 0o755);
+  const source = "git@niksi-test.invalid:repo.git";
+
+  const restore = captureEnv("GIT_SSH_COMMAND");
+  process.env.GIT_SSH_COMMAND = ssh;
+  try {
+    const added = await runCli(root, "add", source, "demo", "-p", "--agent", "claude", "-y");
+    expect(added.exitCode).toBe(0);
+  } finally {
+    restore();
+  }
+
+  expect((await readSkills(root))["demo"]).toMatchObject({ source, path: "skills/demo" });
+  expect(existsSync(join(root, ".claude", "skills", "demo", "SKILL.md"))).toBe(true);
+  expect(await listedRow(root)).toMatchObject({ name: "demo", source, state: "installed" });
+});
+
+test("add from a cached source follows a default branch renamed upstream", async () => {
+  const root = await project("renamed-default");
+  const repo = join(tmp, "renamed-source");
+  await makeSkill(join(repo, "skills"), "alpha");
+  await makeSkill(join(repo, "skills"), "beta");
+  await initRepo(repo);
+  await commitAll(repo, "two skills");
+  const source = pathToFileURL(repo).href;
+  const add = (name: string) => runCli(root, "add", source, name, "-p", "--agent", "claude", "-y");
+  expect((await add("alpha")).exitCode).toBe(0);
+  await $`git -C ${repo} branch -m main trunk`.quiet();
+
+  expect((await add("beta")).exitCode).toBe(0);
+
+  expect((await readSkills(root))["beta"]).toMatchObject({ source, branch: "trunk" });
+  expect(existsSync(join(root, ".claude", "skills", "beta", "SKILL.md"))).toBe(true);
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toEqual([
+    expect.objectContaining({ name: "alpha", state: "installed" }),
+    expect.objectContaining({ name: "beta", state: "installed" }),
+  ]);
 });
 
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {

@@ -372,10 +372,11 @@ test("audit and list --json ignore a ski 0.2 layout and leave it in place", asyn
   const audit = await runCli(project, "audit", "--json");
   const list = await runCli(project, "list", "--json");
 
+  const empty = { scope: "project", lockfile: join(project, "niksi-lock.json"), skills: [] };
   expect(audit.exitCode).toBe(0);
-  expect(JSON.parse(audit.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(JSON.parse(audit.stdout)).toMatchObject(empty);
   expect(list.exitCode).toBe(0);
-  expect(JSON.parse(list.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(JSON.parse(list.stdout)).toEqual(empty);
   expect(existsSync(join(project, "ski-lock.json"))).toBe(true);
   expect(existsSync(join(project, ".ski", "skills"))).toBe(true);
   expect(existsSync(join(project, "niksi-lock.json"))).toBe(false);

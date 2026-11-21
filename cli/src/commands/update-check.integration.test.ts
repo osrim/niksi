@@ -280,7 +280,11 @@ test("update --check --json ignores a ski 0.2 layout and leaves it in place", as
   const result = await runCli(legacy, ...CHECK, "--json");
 
   expect(result.exitCode).toBe(0);
-  expect(JSON.parse(result.stdout)).toMatchObject({ scope: "project", skills: [] });
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    scope: "project",
+    lockfile: join(legacy, "niksi-lock.json"),
+    skills: [],
+  });
   expect(existsSync(join(legacy, "ski-lock.json"))).toBe(true);
   expect(existsSync(join(legacy, ".ski", "skills"))).toBe(true);
   expect(existsSync(join(legacy, "niksi-lock.json"))).toBe(false);

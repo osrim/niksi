@@ -509,16 +509,6 @@ test("projectRoot treats every skills directory root as a marker, not detection-
   });
 });
 
-test("projectRoot does not treat a ski 0.2 lockfile as a marker", async () => {
-  const root = join(tmp, "ski-lock-root");
-  const nested = join(root, "nested");
-  await mkdir(nested, { recursive: true });
-  await writeFile(join(root, "ski-lock.json"), '{"lockfileVersion":1,"skills":{}}\n');
-  await inDir(nested, () => {
-    expect(projectRoot()).toBe(nested);
-  });
-});
-
 test("an entry with a kiro agent copy round-trips", async () => {
   const copy = { ...entry, copy: true as const, agents: ["kiro" as const] };
   await writeGlobal({ lockfileVersion: 2, skills: { tdd: { ...copy, agents: [...copy.agents] } } });

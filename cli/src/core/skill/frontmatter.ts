@@ -1,28 +1,24 @@
 import { parse } from "yaml";
 
-const OPEN = /^\uFEFF?---[ \t]*\r?\n/u;
-const CLOSE = /^---(?:[ \t][^\n]*)?\r?$/u;
+const OPEN = /^\uFEFF?---\s*\n/u;
+const CLOSE = "---";
 
-// `end` is the offset just past the closing `---` line, before its line break.
+// `end` is the offset just past the closing `---`.
 export interface FrontmatterBlock {
   yaml: string;
   end: number;
 }
 
-// The first line is `---`, after an optional byte order mark. The block ends at the next line that
-// is `---` alone or before a space, as in `--- # end`, so it may be empty. `---text` does not end it.
+// The first line is `---`, after an optional byte order mark. The block ends at the next `---`,
+// wherever it stands, as Claude Code reads it: `--- # end`, `---x`, and `a: b---c` all end it, and
+// the rest of that line is body. So the scan never misses a field that Claude Code applies.
 export const frontmatterBlock = (text: string): FrontmatterBlock | undefined => {
   const open = OPEN.exec(text);
   if (!open) return undefined;
   const start = open[0].length;
-  for (let at = start; at <= text.length;) {
-    const newline = text.indexOf("\n", at);
-    const end = newline === -1 ? text.length : newline;
-    if (CLOSE.test(text.slice(at, end))) return { yaml: text.slice(start, at), end };
-    if (newline === -1) return undefined;
-    at = newline + 1;
-  }
-  return undefined;
+  const close = text.indexOf(CLOSE, start);
+  if (close === -1) return undefined;
+  return { yaml: text.slice(start, close), end: close + CLOSE.length };
 };
 
 export const parseFrontmatter = (text: string): Record<string, unknown> => {

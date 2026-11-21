@@ -33,6 +33,12 @@ export default [
     ],
   },
   {
+    name: "a closing --- followed by text still ends the frontmatter, as Claude Code reads it",
+    path: "SKILL.md",
+    content: "---\nname: x\nallowed-tools: Bash\n---x\nbody\n",
+    fire: [{ severity: "critical", detail: "Bash" }],
+  },
+  {
     name: "no grants",
     path: "SKILL.md",
     content: frontmatter("name: x", "description: y"),

@@ -18,18 +18,21 @@ test("parseFrontmatter reads frontmatter after a byte order mark, and empty fron
   expect(parseFrontmatter("---\r\nname: x\r\n---\r\nbody")).toEqual({ name: "x" });
 });
 
-test("--- alone or before a space closes the frontmatter, --- before other text does not", () => {
-  const text = "---\na: 1\n---x\nb: 2\n--- \nbody\n";
-  expect(frontmatterBlock(text)).toEqual({
-    yaml: "a: 1\n---x\nb: 2\n",
-    end: text.indexOf("\nbody"),
-  });
-  expect(frontmatterBlock("---\na: 1\n---x\n")).toBeUndefined();
+test("the first --- after the opening line closes the frontmatter, as Claude Code reads it", () => {
+  expect(frontmatterBlock("---\na: 1\n---\nbody")).toEqual({ yaml: "a: 1\n", end: 12 });
   expect(frontmatterBlock("---\n---")).toEqual({ yaml: "", end: 7 });
-  expect(frontmatterBlock("---\na: 1\n--- # end\nbody")).toEqual({ yaml: "a: 1\n", end: 18 });
-  expect(parseFrontmatter("---\nallowed-tools: Bash\n--- # end\nbody")).toEqual({
-    "allowed-tools": "Bash",
-  });
+  expect(frontmatterBlock("---\na: 1\n--- # end\nbody")).toEqual({ yaml: "a: 1\n", end: 12 });
+  expect(frontmatterBlock("---\na: 1\n---x\nb: 2\n---\n")).toEqual({ yaml: "a: 1\n", end: 12 });
+  expect(frontmatterBlock("---\na: b---c\n---\n")).toEqual({ yaml: "a: b", end: 11 });
   expect(frontmatterBlock("--- x\na: 1\n---\n")).toBeUndefined();
   expect(frontmatterBlock("body\n---\na: 1\n---\n")).toBeUndefined();
+  expect(frontmatterBlock("---\na: 1\n")).toBeUndefined();
+});
+
+test("a closing --- followed by text still applies the fields before it", () => {
+  for (const close of ["---x", "--- # end"]) {
+    expect(parseFrontmatter(`---\nallowed-tools: Bash\n${close}\nbody`)).toEqual({
+      "allowed-tools": "Bash",
+    });
+  }
 });

@@ -187,23 +187,33 @@ test("each position knows its nearest heading", () => {
   expect(map.headingAt(text.indexOf("curl"))).toBe("Anti-patterns");
 });
 
-test("frontmatter may follow a byte order mark, be empty, and close only on a whole --- line", () => {
+test("frontmatter may follow a byte order mark, be empty, and close on the first ---", () => {
   const bom = doc("\uFEFF---", "name: probe", "---", "body");
   expect(contextOf(bom, "name: probe")).toBe("frontmatter");
   expect(contextOf(bom, "body")).toBe("prose");
   const empty = doc("---", "---", "# Heading", "body");
   expect(contextOf(empty, "---")).toBe("frontmatter");
   expect(mapMarkdown(empty).headingAt(empty.indexOf("body"))).toBe("Heading");
-  const dashes = doc("---", "a: 1", "---not a close", "b: 2", "---", "body");
-  expect(contextOf(dashes, "b: 2")).toBe("frontmatter");
-  expect(contextOf(dashes, "body")).toBe("prose");
+  const dashes = doc("---", "a: 1", "---then body", "b: 2", "---", "body");
+  expect(contextOf(dashes, "a: 1")).toBe("frontmatter");
+  expect(contextOf(dashes, "then body")).toBe("prose");
+  expect(contextOf(dashes, "b: 2")).toBe("prose");
 });
 
 test("frontmatter that never closes is read in linear time", () => {
-  const lines = "---x\n".repeat(20_000);
+  const lines = "--x\n".repeat(20_000);
   const { ratio, rounds } = slowdown(
     () => mapMarkdown(`---\n${lines}`),
     () => mapMarkdown(`---\n---\n${lines}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("a long run of spaces after an opening --- is read in linear time", () => {
+  const spaces = " ".repeat(200_000);
+  const { ratio, rounds } = slowdown(
+    () => mapMarkdown(`---${spaces}x\nbody\n`),
+    () => mapMarkdown(`--x${spaces}x\nbody\n`),
   );
   expect(ratio, rounds).toBeLessThan(3);
 });

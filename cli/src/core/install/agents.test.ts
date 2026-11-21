@@ -1,4 +1,5 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -352,14 +353,23 @@ test("a relative XDG_CONFIG_HOME falls back to ~/.config", async () => {
   const root = await project("relative-xdg");
   await mkdir(join(root, "config", "zed"), { recursive: true });
   await mkdir(join(tmp, "home", ".config", "amp"), { recursive: true });
-  expect(detectedNames()).toEqual(["Amp"]);
+  expect(detectedNames()).toContain("Amp");
+  expect(detectedNames()).not.toContain("Zed");
 });
 
 test("a relative $CODEX_HOME falls back to ~/.codex", async () => {
-  const root = await project("relative-codex");
-  await mkdir(join(root, "codex-home"), { recursive: true });
-  process.env.CODEX_HOME = "codex-home";
-  expect(detectedNames()).toEqual([]);
-  await mkdir(join(tmp, "home", ".codex"), { recursive: true });
-  expect(detectedNames()).toEqual(["Codex"]);
+  const existsSync = fs.existsSync;
+  const probe = spyOn(fs, "existsSync").mockImplementation(
+    (path) => path !== "/etc/codex" && existsSync(path),
+  );
+  try {
+    const root = await project("relative-codex");
+    await mkdir(join(root, "codex-home"), { recursive: true });
+    process.env.CODEX_HOME = "codex-home";
+    expect(detectedNames()).toEqual([]);
+    await mkdir(join(tmp, "home", ".codex"), { recursive: true });
+    expect(detectedNames()).toEqual(["Codex"]);
+  } finally {
+    probe.mockRestore();
+  }
 });

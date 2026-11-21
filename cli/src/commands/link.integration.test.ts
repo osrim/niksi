@@ -199,6 +199,12 @@ test.skipIf(existsSync("/etc/codex"))(
       expect(result.exitCode).toBe(0);
       expect(result.stdout).not.toContain("No agent detected");
       expect(await isLink(join(root, ".claude", "skills", "demo"))).toBe(true);
+      expect((await readSkills(root))["demo"]).toMatchObject({ agents: ["claude"] });
+      expect(await listedRow(root)).toMatchObject({
+        name: "demo",
+        state: "installed",
+        agents: ["claude"],
+      });
     } finally {
       restorePath();
     }

@@ -565,7 +565,7 @@ An unknown shell exits `2`.
 | --- | --- | --- |
 | `-g`, `--global` | all but `prune` and `completion` | Use global scope. |
 | `-p`, `--project` | all but `prune` and `completion` | Use project scope. |
-| `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
+| `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. An unknown agent, or a value with no agent such as `,`, exits `2`. |
 | `-a`, `--all` | `add`, `adopt`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
 | `-y`, `--yes` | `add`, `adopt`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings, or warn findings under `policy.denyWarn`. |
 | `--dangerous-skip-critical-approval` | `add`, `adopt`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |

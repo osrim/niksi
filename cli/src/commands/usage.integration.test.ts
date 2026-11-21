@@ -76,6 +76,10 @@ test.each([
   },
   { args: ["install", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
   { args: ["enable", "demo", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
+  {
+    args: ["add", "./skills/demo", "-p", "--agent", ",", "-y"],
+    message: "--agent needs at least one agent.",
+  },
   { args: ["install", "--agent", ",", "-y"], message: "--agent needs at least one agent." },
   { args: ["enable", "demo", "--agent", ",", "-y"], message: "--agent needs at least one agent." },
   { args: ["install", "demo"], message: "nik install takes no arguments." },

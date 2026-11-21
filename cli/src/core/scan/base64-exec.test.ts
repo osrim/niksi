@@ -53,6 +53,11 @@ test("a call name built from pieces and os.system through __import__", () => {
   expect(inScript('getattr(obj, "name")(arg)')).toBeUndefined();
 });
 
+test("a getattr call counts only when its opening parenthesis is on the same line", () => {
+  expect(inScript("getattr(o, 'sy' + 'stem') \t(cmd)")?.line).toBe(1);
+  expect(inScript("getattr(o, 'sy' + 'stem')", "(cmd)")).toBeUndefined();
+});
+
 test("one line counts once, and a comment drops one level", () => {
   expect(inScript("echo cGF5bG9hZA== | base64 -d | sh", "data = base64.b64decode(blob)")).toEqual({
     severity: "critical",

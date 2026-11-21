@@ -174,8 +174,12 @@ const readLongName = (type: string, data: Buffer, long: LongNames): void => {
   }
 };
 
-const tarEntry = (header: Buffer, long: LongNames, data: Buffer): Entry | undefined => {
-  const type = field(header, 156, 1) || "0";
+const tarEntry = (
+  header: Buffer,
+  type: string,
+  long: LongNames,
+  data: Buffer,
+): Entry | undefined => {
   if (type === "5" || type === "g") return undefined;
   const name = (long.name ?? tarName(header)).replace(/^(?:\.\/)+/u, "");
   if (type === "2") {
@@ -201,12 +205,12 @@ const tarEntries = (buf: Buffer): Entry[] => {
     if (at + BLOCK + size > buf.length) throw new Error("truncated tar member");
     const data = buf.subarray(at + BLOCK, at + BLOCK + size);
     at += BLOCK + Math.ceil(size / BLOCK) * BLOCK;
-    const type = field(header, 156, 1);
+    const type = field(header, 156, 1) || "0";
     if (type === "L" || type === "K" || type === "x") {
       readLongName(type, data, long);
       continue;
     }
-    const entry = tarEntry(header, long, data);
+    const entry = tarEntry(header, type, long, data);
     long = {};
     if (entry) entries.push(entry);
   }

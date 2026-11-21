@@ -85,6 +85,17 @@ test("a word that names an Object member is not a decoder", () => {
   expect(inMarkdown("Then hasOwnProperty x hasOwnProperty echo | sh")).toBeUndefined();
 });
 
+test("a long run of spaces after an empty-string join scans in linear time", () => {
+  const spaces = " ".repeat(20_000);
+  // A token keeps its answer for the last line it read, so each run gets a line of its own.
+  let run = 0;
+  const { ratio, rounds } = slowdown(
+    () => inScript(`''.join(${spaces}${run++}`),
+    () => inScript(`''.join(${run++}${spaces}`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
 test("a long prose line scans in linear time", () => {
   for (const words of ["ordinary ", "base64 ", "openssl enc "]) {
     const text = words.repeat(60_000);

@@ -307,6 +307,14 @@ test("--agent rejects unknown values and lists ids then agent names", () => {
   );
 });
 
+test("--agent rejects a value that names no agent", () => {
+  for (const value of [",", " , ", ["", ","]]) {
+    expect(() => parseAgentFlag(value)).toThrow(
+      "--agent needs at least one agent.\nIds: universal",
+    );
+  }
+});
+
 test("an agent name whose home directory it does not read in the scope warns", async () => {
   await project("unread");
   expect(unreadWarnings("antigravity", "global")).toEqual([

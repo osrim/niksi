@@ -76,6 +76,8 @@ test.each([
   },
   { args: ["install", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
   { args: ["enable", "demo", "--agent", "nope", "-y"], message: "Unknown agent(s): nope" },
+  { args: ["install", "--agent", ",", "-y"], message: "--agent needs at least one agent." },
+  { args: ["enable", "demo", "--agent", ",", "-y"], message: "--agent needs at least one agent." },
   { args: ["install", "demo"], message: "nik install takes no arguments." },
   { args: ["prune", "-g"], message: "Unknown option `-g`" },
 ])("$args exits 2 with a usage message", async ({ args, message }) => {

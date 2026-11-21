@@ -342,17 +342,17 @@ const isAgentId = (token: string): token is AgentId => AGENT_IDS.includes(token 
 const agentByNameOnly = (token: string): AgentDef | undefined =>
   isAgentId(token) ? undefined : AGENTS.find((agent) => agent.name === token);
 
+const agentFlagError = (problem: string): Error =>
+  new Error(`${problem}\nIds: ${AGENT_IDS.join(", ")}\nAgents: ${AGENT_NAMES.join(", ")}`);
+
 export const parseAgentFlag = (value: string | string[] | undefined): AgentId[] | null => {
+  if (value === undefined) return null;
   const tokens = agentTokens(value);
-  if (tokens.length === 0) return null;
+  if (tokens.length === 0) throw agentFlagError("--agent needs at least one agent.");
   const unknown = tokens.filter(
     (token) => !isAgentId(token) && agentByNameOnly(token) === undefined,
   );
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unknown agent(s): ${unknown.join(", ")}\nIds: ${AGENT_IDS.join(", ")}\nAgents: ${AGENT_NAMES.join(", ")}`,
-    );
-  }
+  if (unknown.length > 0) throw agentFlagError(`Unknown agent(s): ${unknown.join(", ")}`);
   const ids = tokens.map((token) => (isAgentId(token) ? token : homeOf(agentByNameOnly(token)!)));
   return [...new Set(ids)];
 };

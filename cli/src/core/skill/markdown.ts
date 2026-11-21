@@ -64,9 +64,14 @@ interface Tagger {
   // An opener looks up its closer in these instead of rescanning the text after it.
   backtickRunsByLength: Map<number, number[]>;
   commentCloses: number[];
+  // Where the body starts: past the closing `---`, which may stand mid-line.
+  bodyStart: number;
 }
 
 const offsetOf = (t: Tagger, line: number): number => t.starts[line] ?? t.text.length;
+
+// Where a body token's line starts. The line that closes the frontmatter starts after the `---`.
+const bodyLineStart = (t: Tagger, line: number): number => Math.max(offsetOf(t, line), t.bodyStart);
 
 const mark = (t: Tagger, start: number, end: number, context: Context): void => {
   const value = CONTEXTS.indexOf(context);
@@ -273,17 +278,19 @@ const definition = (t: Tagger, line: number, claimed: Set<number>): void => {
   }
 };
 
+// Returns the line that holds the closing `---`, where the body starts.
 const markFrontmatter = (t: Tagger): number => {
   const block = frontmatterBlock(t.text);
   if (!block) return 0;
   mark(t, 0, block.end, "frontmatter");
-  return lineOf(t.starts, block.end) + 1;
+  t.bodyStart = block.end;
+  return lineOf(t.starts, block.end);
 };
 
 const codeBlock = (t: Tagger, token: Token, [a, b]: [number, number]): CodeBlock | undefined => {
   const context = token.type === "fence" ? "fence" : "indented";
-  const hidden = t.tags[offsetOf(t, a)] === HIDDEN;
-  mark(t, offsetOf(t, a), offsetOf(t, b), context);
+  const hidden = t.tags[bodyLineStart(t, a)] === HIDDEN;
+  mark(t, bodyLineStart(t, a), offsetOf(t, b), context);
   if (hidden) return undefined;
   const line = context === "fence" ? a + 2 : a + 1;
   return { context, info: token.info, line, lines: token.content.split("\n").length - 1 };
@@ -298,7 +305,7 @@ const LEAVES = new Set(["fence", "code_block", "html_block", "inline"]);
 
 const tagLeaf = (t: Tagger, token: Token, [a, b]: [number, number]): CodeBlock | undefined => {
   if (token.type === "fence" || token.type === "code_block") return codeBlock(t, token, [a, b]);
-  scanRange(t, offsetOf(t, a), offsetOf(t, b), token.type === "inline");
+  scanRange(t, bodyLineStart(t, a), offsetOf(t, b), token.type === "inline");
   return undefined;
 };
 
@@ -308,7 +315,7 @@ const walk = (t: Tagger, tokens: Token[], claimed: Set<number>) => {
   for (const [i, token] of tokens.entries()) {
     if (!token.map) continue;
     const [a, b] = token.map;
-    if (token.type === "heading_open" && t.tags[offsetOf(t, a)] !== HIDDEN) {
+    if (token.type === "heading_open" && t.tags[bodyLineStart(t, a)] !== HIDDEN) {
       headings.push({ line: a, text: tokens[i + 1]!.content });
     }
     if (!LEAVES.has(token.type)) continue;
@@ -338,12 +345,16 @@ export const mapMarkdown = (text: string): MarkdownMap => {
     hidden: [],
     backtickRunsByLength: indexBacktickRuns(text),
     commentCloses: Array.from(text.matchAll(/-->/gu), (close) => close.index),
+    bodyStart: 0,
   };
-  const skipped = markFrontmatter(t);
-  const body = "\n".repeat(skipped) + text.slice(offsetOf(t, skipped));
+  // The rest of the closing line is body, as it is to Claude Code, which drops the spaces before
+  // it. Blank lines in place of the frontmatter keep the line numbers.
+  const first = markFrontmatter(t);
+  const rest = text.slice(t.bodyStart);
+  const body = t.bodyStart === 0 ? text : "\n".repeat(first) + rest.replace(/^[ \t]+/u, "");
   const claimed = new Set<number>();
   const { headings, codeBlocks } = walk(t, markdown.parse(body, {}), claimed);
-  for (let line = skipped; line < t.starts.length; line++) {
+  for (let line = t.bodyStart === 0 ? 0 : first + 1; line < t.starts.length; line++) {
     if (!claimed.has(line)) definition(t, line, claimed);
   }
   let spans: Span[] | undefined;

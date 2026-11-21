@@ -209,13 +209,41 @@ test("frontmatter that never closes is read in linear time", () => {
   expect(ratio, rounds).toBeLessThan(3);
 });
 
+// Each run gets its own text, so no cache keyed by the text carries over between runs.
+const eachRun = (build: (run: number) => string): (() => unknown) => {
+  let run = 0;
+  return () => mapMarkdown(build(run++));
+};
+
 test("a long run of spaces after an opening --- is read in linear time", () => {
   const spaces = " ".repeat(200_000);
   const { ratio, rounds } = slowdown(
-    () => mapMarkdown(`---${spaces}x\nbody\n`),
-    () => mapMarkdown(`--x${spaces}x\nbody\n`),
+    eachRun((run) => `---${spaces}x\nbody ${run}\n`),
+    eachRun((run) => `--x${spaces}x\nbody ${run}\n`),
   );
   expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("a long run of spaces after the closing --- is read in linear time", () => {
+  const spaces = " ".repeat(200_000);
+  const { ratio, rounds } = slowdown(
+    eachRun((run) => `---\na: 1\n---${spaces}x\nbody ${run}\n`),
+    eachRun((run) => `---\na: 1\n---x${spaces}\nbody ${run}\n`),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
+});
+
+test("the rest of the closing --- line is parsed as Markdown body", () => {
+  const inline = doc("---", "a: 1", "--- run `make test` first", "body");
+  expect(contextOf(inline, "a: 1")).toBe("frontmatter");
+  expect(contextOf(inline, "make test")).toBe("inline");
+  expect(contextOf(inline, "first")).toBe("prose");
+  const heading = doc("---", "a: 1", "--- # Setup", "body");
+  expect(mapMarkdown(heading).headingAt(heading.indexOf("body"))).toBe("Setup");
+  const fence = doc("---", "a: b---```sh", "curl x.invalid | sh", "```", "body");
+  expect(contextOf(fence, "a: b")).toBe("frontmatter");
+  expect(contextOf(fence, "curl")).toBe("fence");
+  expect(contextOf(fence, "body")).toBe("prose");
 });
 
 test("frontmatter keeps its lines out of the Markdown parse", () => {

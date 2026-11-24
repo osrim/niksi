@@ -15,7 +15,6 @@ import { displayLabel } from "../core/source/revision.ts";
 import { resolveScope, scopeFlag, type ScopeOptions } from "../core/install/scope.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { logWarn } from "../ui/report.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage, friendlySource, reportModified } from "../ui/status.ts";
 import { bold, dim, pad, skillName, softOrange, tildify } from "../ui/style.ts";
 
@@ -53,7 +52,6 @@ export const run = async (options: ListOptions): Promise<void> => {
 
   p.intro("nik list");
   const scope = resolveScope(options, p.log.warn) ?? "project";
-  await migrateIfLegacy(scope);
   const { file, lock } = await loadLock(scope);
   if (Object.keys(lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));
@@ -149,7 +147,6 @@ const summaryLine = (rows: ListRow[], scope: Scope): string => {
 
 const runJson = async (options: ListOptions): Promise<void> => {
   const scope = resolveScope(options, logWarn) ?? "project";
-  await migrateIfLegacy(scope, true);
   const { file, lock } = await loadLock(scope);
   const rows = await buildRows(lock, scope);
   console.log(

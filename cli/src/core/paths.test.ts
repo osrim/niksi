@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, expect, test } from "bun:test";
-import { isAbsolute } from "node:path";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { isAbsolute, join } from "node:path";
 import { captureEnv } from "../test-env.ts";
 import {
   cacheDir,
@@ -9,6 +11,7 @@ import {
   envPath,
   legacyLockPath,
   lockPath,
+  projectRoot,
   storeDir,
   userHome,
 } from "./paths.ts";
@@ -73,6 +76,21 @@ test("NIKSI_HOME replaces the data and config roots at once", () => {
   expect(storeDir()).toBe("/opt/niksi/store");
   expect(lockPath("global")).toBe("/opt/niksi/niksi-lock.json");
   expect(legacyLockPath()).toBe("/opt/niksi/niksi-lock.json");
+});
+
+test("projectRoot does not treat a ski 0.2 lockfile as a marker", async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), "niksi-paths-test-")));
+  const nested = join(root, "nested");
+  const prev = process.cwd();
+  try {
+    await mkdir(nested);
+    await writeFile(join(root, "ski-lock.json"), '{"lockfileVersion":1,"skills":{}}\n');
+    process.chdir(nested);
+    expect(projectRoot()).toBe(nested);
+  } finally {
+    process.chdir(prev);
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("an empty variable falls back", () => {

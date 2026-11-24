@@ -13,7 +13,6 @@ import type { CommandHelp } from "../ui/help.ts";
 import { pickRecorded } from "../ui/pick.ts";
 import { refuseUnsafeSkillsDirs } from "../ui/destination.ts";
 import { fail, intro, outro, promptWarn } from "../ui/prompt.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage } from "../ui/status.ts";
 import { skillName } from "../ui/style.ts";
 
@@ -30,7 +29,6 @@ interface RemoveOptions extends ScopeOptions {
 export const run = async (names: string[], options: RemoveOptions): Promise<void> => {
   intro("nik remove");
   const scope = resolveScope(options, promptWarn) ?? "project";
-  await migrateIfLegacy(scope);
 
   const loaded = await loadLock(scope);
   const installed = Object.keys(loaded.lock.skills).toSorted();

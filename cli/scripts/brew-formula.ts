@@ -21,7 +21,6 @@ const FLAVORS: Record<Channel, Flavor> = {
     desc: "Install, review, and share agent skills",
     conflict: "niksi-alpha",
     caveats: `      ski was renamed to niksi. The command is now nik.
-      Run any nik command in an existing project to migrate ski-lock.json and .ski.
       See https://github.com/osrim/niksi/releases/tag/v0.3.0`,
   },
   alpha: {

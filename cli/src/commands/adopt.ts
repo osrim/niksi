@@ -32,7 +32,6 @@ import { usageError, USAGE_ERROR } from "../core/usage.ts";
 import { land } from "../ui/flow.ts";
 import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { fail, requireTTY, unwrap, withSpinner } from "../ui/prompt.ts";
 import { logError, logSkillError, warn } from "../ui/report.ts";
 import { friendlySource } from "../ui/status.ts";
@@ -86,7 +85,6 @@ export const run = async (names: string[], options: AdoptOptions): Promise<void>
   const from = sourceOption(options.source);
   const { policy } = await readProjectConfig(scope);
   refuseSource(from, policy);
-  await migrateIfLegacy(scope);
   const loaded = await loadLock(scope);
   const { skills, skipped } = await findUnmanaged(scope, loaded.lock);
   reportSkipped(skipped, names);

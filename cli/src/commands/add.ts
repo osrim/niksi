@@ -35,7 +35,6 @@ import { readOtherScopeLock } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import { confirmWrite, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { createSpinner, fail } from "../ui/prompt.ts";
 import { logError, logWarn, warn } from "../ui/report.ts";
@@ -113,7 +112,6 @@ export const run = async (
   if (parsed.skill) names = [parsed.skill, ...names];
 
   const source = sourceForCoordinate(parsed);
-  await migrateIfLegacy(options.global ? "global" : "project");
   const scope = await chooseAddScope(options, mode.where);
   const { minimumReleaseAge, policy } = await readProjectConfig(scope);
   refuseSource(sourceViolation(policy, source.id));
@@ -127,7 +125,6 @@ export const run = async (
     p.outro("Nothing added.");
     return;
   }
-  await migrateIfLegacy(scope);
   const { source: scopedSource, skills, root } = scopeCoordinate(source, scope, fetched);
 
   const loaded = await loadLock(scope);

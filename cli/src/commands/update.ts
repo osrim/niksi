@@ -16,7 +16,6 @@ import {
   updateDestination,
   type InstalledSkill,
 } from "../core/install/destination.ts";
-import { legacyLayoutPresent } from "../core/install/migrate.ts";
 import { tildify, type Scope } from "../core/paths.ts";
 import { CRITICAL_EXIT, criticalRules, type Finding } from "../core/scan/index.ts";
 import { integrityOf } from "../core/skill/integrity.ts";
@@ -52,7 +51,6 @@ import { readOtherScopeLock, reportUpdateDeps, type UpdatedFiles } from "../ui/d
 import { land } from "../ui/flow.ts";
 import { confirmWrite, reviewSkills, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
-import { migrateIfLegacy } from "../ui/migrate.ts";
 import { colorStat } from "../ui/pager.ts";
 import { pickUpdates } from "../ui/pick.ts";
 import { fail, withSpinner } from "../ui/prompt.ts";
@@ -110,7 +108,6 @@ export const run = async (names: string[], options: UpdateOptions): Promise<void
   const scope = resolveScope(options, p.log.warn) ?? "project";
   const { minimumReleaseAge, policy } = await readProjectConfig(scope);
   const days = minReleaseAge(options.minReleaseAge, minimumReleaseAge);
-  await migrateIfLegacy(scope);
   const report: UpdateReport = {
     scope,
     updated: [],
@@ -549,12 +546,6 @@ const checkTarget = async (
   scopeWarning: (message: string) => void,
 ): Promise<CheckTarget> => {
   const scope = resolveScope(options, scopeWarning) ?? "project";
-  // The check writes nothing, so it stops instead of moving files, as audit does.
-  if (legacyLayoutPresent(scope)) {
-    throw new Error(
-      `found files from ski 0.2. Run \`nik list${scopeFlag(scope)}\` once to move them, then check again.`,
-    );
-  }
   const { policy } = await readProjectConfig(scope);
   const loaded = await loadLock(scope);
   const { enabled, disabled } = splitDisabled(loaded.lock);

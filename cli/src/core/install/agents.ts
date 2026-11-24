@@ -1,6 +1,14 @@
 import { existsSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { projectRoot, claudeDir, envPath, tildify, userHome, type Scope } from "../paths.ts";
+import {
+  projectRoot,
+  claudeDir,
+  envPath,
+  tildify,
+  userHome,
+  xdgRoot,
+  type Scope,
+} from "../paths.ts";
 
 export type AgentId = "universal" | "claude" | "opencode" | "kiro" | "cline" | "qwen";
 
@@ -14,8 +22,7 @@ interface SkillsDirDef {
 
 const userPath = (...segments: string[]): string => join(userHome(), ...segments);
 
-const xdgConfigDir = (name: string): string =>
-  join(envPath("XDG_CONFIG_HOME") ?? userPath(".config"), name);
+const xdgConfigDir = (name: string): string => join(xdgRoot("XDG_CONFIG_HOME", ".config"), name);
 
 export const onPath = (binary: string): boolean =>
   (process.env.PATH ?? "")
@@ -97,7 +104,7 @@ export const AGENTS: AgentDef[] = [
     display: "Codex",
     reads: reads(["universal"]),
     detect: () =>
-      existsSync(envPath("CODEX_HOME") ?? userPath(".codex")) ||
+      existsSync(envPath("CODEX_HOME", false) ?? userPath(".codex")) ||
       existsSync("/etc/codex") ||
       onPath("codex"),
   },
@@ -335,17 +342,17 @@ const isAgentId = (token: string): token is AgentId => AGENT_IDS.includes(token 
 const agentByNameOnly = (token: string): AgentDef | undefined =>
   isAgentId(token) ? undefined : AGENTS.find((agent) => agent.name === token);
 
+const agentFlagError = (problem: string): Error =>
+  new Error(`${problem}\nIds: ${AGENT_IDS.join(", ")}\nAgents: ${AGENT_NAMES.join(", ")}`);
+
 export const parseAgentFlag = (value: string | string[] | undefined): AgentId[] | null => {
+  if (value === undefined) return null;
   const tokens = agentTokens(value);
-  if (tokens.length === 0) return null;
+  if (tokens.length === 0) throw agentFlagError("--agent needs at least one agent.");
   const unknown = tokens.filter(
     (token) => !isAgentId(token) && agentByNameOnly(token) === undefined,
   );
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unknown agent(s): ${unknown.join(", ")}\nIds: ${AGENT_IDS.join(", ")}\nAgents: ${AGENT_NAMES.join(", ")}`,
-    );
-  }
+  if (unknown.length > 0) throw agentFlagError(`Unknown agent(s): ${unknown.join(", ")}`);
   const ids = tokens.map((token) => (isAgentId(token) ? token : homeOf(agentByNameOnly(token)!)));
   return [...new Set(ids)];
 };

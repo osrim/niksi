@@ -189,7 +189,7 @@ Restoring a modified skill discards your edits, so `install` asks first. Without
 
 Agent copies install to the agents recorded in the entry. Path copies install to their recorded destination roots.
 
-Link entries install to the agents recorded in the entry. A link entry without recorded agents, such as one from a version 1 lockfile, installs to the agents you pass with `--agent`, or to the saved or detected defaults. A lockfile without such an entry selects no agents, and `install --agent` says that it ignores the flag. `install` does not write the lockfile, so it does not record those agents.
+Link entries install to the agents recorded in the entry. A link entry without recorded agents, such as one from a version 1 lockfile, installs to the agents you pass with `--agent`, or to the saved or detected defaults. When the lockfile has enabled entries but no such entry, `install` selects no agents, and `install --agent` says that it ignores the flag. An unknown agent in `--agent`, or a value with no agent such as `,`, exits `2` before `install` reads the lockfile. `install` does not write the lockfile, so it does not record those agents.
 
 `install` skips disabled entries. It prints their count and names, and it names `nik enable`. It selects agents only when an enabled link entry without recorded agents exists. Its summary counts enabled entries only.
 
@@ -500,7 +500,7 @@ nik enable [...skills|source] [-g|-p] [-a] [-y] [--agent <id>]
 `enable` clears the mark and restores each skill as `install` does. It reads the store or the source and checks the recorded integrity. A local source must still have the skill and match the recorded integrity, as in `install`. It does not review, scan, or check dependencies.
 
 - Select skills and sources as in `disable`. `--all` selects every disabled skill. A skill that is already enabled prints `name: already enabled`.
-- Link entries restore to their recorded agents. A link entry without recorded agents needs agents: `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt, and records them in the entry. Agent copies and path copies restore to their recorded agents or destination root. A selection with no link entry that lacks recorded agents selects no agents.
+- Link entries restore to their recorded agents. A link entry without recorded agents needs agents: `enable` uses `--agent`, else the remembered choice, else the detected defaults, else a prompt, and records them in the entry. Agent copies and path copies restore to their recorded agents or destination root. When `enable` restores at least one entry and none is a link entry without recorded agents, it selects no agents, and `enable --agent` says that it ignores the flag. An unknown agent in `--agent`, or a value with no agent such as `,`, exits `2` before `enable` reads the lockfile.
 - If the content of an entry does not match its integrity, `enable` reports it as `install` does. The entry stays disabled. The command exits `1`.
 - In project scope, `enable` checks the selected entries against the policy in `niksi.json` first, as `install` does. When an entry comes from a source that the policy doesn't allow, `enable` names each such entry, enables nothing, and exits `1`.
 
@@ -565,7 +565,7 @@ An unknown shell exits `2`.
 | --- | --- | --- |
 | `-g`, `--global` | all but `prune` and `completion` | Use global scope. |
 | `-p`, `--project` | all but `prune` and `completion` | Use project scope. |
-| `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. |
+| `--agent <id>` | `add`, `install`, `enable` | Install to `universal`, `claude`, `opencode`, `kiro`, `cline`, or `qwen`. An agent name such as `cursor` or `codex` resolves to the directory that agent reads. Repeat the flag or separate values with commas. An unknown agent, or a value with no agent such as `,`, exits `2`. |
 | `-a`, `--all` | `add`, `adopt`, `update`, `remove`, `disable`, `enable` | Select every skill. `disable` selects enabled skills and `enable` selects disabled skills. It does not confirm or approve anything. |
 | `-y`, `--yes` | `add`, `adopt`, `install`, `update`, `remove`, `disable`, `enable`, `prune` | Accept ordinary confirmations and defaults. It cannot approve critical findings, or warn findings under `policy.denyWarn`. |
 | `--dangerous-skip-critical-approval` | `add`, `adopt`, `update` | Skip approval for critical findings. Dangerous. Files and findings remain visible. |

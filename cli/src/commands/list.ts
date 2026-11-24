@@ -51,7 +51,7 @@ export const run = async (options: ListOptions): Promise<void> => {
   if (options.json) return runJson(options);
 
   p.intro("nik list");
-  const scope = resolveScope(options, p.log.warn) ?? "project";
+  const scope = resolveScope(options, logWarn) ?? "project";
   const { file, lock } = await loadLock(scope);
   if (Object.keys(lock.skills).length === 0) {
     p.outro(await emptyScopeMessage(scope));

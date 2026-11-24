@@ -16,12 +16,12 @@ import { discoveryCoordinate, type Changes, type DiscoveryLocation } from "../co
 import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
 import { withSpinner } from "./prompt.ts";
-import { logWarn, warn } from "./report.ts";
+import { logWarn } from "./report.ts";
 import { dim, escapeLine, skillName } from "./style.ts";
 
 export const warnMentions = (missing: MissingDep[], note: string): void => {
   for (const dep of missing) {
-    warn(
+    logWarn(
       `${skillName(dep.from)} mentions ${skillName(dep.name)} at ${escapeLine(dep.file)}:${dep.line}. ${note}.`,
     );
   }
@@ -46,7 +46,7 @@ export const warnReferrers = async (
   );
   const known = targets.map((name) => survivors.find((skill) => skill.name === name) ?? { name });
   for (const [target, referrers] of referrersTo(batch, known)) {
-    warn(`${skillName(target)} is referenced by ${referrers.map(skillName).join(", ")}`);
+    logWarn(`${skillName(target)} is referenced by ${referrers.map(skillName).join(", ")}`);
   }
 };
 
@@ -59,14 +59,14 @@ export const reportNotInstalled = (
   warnMentions(missing, "not installed");
   const coordinate = discoveryCoordinate(discovered);
   if (coordinate === undefined) {
-    warn("Cannot suggest an add command for this source.");
+    logWarn("Cannot suggest an add command for this source.");
     return;
   }
   const selectors = missing.map((dep) =>
     dep.path === undefined ? dep.name : pathInRoot(discovered.root, dep.path),
   );
   if (selectors.some((selector) => escapeLine(selector) !== selector)) {
-    warn("Cannot generate an add command: a dependency name or path holds control characters.");
+    logWarn("Cannot generate an add command: a dependency name or path holds control characters.");
     return;
   }
   const at = ref === undefined ? "" : `@${ref}`;

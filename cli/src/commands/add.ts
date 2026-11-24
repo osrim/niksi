@@ -37,7 +37,7 @@ import { confirmWrite, type ReviewOptions } from "../ui/gate.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { pickSkillsToAdd, type Extension } from "../ui/pick.ts";
 import { createSpinner, fail } from "../ui/prompt.ts";
-import { logError, logWarn, warn } from "../ui/report.ts";
+import { logError, logWarn, reviewWarn } from "../ui/report.ts";
 import { reviewNewSkills, type ReviewedSkill } from "../ui/review.ts";
 import { skillName, tildify } from "../ui/style.ts";
 import {
@@ -278,7 +278,7 @@ const warnInsideCooldown = async (source: Source, rev: Revision, days: number): 
   if (committedAt === undefined) return;
   const age = unixNow() - committedAt;
   if (!waitsForCooldown(age, days)) return;
-  warn(`${displayLabel(rev)} is ${describeAge(age)}, inside the ${days}-day cooldown.`);
+  reviewWarn(`${displayLabel(rev)} is ${describeAge(age)}, inside the ${days}-day cooldown.`);
 };
 
 interface Fetched {

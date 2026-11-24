@@ -12,7 +12,7 @@ import {
 import { ask, clackDecisions, type Decisions } from "./decisions.ts";
 import type { PagedSkill } from "./pager.ts";
 import { isInteractive, requireTTY } from "./prompt.ts";
-import { logError, logFindings, logWarn, renderFiles, warn } from "./report.ts";
+import { logError, logFindings, logWarn, renderFiles, reviewWarn } from "./report.ts";
 import { escapeControl, skillName } from "./style.ts";
 
 type GateOutcome = "pass" | "declined" | "blocked";
@@ -74,7 +74,7 @@ export const reviewSkills = async <T extends Reviewable>(
       result.approved.push(entry);
     } else {
       result[outcome].push(entry);
-      warn(`${skillName(name)}: skipped`);
+      reviewWarn(`${skillName(name)}: skipped`);
     }
   }
   return result;

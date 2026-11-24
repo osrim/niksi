@@ -1,4 +1,5 @@
-import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -307,6 +308,14 @@ test("--agent rejects unknown values and lists ids then agent names", () => {
   );
 });
 
+test("--agent rejects a value that names no agent", () => {
+  for (const value of [",", " , ", ["", ","]]) {
+    expect(() => parseAgentFlag(value)).toThrow(
+      "--agent needs at least one agent.\nIds: universal",
+    );
+  }
+});
+
 test("an agent name whose home directory it does not read in the scope warns", async () => {
   await project("unread");
   expect(unreadWarnings("antigravity", "global")).toEqual([
@@ -337,9 +346,30 @@ test("ancestor skills dirs stop at the git worktree root", async () => {
   ]);
 });
 
-test("a relative XDG_CONFIG_HOME is refused rather than redirecting the install", () => {
+test("a relative XDG_CONFIG_HOME falls back to ~/.config", async () => {
   process.env.XDG_CONFIG_HOME = "config";
-  expect(() => skillsDir("global", "opencode")).toThrow(
-    'XDG_CONFIG_HOME must be an absolute path, got "config".',
+  expect(skillsDir("global", "opencode")).toBe(join(tmp, "home", ".config", "opencode", "skills"));
+
+  const root = await project("relative-xdg");
+  await mkdir(join(root, "config", "zed"), { recursive: true });
+  await mkdir(join(tmp, "home", ".config", "amp"), { recursive: true });
+  expect(detectedNames()).toContain("Amp");
+  expect(detectedNames()).not.toContain("Zed");
+});
+
+test("a relative $CODEX_HOME falls back to ~/.codex", async () => {
+  const existsSync = fs.existsSync;
+  const probe = spyOn(fs, "existsSync").mockImplementation(
+    (path) => path !== "/etc/codex" && existsSync(path),
   );
+  try {
+    const root = await project("relative-codex");
+    await mkdir(join(root, "codex-home"), { recursive: true });
+    process.env.CODEX_HOME = "codex-home";
+    expect(detectedNames()).toEqual([]);
+    await mkdir(join(tmp, "home", ".codex"), { recursive: true });
+    expect(detectedNames()).toEqual(["Codex"]);
+  } finally {
+    probe.mockRestore();
+  }
 });

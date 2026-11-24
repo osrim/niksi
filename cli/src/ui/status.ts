@@ -13,8 +13,8 @@ import {
   type UpdatableVerdict,
   type UpdateVerdict,
 } from "../core/source/upstream.ts";
-import { fail } from "./prompt.ts";
-import { logError, logWarn, warn } from "./report.ts";
+import { fail, markFailed } from "./prompt.ts";
+import { logError, logWarn } from "./report.ts";
 import { bold, dim, skillName, tildify } from "./style.ts";
 
 export const emptyScopeMessage = async (scope: Scope): Promise<string> => {
@@ -35,7 +35,7 @@ export const removeHint = (name: string, scope: Scope): string => {
 };
 
 export const reportModified = (names: string[], remedy: string): void => {
-  warn(
+  logWarn(
     [
       `${names.length} skill(s) modified since install: ${names.map(skillName).join(", ")}`,
       remedy,
@@ -65,7 +65,7 @@ export const logSourceBlocked = ({ name, reason }: PolicyViolation): void => {
 };
 
 export const warnRestored = (name: string): void => {
-  warn(`${skillName(name)}: restored local edits from the source`);
+  logWarn(`${skillName(name)}: restored local edits from the source`);
 };
 
 export const warnLeftover = (name: string, path: string): void => {
@@ -89,7 +89,7 @@ export const reportVerdicts = (
     const { skill } = verdict;
     const failed = (message: string): void => {
       logError(message);
-      if (requested.includes(skill.name)) process.exitCode = process.exitCode === 3 ? 3 : 1;
+      if (requested.includes(skill.name)) markFailed();
     };
     switch (verdict.kind) {
       case "unreachable":

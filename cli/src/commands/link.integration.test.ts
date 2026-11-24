@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -15,6 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { $ } from "bun";
 import {
   cliRunner,
   commitAll,
@@ -454,6 +456,127 @@ test("add --all installs the skills in skills/ and in plugins/*/skills/ together
       state: "installed",
     }),
   ]);
+});
+
+test("add refuses a same-name skill from another path of the recorded Git source", async () => {
+  const root = await project("same-repo-collision");
+  const repo = join(tmp, "collision-source");
+  await makeSkill(join(repo, "plugins", "a", "skills"), "demo", "from a\n");
+  await makeSkill(join(repo, "plugins", "b", "skills"), "demo", "from b\n");
+  await initRepo(repo);
+  await commitAll(repo, "two demos");
+  const source = pathToFileURL(repo).href;
+  const add = (path: string) => runCli(root, "add", source, path, "-p", "--agent", "claude", "-y");
+
+  expect((await add("plugins/a/skills/demo")).exitCode).toBe(0);
+  const refused = await add("plugins/b/skills/demo");
+
+  expect(refused.exitCode).toBe(1);
+  expect((await readSkills(root))["demo"]).toMatchObject({ source, path: "plugins/a/skills/demo" });
+  expect(await readFile(join(root, ".claude", "skills", "demo", "SKILL.md"), "utf8")).toContain(
+    "from a",
+  );
+  expect(await listedRow(root)).toMatchObject({
+    name: "demo",
+    source,
+    path: "plugins/a/skills/demo",
+    state: "installed",
+  });
+});
+
+test("add takes an SCP address with no owner", async () => {
+  const root = await project("scp-no-owner");
+  const host = join(tmp, "ssh-host");
+  await makeSkill(join(host, "repo.git", "skills"), "demo");
+  await initRepo(join(host, "repo.git"));
+  await commitAll(join(host, "repo.git"), "init");
+  const ssh = join(tmp, "bin", "ssh-host");
+  await mkdir(join(tmp, "bin"), { recursive: true });
+  // Runs the remote command on this machine, from the directory that stands in for the host.
+  await writeFile(ssh, `#!/bin/sh\nfor last; do :; done\ncd '${host}' && exec sh -c "$last"\n`);
+  await chmod(ssh, 0o755);
+  const source = "git@niksi-test.invalid:repo.git";
+
+  const restore = captureEnv("GIT_SSH_COMMAND");
+  process.env.GIT_SSH_COMMAND = ssh;
+  try {
+    const added = await runCli(root, "add", source, "demo", "-p", "--agent", "claude", "-y");
+    expect(added.exitCode).toBe(0);
+  } finally {
+    restore();
+  }
+
+  expect((await readSkills(root))["demo"]).toMatchObject({ source, path: "skills/demo" });
+  expect(existsSync(join(root, ".claude", "skills", "demo", "SKILL.md"))).toBe(true);
+  expect(await listedRow(root)).toMatchObject({ name: "demo", source, state: "installed" });
+});
+
+test("add from a cached source follows a default branch renamed upstream", async () => {
+  const root = await project("renamed-default");
+  const repo = join(tmp, "renamed-source");
+  await makeSkill(join(repo, "skills"), "alpha");
+  await makeSkill(join(repo, "skills"), "beta");
+  await initRepo(repo);
+  await commitAll(repo, "two skills");
+  const source = pathToFileURL(repo).href;
+  const add = (name: string) => runCli(root, "add", source, name, "-p", "--agent", "claude", "-y");
+  expect((await add("alpha")).exitCode).toBe(0);
+  await $`git -C ${repo} branch -m main trunk`.quiet();
+
+  expect((await add("beta")).exitCode).toBe(0);
+
+  expect((await readSkills(root))["beta"]).toMatchObject({ source, branch: "trunk" });
+  expect(existsSync(join(root, ".claude", "skills", "beta", "SKILL.md"))).toBe(true);
+  const listed = await runCli(root, "list", "--json");
+  expect(listed.exitCode).toBe(0);
+  expect(JSON.parse(listed.stdout).skills).toEqual([
+    expect.objectContaining({ name: "alpha", state: "installed" }),
+    expect.objectContaining({ name: "beta", state: "installed" }),
+  ]);
+});
+
+const rawSkillUrl = (ref: string): string =>
+  `https://raw.githubusercontent.com/o/raw-skills/${ref}/skills/demo/SKILL.md`;
+
+test("add of a raw GitHub URL installs the branch or tag that its full ref names", async () => {
+  const forge = "https://github.com/o/raw-skills";
+  const repo = join(tmp, "raw-skills");
+  await makeSkill(join(repo, "skills"), "demo", "Tagged.\n");
+  await initRepo(repo);
+  const tagged = await commitAll(repo, "tagged");
+  await tagHead(repo, "v1.0.0");
+  await makeSkill(join(repo, "skills"), "demo", "Head of main.\n");
+  const head = await commitAll(repo, "head");
+  const restore = captureEnv("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0");
+  process.env.GIT_CONFIG_COUNT = "1";
+  process.env.GIT_CONFIG_KEY_0 = `url.${pathToFileURL(repo).href}.insteadOf`;
+  process.env.GIT_CONFIG_VALUE_0 = forge;
+  try {
+    for (const [ref, commit, body, recorded] of [
+      ["refs/heads/main", head, "Head of main.", { branch: "main" }],
+      ["refs/tags/v1.0.0", tagged, "Tagged.", { pinnedAs: "v1.0.0" }],
+    ] as const) {
+      const root = await project(`raw-${ref.replaceAll("/", "-")}`);
+      const added = await runCli(root, "add", rawSkillUrl(ref), "-p", "--agent", "claude", "-y");
+      expect(added.exitCode).toBe(0);
+      expect((await readSkills(root))["demo"]).toMatchObject({
+        source: forge,
+        path: "skills/demo",
+        commit,
+        track: "pin",
+        ...recorded,
+      });
+      const linked = join(root, ".claude", "skills", "demo", "SKILL.md");
+      expect(await readFile(linked, "utf8")).toContain(body);
+      expect(await listedRow(root)).toMatchObject({
+        name: "demo",
+        source: forge,
+        state: "installed",
+      });
+    }
+  } finally {
+    restore();
+  }
 });
 
 test("add of owner/repo/<path> that discovery skips installs that skill rooted at the path", async () => {

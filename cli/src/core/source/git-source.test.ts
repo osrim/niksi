@@ -84,6 +84,45 @@ test("a tag splits like a branch", async () => {
   });
 });
 
+test("a raw URL's full ref splits to its name and stays a ref on the default branch", async () => {
+  const source = new GitSource(repo);
+  expect(await source.splitTree(["release", "1.0", "pstack"], "heads")).toEqual({
+    ref: "release/1.0",
+    dir: "pstack",
+  });
+  expect(await source.splitTree(["main", "pstack"], "heads")).toEqual({
+    ref: "main",
+    dir: "pstack",
+  });
+  expect(await source.splitTree(["v1.2.0", "pstack"], "tags")).toEqual({
+    ref: "v1.2.0",
+    dir: "pstack",
+  });
+  expect(await source.splitTree(["v1.2.0", "pstack"], "heads")).toEqual({ dir: "v1.2.0/pstack" });
+});
+
+test("refs that share a name resolve by the namespace a raw URL names", async () => {
+  const clash = join(tmp, "clash");
+  await $`git clone -q ${repo} ${clash}`.quiet();
+  await $`git -C ${clash} -c tag.gpgsign=false tag clash HEAD~1`.quiet();
+  await $`git -C ${clash} branch clash HEAD`.quiet();
+  await $`git -C ${clash} branch refs/heads/clash HEAD~1`.quiet();
+  const source = new GitSource(clash);
+  const commit = async (ref: string | undefined) => (await source.resolve(ref)).commit;
+  const tagged = (await $`git -C ${clash} rev-parse HEAD~1`.text()).trim();
+  const head = (await $`git -C ${clash} rev-parse HEAD`.text()).trim();
+
+  const tag = await source.splitTree(["clash", "pstack"], "tags");
+  expect(tag).toEqual({ ref: "refs/tags/clash", dir: "pstack" });
+  expect(await commit(tag.ref)).toBe(tagged);
+  const branch = await source.splitTree(["clash", "pstack"], "heads");
+  expect(branch).toEqual({ ref: "clash", dir: "pstack" });
+  expect(await commit(branch.ref)).toBe(head);
+  const literal = await source.splitTree(["refs", "heads", "clash", "pstack"]);
+  expect(literal).toEqual({ ref: "refs/heads/clash", dir: "pstack" });
+  expect(await commit(literal.ref)).toBe(tagged);
+});
+
 test("no prefix naming a ref leaves the whole remainder as a subtree", async () => {
   expect(await new GitSource(repo).splitTree(["nope", "pstack"])).toEqual({
     dir: "nope/pstack",

@@ -10,7 +10,11 @@ export interface Coordinate {
   skill?: string;
   ref?: string;
   tree?: string[];
+  // Set when a raw GitHub URL names its ref in full: tree starts with a branch or a tag name.
+  refNamespace?: RefNamespace;
 }
+
+export type RefNamespace = "heads" | "tags";
 
 const GITHUB_SHORTHAND = /^[\w.-]+\/[\w.-]+(?:\/[\w.-]+)*$/u;
 
@@ -22,8 +26,13 @@ const LOCAL_PATH = /^(~|\.{1,2})?\//u;
 const isLocalPath = (raw: string): boolean =>
   LOCAL_PATH.test(raw) || raw === "~" || raw === "." || raw === "..";
 
+// The user part follows the lockfile's [user@]host:path rule: anything Git hands to SSH except a
+// leading -. A bracketed host can hold colons.
+const SCP_AUTHORITY = /^[^-@/:\s][^@/:\s]*@(?:\[[^\]]*\]|[^:/[]+):/u;
+
 export const repoName = (repo: string): string =>
   repo
+    .replace(SCP_AUTHORITY, "")
     .replace(/\/+$/u, "")
     .split("/")
     .pop()!
@@ -37,6 +46,16 @@ const splitRef = (input: string): { base: string; ref?: string } => {
   return { base: input };
 };
 
+const splitRefPastAuthority = (input: string): { base: string; ref?: string; scp: boolean } => {
+  const authority = SCP_AUTHORITY.exec(input)?.[0] ?? "";
+  const { base, ref } = splitRef(input.slice(authority.length));
+  return {
+    base: base && authority + base,
+    ...(ref !== undefined ? { ref } : {}),
+    scp: authority !== "",
+  };
+};
+
 const TREE_MARKERS = new Set(["tree", "blob", "blame", "raw", "src"]);
 const REF_MARKERS = new Set(["commit", "commits", "releases", "tags"]);
 const FILE_MARKERS = new Set(["blob", "blame", "raw"]);
@@ -48,7 +67,13 @@ interface WebUrl {
   repo: string;
   ref?: string;
   tree?: string[];
+  refNamespace?: RefNamespace;
 }
+
+const refNamespaceOf = (segments: string[]): RefNamespace | undefined =>
+  segments[0] === "refs" && (segments[1] === "heads" || segments[1] === "tags")
+    ? segments[1]
+    : undefined;
 
 const parseWebUrl = (raw: string): WebUrl | null => {
   let url: URL;
@@ -65,9 +90,11 @@ const parseWebUrl = (raw: string): WebUrl | null => {
   if (host === "raw.githubusercontent.com") {
     const [owner, repo, ...rest] = parts;
     if (!owner || !repo || rest.length === 0) return null;
+    const refNamespace = refNamespaceOf(rest);
     return {
       repo: `https://github.com/${owner}/${dropGitSuffix(repo)}`,
-      tree: rest.slice(0, -1),
+      tree: rest.slice(refNamespace === undefined ? 0 : 2, -1),
+      ...(refNamespace === undefined ? {} : { refNamespace }),
     };
   }
 
@@ -125,14 +152,21 @@ const localPath = (raw: string): string => {
   return isAbsolute(expanded) ? expanded : resolvePath(expanded);
 };
 
+const cloneUrl = (repo: string, ref: string | undefined): Coordinate => ({
+  repo,
+  kind: "git",
+  ...(ref !== undefined ? { ref } : {}),
+});
+
 export const parseCoordinate = (raw: string): Coordinate => {
   const input = raw.trim();
   if (!input) throw new Error("empty coordinate");
   if (input.includes("#")) throw usageError(HASH_REJECTED);
 
-  const { base, ref } = splitRef(input);
+  const { base, ref, scp } = splitRefPastAuthority(input);
   if (ref === "") throw new Error(`invalid coordinate "${raw}": empty ref after @`);
   if (!base) throw new Error(`invalid coordinate "${raw}": no repo`);
+  if (scp) return cloneUrl(base, ref);
 
   if (isLocalPath(base)) {
     if (ref !== undefined) {
@@ -153,6 +187,7 @@ export const parseCoordinate = (raw: string): Coordinate => {
       kind: "git",
       ...(chosen !== undefined ? { ref: chosen } : {}),
       ...(web.tree !== undefined ? { tree: web.tree } : {}),
+      ...(web.refNamespace !== undefined ? { refNamespace: web.refNamespace } : {}),
     };
   }
 
@@ -167,8 +202,8 @@ export const parseCoordinate = (raw: string): Coordinate => {
     };
   }
 
-  if (/^(https?:\/\/|git@|ssh:\/\/|file:\/\/)/u.test(base)) {
-    return { repo: base, kind: "git", ...(ref !== undefined ? { ref } : {}) };
+  if (/^(https?:\/\/|ssh:\/\/|file:\/\/)/u.test(base)) {
+    return cloneUrl(base, ref);
   }
   throw new Error(`Invalid coordinate "${raw}". Use owner/repo, a Git URL, or a local path.`);
 };

@@ -18,6 +18,7 @@ import { emptyLock, serializeLock, type Lockfile } from "../core/install/lockfil
 import { skillsDir, type AgentId } from "../core/install/agents.ts";
 import { linkSkill, writeCanonical } from "../core/install/link.ts";
 import { materialize, storeEntryPath } from "../core/install/store.ts";
+import type { DiscoveryLocation } from "../core/source/index.ts";
 import { LocalSource } from "../core/source/local-source.ts";
 import type { Revision } from "../core/source/revision.ts";
 import type { OutdatedVerdict } from "../core/source/upstream.ts";
@@ -103,15 +104,23 @@ const linked = async (...agents: AgentId[]): Promise<Lockfile> => {
   return recorded("helper");
 };
 
-test("missing dependencies without a usable rooted coordinate warn without a broad add command", () => {
+const expectNoAddCommand = (location: DiscoveryLocation): void => {
   reportNotInstalled(
     [{ from: "primary", name: "helper", file: "SKILL.md", line: 5 }],
-    { source: "https://github.com/o/r", root: "plugins/x" },
+    location,
     "project",
   );
   expect(printed()).toContain("primary mentions helper at SKILL.md:5. not installed.");
-  expect(printed()).toContain("Cannot generate a rooted add command without a source revision.");
+  expect(printed()).toContain("Cannot suggest an add command for this source.");
   expect(printed()).not.toContain("Add them:");
+};
+
+test("missing dependencies without a recorded revision warn without a broad add command", () => {
+  expectNoAddCommand({ source: "https://github.com/o/r", root: "plugins/x" });
+});
+
+test("missing dependencies under a rooted SSH source warn without a broad add command", () => {
+  expectNoAddCommand({ source: "git@github.com:o/r", root: "plugins/x", branch: "main" });
 });
 
 test("a dependency warning escapes control characters in the file path", () => {
@@ -248,6 +257,58 @@ describe("reportUpdateDeps", () => {
 
     expect(printed()).toContain(`Add them: nik add ${tmp} helper -g\n`);
     expect(printed()).toContain(`Add them: nik add ${tmp}@v2.0.0 other -g\n`);
+  });
+
+  test("a rooted mixed group names the followed branch and the reviewed tag in its tree URLs", async () => {
+    const remote = join(tmp, "remote");
+    const root = "plugins/x";
+    await makeSkill(join(remote, root), "primary", "Use /helper and /other.\n");
+    await makeSkill(join(remote, root), "secondary", "Use /helper.\n");
+    await makeSkill(join(remote, root), "helper");
+    await makeSkill(join(remote, root), "other");
+    const plugins = new LocalSource(remote);
+    const recordedAt = (name: string, entry: Partial<InstalledSkill>): InstalledSkill => ({
+      ...verdict(name, plugins).skill,
+      source: "https://github.com/o/r",
+      path: `${root}/${name}`,
+      root,
+      branch: "main",
+      ...entry,
+    });
+    const files = (name: string) => plugins.fetchFiles(undefined, `${root}/${name}`);
+
+    await reportUpdateDeps(
+      [
+        {
+          verdict: {
+            ...verdict("primary", plugins),
+            skill: recordedAt("primary", { track: "pin", pinnedAs: "v1.0.0" }),
+            upstream: { commit: COMMIT, branch: "main", track: "pin", pinnedAs: "v2.0.0" },
+          },
+          files: await files("primary"),
+          diff: noDiff,
+        },
+        {
+          verdict: {
+            ...verdict("secondary", plugins),
+            skill: recordedAt("secondary", { tag: "v1.0.0" }),
+            upstream: { commit: COMMIT, branch: "main", track: "auto", tag: "v2.0.0" },
+          },
+          files: await files("secondary"),
+          diff: noDiff,
+        },
+      ],
+      emptyLock(),
+      { scope: "project", enabled: emptyLock() },
+      "global",
+    );
+
+    expect(printed()).toContain(
+      "Add them: nik add https://github.com/o/r/tree/main/plugins/x helper -g\n",
+    );
+    expect(printed()).toContain(
+      "Add them: nik add https://github.com/o/r/tree/v2.0.0/plugins/x@v2.0.0 other -g\n",
+    );
   });
 
   test("a Markdown link to another skill's SKILL.md counts as a mention", async () => {

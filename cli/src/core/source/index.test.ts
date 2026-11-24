@@ -278,12 +278,16 @@ test("discoveryCoordinate adds the discovery root as a forge URL that parses bac
   expect(parseCoordinate(encoded!).tree).toEqual(["release", "2.x", "plugins", "my x"]);
 });
 
-test("a remote discovery root uses a recorded ref when the branch is absent", () => {
+test("a remote discovery root prefers the pinned ref, then the branch, then the tag, then the commit", () => {
   const source = "https://github.com/o/r";
   const root = "plugins/x";
   const commit = "a".repeat(40);
-  expect(discoveryCoordinate({ source, root, pinnedAs: "release/2", tag: "v1", commit })).toBe(
-    "https://github.com/o/r/tree/release/2/plugins/x",
+  const branch = "main";
+  expect(discoveryCoordinate({ source, root, pinnedAs: "v2.0.0", branch, commit })).toBe(
+    "https://github.com/o/r/tree/v2.0.0/plugins/x",
+  );
+  expect(discoveryCoordinate({ source, root, tag: "v1", branch, commit })).toBe(
+    "https://github.com/o/r/tree/main/plugins/x",
   );
   expect(discoveryCoordinate({ source, root, tag: "v1", commit })).toBe(
     "https://github.com/o/r/tree/v1/plugins/x",
@@ -292,6 +296,18 @@ test("a remote discovery root uses a recorded ref when the branch is absent", ()
     `https://github.com/o/r/tree/${commit}/plugins/x`,
   );
   expect(discoveryCoordinate({ source, root })).toBeUndefined();
+});
+
+test("a discovery root on a Git source without a web address has no coordinate", () => {
+  for (const source of [
+    "git@github.com:o/r",
+    "ssh://git@example.com/o/r.git",
+    "file:///tmp/r",
+    "/tmp/r",
+  ]) {
+    expect(discoveryCoordinate({ source, root: "plugins/x", branch: "main" })).toBeUndefined();
+    expect(discoveryCoordinate({ source, branch: "main" })).toBe(source);
+  }
 });
 
 test("discoveryCoordinate joins the discovery root onto a local source directory", () => {

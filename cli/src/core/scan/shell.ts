@@ -7,6 +7,32 @@ const HOME_SPELLING =
 
 export const mapHome = (text: string): string => text.replaceAll(HOME_SPELLING, HOME);
 
+// mapHome, and `source`, which takes an offset in the mapped text back to the same place in `text`.
+export const mapHomeWithSource = (
+  text: string,
+): { mapped: string; source: (index: number) => number } => {
+  // From mapped offset `froms[k]` on, the text as written runs `shifts[k]` characters further.
+  const froms: number[] = [];
+  const shifts: number[] = [];
+  let shrunk = 0;
+  for (const match of text.matchAll(HOME_SPELLING)) {
+    froms.push(match.index - shrunk + HOME.length);
+    shrunk += match[0].length - HOME.length;
+    shifts.push(shrunk);
+  }
+  const source = (index: number): number => {
+    let low = 0;
+    let high = froms.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (froms[middle]! <= index) low = middle + 1;
+      else high = middle;
+    }
+    return index + (low === 0 ? 0 : shifts[low - 1]!);
+  };
+  return { mapped: text.replaceAll(HOME_SPELLING, HOME), source };
+};
+
 // Code is a script line or a code block line, prose is other Markdown text and inline code.
 export type StatementKind = "code" | "comment" | "prose";
 
@@ -16,6 +42,8 @@ export interface Substitution {
 }
 
 export interface Command {
+  // Offset of the command in the scanned text. Exact for prose, the first line for code.
+  index: number;
   text: string;
   // Unquoted, with wrappers and leading assignments skipped and home spellings mapped.
   words: string[];
@@ -47,9 +75,9 @@ const WRAPPERS = new Map<string, Set<string>>([
 
 const ASSIGNMENT = /^[A-Za-z_]\w*=/u;
 
-export const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers"> => {
-  const wrappers: string[] = [];
-  let i = 0;
+// The index past the wrappers and assignments that start at `start`, collected into `wrappers`.
+const wrappersEnd = (words: string[], start: number, wrappers: string[] = []): number => {
+  let i = start;
   while (i < words.length) {
     const word = words[i]!;
     if (ASSIGNMENT.test(word)) {
@@ -62,7 +90,24 @@ export const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers
     i++;
     while (words[i]?.startsWith("-")) i += takesValue.has(words[i]!) ? 2 : 1;
   }
-  return { words: words.slice(i), wrappers };
+  return Math.min(i, words.length);
+};
+
+export const skipWrappers = (words: string[]): Pick<Command, "words" | "wrappers"> => {
+  const wrappers: string[] = [];
+  return { words: words.slice(wrappersEnd(words, 0, wrappers)), wrappers };
+};
+
+// For each word, the index of the first wrapper or assignment directly before it, as `sudo` is for
+// `cat` in `sudo -u root cat`. A word with none before it maps to itself.
+export const wrappedFrom = (words: string[]): number[] => {
+  const from = words.map((_, i) => i);
+  for (let i = 0; i < words.length;) {
+    const end = wrappersEnd(words, i);
+    if (end > i && end < words.length) from[end] = i;
+    i = Math.max(end, i + 1);
+  }
+  return from;
 };
 
 interface Frame {
@@ -117,6 +162,7 @@ const endCommand = (s: Splitter, end: number): void => {
   if (s.commandStart >= 0) {
     const { words, wrappers } = skipWrappers(s.words);
     s.commands.push({
+      index: s.commandStart,
       text: s.text.slice(s.commandStart, end).trim(),
       words: words.map(mapHome),
       wrappers,
@@ -273,7 +319,10 @@ const segmentStatements = (segment: Segment, shell: boolean, kind: StatementKind
     line: segment.line,
     index: segment.index + draft.start,
     text: draft.text,
-    commands: draft.commands,
+    commands: draft.commands.map((command) => ({
+      ...command,
+      index: segment.index + command.index,
+    })),
     background: draft.background,
   }));
   if (commentAt === undefined) return statements;

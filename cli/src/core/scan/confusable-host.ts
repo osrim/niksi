@@ -1,8 +1,8 @@
 import { domainToUnicode } from "node:url";
-import { LinkifyIt } from "linkify-it";
 import { lineAt } from "../skill/text.ts";
 import type { Finding, Severity } from "./index.ts";
 import { codeOf } from "./invisible.ts";
+import { newLinkify } from "./linkify.ts";
 import { excerpt, matchDetail } from "./redact.ts";
 import { strongest } from "./severity.ts";
 
@@ -24,7 +24,14 @@ const HOST = /^(?:[a-z][\w+.-]*:\/\/)?(?:[^@/?#\s]*@)?([^/?#:\s]+)/iu;
 const URL_LENGTH = 100;
 const CODES = 3;
 
-const linkify = new LinkifyIt({ fuzzyLink: true, fuzzyEmail: false, urlAuth: true });
+const linkify = newLinkify();
+
+// A linkify match, enough to tell a local path from a remote host.
+export interface LocalLink {
+  schema: string;
+  text: string;
+  index: number;
+}
 
 interface Hit {
   index: number;
@@ -60,12 +67,14 @@ const urlHit = (url: string, index: number): Hit | undefined => {
   return { index, severity: "info", detail: `punycode host ${host[1]} reads ${labels.join(".")}` };
 };
 
+// A link that `isLocal` accepts is read as plain words, not as a host.
 export const confusableHost = (
   text: string,
   isCode: (index: number) => boolean,
+  isLocal: (link: LocalLink) => boolean = () => false,
 ): Pick<Finding, "severity" | "line" | "detail"> | undefined => {
   if (!LOOKALIKE.test(text) && !/xn--/iu.test(text)) return undefined;
-  const urls = linkify.match(text) ?? [];
+  const urls = (linkify.match(text) ?? []).filter((url) => !isLocal(url));
   // Words arrive in source order, so the URL cursor only moves forward.
   let next = 0;
   const inUrl = (index: number): boolean => {

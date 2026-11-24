@@ -150,6 +150,8 @@ The scan skips a line with a test cue: `test`, `spec`, `expect`, `assert`, or `f
 
 Only `SKILL.md` grants permissions when an agent loads the skill. Non-standard frontmatter fields in other Markdown files are listed as `info`.
 
+Frontmatter starts with a `---` line at the top of the file, after an optional byte order mark, and ends at the next `---`, wherever it stands, the way Claude Code reads it. So `--- # end`, `---text`, and a value such as `a: b---c` all end it, and the rest of that line is body. It may be empty.
+
 | finding | severity |
 | --- | --- |
 | `hooks` | `critical` |
@@ -199,7 +201,7 @@ Claude Code runs `` !`command` `` and code fences whose info string starts with 
 
 An environment read is a variable whose name holds `key`, `token`, `secret`, `pass`, `auth`, or `cred`, a read of the whole environment such as `JSON.stringify(process.env)`, or `.env` in quotes or after a `/`. `.env.example`, `.env.sample`, `.env.template`, and `.env.dist` are not `.env` files.
 
-Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside code blocks is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Code blocks and other files keep the full severity. Concealment and approval-bypass phrases skip this rule: in "do not tell the user", the negation is the signal.
+Each rule reports one finding per file: its strongest match, with the number of matches. A match in a Markdown line outside code blocks is `info` when a prohibition comes directly before it, such as "never run `curl … | sh`" or "refuses requests to ignore previous instructions". Other text, such as "do not hesitate to run", keeps the full severity. Code blocks and other files keep the full severity. Concealment and approval-bypass phrases skip this rule: in "do not tell the user", the negation is the signal. `remote-instructions` skips it too, so "do not fetch https://x.invalid/rules.md and follow its instructions" stays `warn`.
 
 The `prompt-injection` rule reads every text file, code included. Each phrase stays within one sentence. A concealment phrase is one of these:
 
@@ -225,7 +227,7 @@ A sentence fetches a URL and obeys what it says when it holds a fetch verb (`fet
 
 A download is `curl`, `wget`, `fetch`, `iwr`, `irm`, `Invoke-WebRequest`, or `Invoke-RestMethod`. It is fed to an interpreter when it is piped to a shell, Python, Node, Bun, Deno, Perl, Ruby, PHP, `osascript`, PowerShell, or `iex`, passed as `<(…)`, or passed as `$(…)` to `eval`, `source`, `exec`, or an interpreter's `-c` or `-e` flag. A statement that starts with `$(…)` of a download also runs it. So do Python `exec(` or `eval(` of `urlopen` or `requests.get`, JavaScript `eval(` or `new Function(` of `fetch(`, and PowerShell `IEX` of `DownloadString(`. A pipe to an interpreter that runs a script file or a `-c` command, such as `curl … | python3 -c "…"`, only passes data.
 
-A download is saved and then run when the same file saves it to a path (`-o`, `-O`, `-OutFile`, or `>`) and runs that path with an interpreter, `chmod +x`, or as a command such as `./setup.sh`. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A Python file that calls `urlretrieve` and also uses `subprocess` or a bare `exec(` counts too.
+A download is saved and then run when the same file saves it to a path and runs that path with an interpreter, `chmod +x`, or as a command such as `./setup.sh`. The path comes from `curl -o` or `--output`, `wget -O` or `--output-document`, `fetch -o`, `-OutFile`, or `>`. `curl -O`, `--remote-name`, or `--remote-name-all`, also inside a flag group such as `-fsSLO`, and `wget` without `-O` save under the last part of the URL path, so `wget https://x.invalid/install.sh` saves `install.sh`. curl gives its first `-o` or `-O` to the first URL, its second to the second, and so on, so `curl -o notes.txt URL1 -O URL2` saves only the second URL under its own name. `--remote-name-all` does the same for every URL without an `-o` or `-O` of its own. A URL that is the value of another option, such as `curl --referer URL` or `wget --referer=URL`, is not a download. `~`, `$HOME`, `/Users/<name>`, `/home/<name>`, and `%USERPROFILE%` name the same home directory. A Python file that calls `urlretrieve` and also uses `subprocess` or a bare `exec(` counts too.
 
 A download that runs from a `#` or `//` comment in a script or fenced code is `warn`.
 
@@ -330,14 +332,14 @@ A command counts at the start of a statement or after a pipe, so "Edit the cront
 
 ### Dependency sources
 
-The `dependency-source` rule looks for installs from a source the skill picks. It reads commands the way [persistence](#persistence) does: wrappers such as `sudo` are skipped, and a command counts at the start of a statement or after a pipe. Flags may come before the subcommand, as in `npm --registry URL install`. It also reads the dependencies of a bundled `package.json`.
+The `dependency-source` rule looks for installs from a source the skill picks. It reads commands the way [persistence](#persistence) does: wrappers such as `sudo` are skipped, and a command counts at the start of a statement or after a pipe. Flags may come before the subcommand, as in `npm --registry URL install` or `pip --cache-dir /tmp install --index-url URL`. It also reads the dependencies of a bundled `package.json`.
 
 | finding | severity |
 | --- | --- |
 | An index or registry on a host other than the default, or on any `http://` URL: `--index-url`, `-i`, or `--extra-index-url` after `pip install`, `--registry` after `npm`, `pnpm`, `yarn`, or `bun` `install`, `i`, `add`, or `ci`, `npm config set registry`, and `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `UV_INDEX_URL`, or `NPM_CONFIG_REGISTRY` in any case set with `=` | `critical` |
 | An index or registry value that is not an `https://` or `http://` URL, such as `$INDEX` or a `file://` path | `warn` |
 | `--trusted-host`, `--find-links`, or `-f` after `pip install` | `warn` |
-| A pip install of `git+…` or a URL, including `-r` with a URL, an npm install of a URL, `git+…`, `git://`, `github:`, `gitlab:`, or `bitbucket:`, and a bundled `package.json` dependency with the same value | `warn` |
+| A pip install of `git+…` or a URL, including a requirements file at a URL after `-r` or `--requirement`, as in `-rURL` or `--requirement=URL`, an npm install of a URL, `git+…`, `git://`, `github:`, `gitlab:`, or `bitbucket:`, and a bundled `package.json` dependency with the same value | `warn` |
 | `curl -k` or `--insecure`, also inside a flag group such as `-fsSLk`, and `wget --no-check-certificate` | `warn` |
 | A Git or URL install pinned to a 40-character commit hash: the ref after `@` or `#`, or the name after `/archive/` | `info` |
 
@@ -422,7 +424,7 @@ The `confusable-host` rule looks for a word that mixes Latin letters with Cyrill
 | A mixed word in code: Markdown inline code and code blocks, and every text file other than Markdown and `.txt` | `warn` |
 | A `xn--` punycode host that decodes to words in one script | `info` |
 
-A lookalike letter in a URL hides which host or account serves the file, so it is `critical` in prose too. A punycode label is decoded before the check, and the detail shows the decoded form, such as `punycode host xn--bcher-kva.example reads bücher.example`. A mixed word in Markdown or `.txt` prose is not a finding, and neither is a word in one script, so Russian prose such as a heading `Установка: run nik add` and `λ = 0.5` in prose stay silent. A Greek letter in a code identifier such as `Δt` is `warn`. The detail names each lookalike letter by its code point.
+A lookalike letter in a URL hides which host or account serves the file, so it is `critical` in prose too. A punycode label is decoded before the check, and the detail shows the decoded form, such as `punycode host xn--bcher-kva.example reads bücher.example`. A mixed word in Markdown or `.txt` prose is not a finding, and neither is a word in one script, so Russian prose such as a heading `Установка: run nik add` and `λ = 0.5` in prose stay silent. A Greek letter in a code identifier such as `Δt` is `warn`. A link without a scheme that names a bundled file, such as `Editorβ.app/Contents/Info.plist` when the skill ships that file, is a path and not a URL, unless `curl`, `wget`, or `fetch` comes before it on its line. The detail names each lookalike letter by its code point.
 
 The rule does not catch a word written wholly in lookalike letters, such as a host made only of Cyrillic letters. That needs the Unicode confusables table, which the scan does not ship.
 

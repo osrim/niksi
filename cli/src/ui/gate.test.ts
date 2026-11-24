@@ -186,6 +186,58 @@ describe("reviewSkills", () => {
     }
   });
 
+  test("escapes control characters in the file names of the review note", async () => {
+    const output = captureOutput();
+    const restoreTty = setInteractive(false);
+    try {
+      const hostile = `notes\u001B[2J\u202E.md`;
+      await reviewSkills(
+        [
+          {
+            name: "hostile",
+            files: [
+              skillMd("---\nname: hostile\n---\n"),
+              { path: hostile, content: Buffer.from("hello\n"), mode: MODE_FILE },
+            ],
+          },
+        ],
+        { yes: true },
+      );
+
+      expect(output.raw()).not.toContain("\u001B[2J");
+      expect(output.raw()).not.toContain("\u202E");
+      expect(output.text()).toContain("notes^[[2J<U+202E>.md (6 B)");
+    } finally {
+      restoreTty();
+      output.restore();
+    }
+  });
+
+  test("escapes control characters in a skill name and its warnings", async () => {
+    const output = captureOutput();
+    const restoreTty = setInteractive(false);
+    try {
+      const name = "evil\u001B[2J\u202Eab";
+      await reviewSkills(
+        [
+          {
+            name,
+            files: [skillMd("---\ndescription: hi\n---\n")],
+            warnings: [`${name}: invalid skill name.`],
+          },
+        ],
+        { yes: true },
+      );
+
+      expect(output.raw()).not.toContain("\u001B[2J");
+      expect(output.raw()).not.toContain("\u202E");
+      expect(output.text()).toContain("evil^[[2J<U+202E>ab: invalid skill name.");
+    } finally {
+      restoreTty();
+      output.restore();
+    }
+  });
+
   test.each([
     [true, "approved"],
     [false, "declined"],

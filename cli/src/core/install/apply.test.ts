@@ -231,7 +231,7 @@ test("an unsafe agent dir is refused before the canonical copy is written", asyn
         { name: "demo", source: "https://github.com/o/r", path: "", revision, files: lazy },
         { kind: "link", scope: "project", agents: ["claude", "universal"] },
       ),
-    ).rejects.toThrow("symlink into the store");
+    ).rejects.toThrow("points into the store");
     expect(existsSync(join(dir, ".niksi"))).toBe(false);
     expect(existsSync(join(dir, ".claude"))).toBe(false);
   } finally {
@@ -251,7 +251,7 @@ test("applySkill enforces dest-safety on every path (the old update gap)", async
         { name: "demo", source: "https://github.com/o/r", path: "", revision, files: lazy },
         { kind: "link", scope: "global", agents: ["claude"] },
       ),
-    ).rejects.toThrow("symlink into the store");
+    ).rejects.toThrow("points into the store");
   } finally {
     process.env.CLAUDE_HOME = prev;
   }

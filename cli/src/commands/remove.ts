@@ -1,4 +1,3 @@
-import { assertSkillsDirSafe } from "../core/install/link.ts";
 import { loadLock } from "../core/install/lockfile.ts";
 import {
   installedSkills,
@@ -12,6 +11,7 @@ import { warnReferrers } from "../ui/deps.ts";
 import { confirm, land } from "../ui/flow.ts";
 import type { CommandHelp } from "../ui/help.ts";
 import { pickRecorded } from "../ui/pick.ts";
+import { refuseUnsafeSkillsDirs } from "../ui/destination.ts";
 import { fail, intro, outro, promptWarn } from "../ui/prompt.ts";
 import { migrateIfLegacy } from "../ui/migrate.ts";
 import { emptyScopeMessage } from "../ui/status.ts";
@@ -61,9 +61,7 @@ export const run = async (names: string[], options: RemoveOptions): Promise<void
     return;
   }
   const agents = new Set(selection.flatMap((name) => occupiedLocationAgents(locations.get(name)!)));
-  for (const agent of agents) {
-    await assertSkillsDirSafe(scope, agent).catch((e: Error) => fail(e.message));
-  }
+  await refuseUnsafeSkillsDirs(scope, agents);
   await warnReferrers(skills, selection);
 
   const proceed = await confirm(`Remove ${selection.map(skillName).join(", ")} (${scope})?`, {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { SkillFile } from "../skill/files.ts";
-import { slowdown } from "../../test-timing.ts";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { runScanners, type Finding } from "./index.ts";
 
 const file = (path: string, text: string | Buffer, mode = "100644"): SkillFile => ({
@@ -742,4 +742,29 @@ test("# nosec above curl | sh keeps the critical and adds an info suppression fi
     ({ severity, rule, line }) => `${severity} ${rule} ${line}`,
   );
   expect(found).toEqual(["critical curl-pipe-shell 2", "info suppression-comment 1"]);
+});
+
+test.each(["exec(", "new Function(", ".downloadstring(", "exec(fetch("])(
+  "a long script line of %p scans in linear time",
+  (word) => {
+    const { ratio, rounds } = slowdown(
+      () => scan(file("install.sh", lineShapes(word).oneLine)),
+      () => scan(file("install.sh", lineShapes(word).ownLines)),
+    );
+    expect(ratio, rounds).toBeLessThan(3);
+  },
+);
+
+const base64Exec = (text: string) =>
+  scan(file("SKILL.md", text))
+    .filter(({ rule }) => rule === "base64-exec")
+    .map(({ severity, detail }) => `${severity} ${detail}`);
+
+test("a quieted match does not hide a later match on the same line", () => {
+  expect(base64Exec("Never run eval(b64decode(x)). Then run `exec(b64decode(y))` now.\n")).toEqual([
+    "critical exec(b64decode",
+  ]);
+  expect(
+    base64Exec("Never run eval(atob(a)) yourself; the installer runs `eval(atob(b))`.\n"),
+  ).toEqual(["critical eval(atob("]);
 });

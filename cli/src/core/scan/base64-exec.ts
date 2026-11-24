@@ -16,14 +16,50 @@ import {
   type LineMatch,
 } from "./line-match.ts";
 import { shellStatements, type Command, type Statement } from "./shell.ts";
+import {
+  anyOf,
+  everyMatch,
+  lazyChain,
+  perSegment,
+  token,
+  type Finder,
+  type Token,
+} from "./token-chain.ts";
 
-const DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|Buffer\.from\([^\n]*?["']base64["']|base64[ \t]+(?:-d|-D|--decode)\b|codecs\.decode\s*\(|bytes\.fromhex\s*\(|zlib\.decompress\s*\(|marshal\.loads\s*\(|(?<![.\w])compile\s*\(|["']{2}\.join\(\s*(?:map\(\s*chr\b|\[?\s*chr\s*\()|String\.fromCharCode\s*\(`;
+const DECODER = String.raw`b64decode|base64_decode|base64\.decode(?:bytes|string)|atob\s*\(|base64[ \t]+(?:-d|-D|--decode)\b|codecs\.decode\s*\(|bytes\.fromhex\s*\(|zlib\.decompress\s*\(|marshal\.loads\s*\(|(?<![.\w])compile\s*\(|["']{2}\.join\(\s*(?:map\(\s*chr\b|\[\s*chr\s*\(|chr\s*\()|String\.fromCharCode\s*\(`;
 const SINK = String.raw`${EXEC_SINK}|\bnew[ \t]+Function\s*\(|(?<![.\w])eval[ \t]+["'$\x60]|\|[ \t]*(?:ba|z|da)?sh\b`;
 
-const PATTERNS = [
-  new RegExp(`(?:${DECODER})[^\\n]*?(?:${SINK})|(?:${SINK})[^\\n]*?(?:${DECODER})`, "gu"),
-  /\bgetattr\s*\([^)\n]*["']\s*\+\s*["'][^)\n]*\)\s*\(/gu,
-  /\b__import__\s*\(\s*["']os["']\s*\)\s*\.\s*system\s*\(/gu,
+// Each chain gets its own tokens, which stay linear only when asked at rising offsets.
+const decodesInline = (): Token => token(new RegExp(DECODER, "u"));
+// Buffer.from decodes only with a "base64" argument, which may come after any other argument.
+// A decoder inside its parentheses ends first, so it starts a chain of its own.
+const decodesBuffer = (): Token => lazyChain(token(/Buffer\.from\(/u), token(/["']base64["']/u));
+const runsCode = (): Token => token(new RegExp(SINK, "u"));
+
+const CONCATENATED_GETATTR = lazyChain(token(/\bgetattr\s*\(/u), token(/["']\s*\+\s*["']/u));
+const CALL = /[^\S\n]*\(/uy;
+
+// getattr(obj, "sys" + "tem")(…): the name is joined inside the parentheses right before a call.
+const calledGetattr: Finder = (text) =>
+  Array.from(text.matchAll(/[^)\n]+/gu)).flatMap(({ 0: part, index }) => {
+    const span = CONCATENATED_GETATTR(part, 0);
+    const close = index + part.length;
+    if (span === undefined || text[close] !== ")") return [];
+    CALL.lastIndex = close + 1;
+    if (!CALL.test(text)) return [];
+    return [{ index: index + span.start, text: text.slice(index + span.start, CALL.lastIndex) }];
+  });
+
+const PATTERNS: Finder[] = [
+  perSegment(
+    anyOf(
+      lazyChain(decodesInline(), runsCode()),
+      lazyChain(decodesBuffer(), runsCode()),
+      lazyChain(runsCode(), anyOf(decodesInline(), decodesBuffer())),
+    ),
+  ),
+  calledGetattr,
+  everyMatch(/\b__import__\s*\(\s*["']os["']\s*\)\s*\.\s*system\s*\(/gu),
 ];
 
 const HEX_ESCAPE = /\\x[\da-f]{2}/iu;
@@ -111,8 +147,8 @@ const statementMatches = (statements: Statement[], judge: ProseJudge): LineMatch
 
 const patternMatches = (text: string, statements: Statement[], judge: ProseJudge): LineMatch[] => {
   const at = patternMatch(text, statements, judge);
-  return PATTERNS.flatMap((pattern) =>
-    Array.from(text.matchAll(pattern), (match) => at(match.index, match[0], "critical")),
+  return PATTERNS.flatMap((find) =>
+    find(text).map((found) => at(found.index, found.text, "critical")),
   );
 };
 

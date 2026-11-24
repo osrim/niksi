@@ -72,3 +72,10 @@ test("Markdown prose needs the command at the start of a statement", () => {
   expect(inMarkdown("Edit the crontab file by hand.")).toBeUndefined();
   expect(inMarkdown("Run `crontab -e` and add the job.")?.severity).toBe("critical");
 });
+
+test("a command named after an Object property is not a known command", () => {
+  expect(inScript("__proto__ a")).toBeUndefined();
+  expect(inScript("constructor a b")).toBeUndefined();
+  expect(inScript("toString -c")).toBeUndefined();
+  expect(inScript("valueOf /etc/cron.d/job")).toBeUndefined();
+});

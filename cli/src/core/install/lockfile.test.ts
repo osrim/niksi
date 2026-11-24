@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   emptyLock,
+  filterLock,
   isApproved,
   loadLock,
   parseLock,
@@ -316,6 +317,47 @@ test("isApproved matches only the exact (source, path, integrity) entry; the com
     skills: { tdd: { ...entry, commit: "b".repeat(40) } },
   };
   expect(isApproved(moved, "tdd", at)).toBe(true);
+});
+
+const OBJECT_PROPERTY_NAMES = ["__proto__", "constructor", "toString", "valueOf"];
+
+test("skills named after Object properties survive parse, split, and serialization", () => {
+  const skills = OBJECT_PROPERTY_NAMES.map((name) => `"${name}":${JSON.stringify(entry)}`);
+  const text = `{"lockfileVersion":2,"skills":{${skills.join(",")}}}`;
+  const lock = parseLock(text, "niksi-lock.json");
+  expect(Object.keys(lock.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+  expect(lock.skills["__proto__"]).toEqual(entry);
+  const { enabled } = splitDisabled(lock);
+  expect(Object.keys(enabled.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+  const written = parseLock(serializeLock(enabled), "niksi-lock.json");
+  expect(Object.keys(written.skills).toSorted()).toEqual(OBJECT_PROPERTY_NAMES.toSorted());
+});
+
+test("an invalid entry named after an Object property names the file and the skill", () => {
+  const text = `{"lockfileVersion":2,"skills":{"__proto__":${JSON.stringify({ ...entry, track: "x" })}}}`;
+  expect(() => parseLock(text, "niksi-lock.json")).toThrow(
+    'niksi-lock.json: __proto__: unknown track "x"',
+  );
+});
+
+test("an empty lockfile records no skill named after an Object property", () => {
+  const at = { source: entry.source, path: entry.path, integrity };
+  for (const lock of [emptyLock(), parseLock("", "niksi-lock.json")]) {
+    for (const name of OBJECT_PROPERTY_NAMES) {
+      expect(lock.skills[name]).toBeUndefined();
+      expect(isApproved(lock, name, at)).toBe(false);
+    }
+  }
+});
+
+test("filterLock keeps the chosen entries and still records no Object property", () => {
+  const lock = parseLock(
+    JSON.stringify({ lockfileVersion: 2, skills: { tdd: entry, mine: local } }),
+    "niksi-lock.json",
+  );
+  const kept = filterLock(lock, (recorded) => recorded.source === entry.source);
+  expect(Object.keys(kept.skills)).toEqual(["tdd"]);
+  for (const name of OBJECT_PROPERTY_NAMES) expect(kept.skills[name]).toBeUndefined();
 });
 
 test("isApproved matches a local skill by its directory, whichever shape recorded it", () => {

@@ -95,3 +95,18 @@ test("findUnmanaged finds nothing when no skills directory exists", async () => 
     restore();
   }
 });
+
+test("findUnmanaged lists skill directories named after Object properties", async () => {
+  const restore = captureEnv("HOME", "CLAUDE_HOME");
+  process.env.HOME = join(tmp, "object-home");
+  process.env.CLAUDE_HOME = join(tmp, "object-home", ".claude");
+  try {
+    for (const name of ["__proto__", "constructor", "toString"]) {
+      await writeSkill(claude(name), `${name}\n`);
+    }
+    const { skills } = await findUnmanaged("global", emptyLock());
+    expect(skills.map(({ name }) => name)).toEqual(["__proto__", "constructor", "toString"]);
+  } finally {
+    restore();
+  }
+});

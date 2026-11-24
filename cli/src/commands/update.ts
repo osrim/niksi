@@ -3,6 +3,7 @@ import { stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { applySkill, type Applied, type Destination } from "../core/install/apply.ts";
 import {
+  filterLock,
   loadLock,
   splitDisabled,
   type LoadedLockfile,
@@ -158,13 +159,11 @@ const sourceSelector = (value: unknown, names: string[]): SourceSelector | undef
 
 const fromSource = (lock: Lockfile, source: SourceSelector | undefined): Lockfile => {
   if (!source) return lock;
-  const skills = Object.fromEntries(
-    Object.entries(lock.skills).filter(([, entry]) => selectsSource(source, entry)),
-  );
-  if (Object.keys(skills).length === 0) {
+  const scoped = filterLock(lock, (entry) => selectsSource(source, entry));
+  if (Object.keys(scoped.skills).length === 0) {
     fail(`No recorded skill comes from ${describeSelector(source)}.`);
   }
-  return { ...lock, skills };
+  return scoped;
 };
 
 const reportTarget = async (value: unknown): Promise<string | undefined> => {

